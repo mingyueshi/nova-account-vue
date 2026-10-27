@@ -1,0 +1,67 @@
+{
+  "name": "nova-account",
+  "version": "0.1.0-dev.1",
+  "private": true,
+  "description": "Vue 3 account presentation components with injected business adapters and isolated compiled Tailwind CSS",
+  "type": "module",
+  "main": "./dist/nova-account.js",
+  "module": "./dist/nova-account.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/nova-account.js"
+    },
+    "./style.css": "./dist/nova-account.css",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "docs",
+    "QA.md"
+  ],
+  "sideEffects": [
+    "**/*.css"
+  ],
+  "peerDependencies": {
+    "vue": "^3.5.0"
+  },
+  "scripts": {
+    "dev": "vite --config vite.demo.config.ts",
+    "build": "vite build",
+    "build:demo": "vite build --config vite.demo.config.ts",
+    "typecheck": "vue-tsc --noEmit",
+    "test": "vitest run",
+    "check": "npm run typecheck && npm test && npm run build && npm run build:demo",
+    "verify:package": "node scripts/verify-package.mjs"
+  },
+  "devDependencies": {
+    "@microsoft/api-extractor": "^7.60.0",
+    "@tailwindcss/vite": "4.3.3",
+    "@types/node": "^24.0.0",
+    "@vitejs/plugin-vue": "6.0.10",
+    "@vue/server-renderer": "3.5.44",
+    "@vue/test-utils": "2.4.6",
+    "jsdom": "^27.0.0",
+    "postcss": "^8.5.32",
+    "tailwindcss": "4.3.3",
+    "typescript": "5.9.3",
+    "vite": "8.3.5",
+    "vite-plugin-dts": "5.1.2",
+    "vitest": "5.0.5",
+    "vue": "3.5.44",
+    "vue-tsc": "3.3.13"
+  },
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mingyueshi/nova-account-vue.git"
+  },
+  "homepage": "https://github.com/mingyueshi/nova-account-vue#readme",
+  "bugs": {
+    "url": "https://github.com/mingyueshi/nova-account-vue/issues"
+  }
+}

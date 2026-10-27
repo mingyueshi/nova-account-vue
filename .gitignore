@@ -1,0 +1,25 @@
+# Dependencies and generated output (including nested Nuxt examples)
+node_modules/
+dist/
+demo-dist/
+build/
+.nuxt/
+.output/
+coverage/
+*.tsbuildinfo
+# Local packages and handoff bundles
+*.tgz
+*.zip
+artifacts/
+RELEASE-MANIFEST.sha256
+# Private host/configuration and local caches
+.env
+.env.*
+!.env.example
+.npmrc
+.npm-cache/
+.consumer/
+.openai/
+.vercel/
+*.log
+.DS_Store

@@ -1,0 +1,11 @@
+/* Standalone host styles, never part of the npm package. */
+html,body,#app { width:100%; min-height:100%; margin:0; }
+.demo-stack { display:grid; gap:16px; font-size:14px; }
+.demo-stack label { display:grid; gap:8px; }
+.demo-stack select { width:100%; min-height:44px; padding:10px; border:1px solid var(--na-control); border-radius:10px; background:var(--na-surface); color:var(--na-ink); }
+.demo-note { color:var(--na-muted); font-size:12px; }
+/* The reusable auth component already includes the short demo notice. Avoid a
+   duplicate host footer and stacked section/main padding in this demo only. */
+.nova-demo.demo-auth > div > footer { display:none; }
+.nova-demo.demo-auth > div > main { padding-block:24px; }
+.nova-demo.demo-auth > div > main > div > section { padding-block:0; }

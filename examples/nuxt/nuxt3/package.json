@@ -1,0 +1,20 @@
+{
+  "name": "nova-account-nuxt-3-example",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "nuxt dev",
+    "build": "nuxt build",
+    "typecheck": "nuxt typecheck",
+    "smoke": "node ../smoke.mjs"
+  },
+  "dependencies": {
+    "nova-account": "file:../../../nova-account-0.1.0-dev.1.tgz",
+    "nuxt": "3.21.11",
+    "vue": "3.5.44"
+  },
+  "devDependencies": {
+    "typescript": "5.9.3",
+    "vue-tsc": "3.3.13"
+  }
+}
