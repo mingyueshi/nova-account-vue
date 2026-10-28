@@ -23,3 +23,6 @@ RELEASE-MANIFEST.sha256
 .vercel/
 *.log
 .DS_Store
+
+.mimosa/
+.video_agent/
