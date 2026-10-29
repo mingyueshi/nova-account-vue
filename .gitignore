@@ -24,5 +24,10 @@ RELEASE-MANIFEST.sha256
 *.log
 .DS_Store
 
+# Local agent caches
 .mimosa/
 .video_agent/
+# Browser verification artifacts
+output/
+playwright-report/
+test-results/

@@ -4,6 +4,8 @@
 
 ## 运行
 
+推荐从根目录执行 `npm ci && npm run build && npm run verify:nuxt`，或加参数 `-- nuxt3` / `-- nuxt4` 仅验证一个版本。脚本在临时目录复制示例和锁文件、绑定本轮 tarball，再 `npm ci`，比较安装文件与当前 dist，执行 typecheck/build/smoke 后清理临时目录；不会改写仓库内示例锁文件。这也是 Nuxt CI 的执行入口。
+
 在库根目录先构建本地安装包：
 
 ```sh
@@ -48,14 +50,14 @@ tarball 不提交到仓库。每次重建包后显式执行上述 `npm install <
 - [Nuxt CSS configuration](https://nuxt.com/docs/4.x/getting-started/styling)
 - [Vue SSR and cross-request state pollution](https://vuejs.org/guide/scaling-up/ssr.html#cross-request-state-pollution)
 
-## 已执行验证（2026-10-27，云 Node 24.22.1）
+## 已执行验证（2026-10-29，本机 Node 24.21.0）
 
-| 验证 | 结果 |
-| --- | --- |
-| Node 环境 SSR 单测（无 `window` / `document`） | 4 项通过；包括同页字段 ID、跨请求认证/主题/账户状态隔离 |
-| 实际 tarball 独立安装 | ESM exports、显式 CSS export、同一 Vue runtime、SSR 通过 |
-| 独立 TypeScript 消费者 | `strict: true`、`moduleResolution: NodeNext`、`skipLibCheck: false` 通过 |
-| Nuxt 3.21.11 / Vue 3.5.44 | 安装的 JS / 声明与库 dist 逐字节一致；typecheck、build、SSR route / CSS smoke 通过 |
-| Nuxt 4.6.3 / Vue 3.5.44 | 同上，全部通过 |
+| 验证                                           | 结果                                                                               |
+| ---------------------------------------------- | ---------------------------------------------------------------------------------- |
+| Node 环境 SSR 单测（无 `window` / `document`） | 4 项通过；包括同页字段 ID、跨请求认证/主题/账户状态隔离                            |
+| 实际 tarball 独立安装                          | ESM exports、显式 CSS export、同一 Vue runtime、SSR 通过                           |
+| 独立 TypeScript 消费者                         | `strict: true`、`moduleResolution: NodeNext`、`skipLibCheck: false` 通过           |
+| Nuxt 3.21.11 / Vue 3.5.44                      | 安装的 JS / 声明与库 dist 逐字节一致；typecheck、build、SSR route / CSS smoke 通过 |
+| Nuxt 4.6.3 / Vue 3.5.44                        | 同上，全部通过                                                                     |
 
 Nuxt示例未执行：真实浏览器 hydration、视觉布局、屏幕阅读器及跨浏览器/真机验收；真实账户和邮件服务也未接入。公开独立demo的有限浏览器抽查见根QA，不由构建或 SSR smoke 代替。

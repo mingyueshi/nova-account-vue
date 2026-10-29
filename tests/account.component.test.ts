@@ -2,19 +2,31 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import { flushPromises, mount, type VueWrapper } from '@vue/test-utils'
 import NovaAccountCenter from '../src/components/NovaAccountCenter.vue'
-import { createDemoAccountAdapter, createInitialAccount, DEMO_ACCOUNT_VALUES } from '../demo/account'
+import {
+  createDemoAccountAdapter,
+  createInitialAccount,
+  DEMO_ACCOUNT_VALUES,
+} from '../demo/account'
 import type { AccountAdapter, CodeDelivery } from '../src/types'
 
 const wrappers: VueWrapper[] = []
-afterEach(() => { wrappers.splice(0).forEach(wrapper => wrapper.unmount()) })
-async function create(simulated = true, adapter: AccountAdapter = createDemoAccountAdapter({ wait: () => Promise.resolve() })) {
-  const wrapper = mount(NovaAccountCenter, { props: { adapter, simulated }, attachTo: document.body })
+afterEach(() => {
+  wrappers.splice(0).forEach((wrapper) => wrapper.unmount())
+})
+async function create(
+  simulated = true,
+  adapter: AccountAdapter = createDemoAccountAdapter({ wait: () => Promise.resolve() }),
+) {
+  const wrapper = mount(NovaAccountCenter, {
+    props: { adapter, simulated },
+    attachTo: document.body,
+  })
   wrappers.push(wrapper)
   await flushPromises()
   return wrapper
 }
 function button(wrapper: VueWrapper, label: string) {
-  const found = wrapper.findAll('button').find(item => item.text() === label)
+  const found = wrapper.findAll('button').find((item) => item.text() === label)
   if (!found) throw new Error(`Missing button ${label}`)
   return found
 }
@@ -43,7 +55,9 @@ describe('NovaAccountCenter', () => {
     await button(wrapper, '放弃并离开').trigger('click')
     expect(wrapper.get('h1').text()).toBe('登录设备')
     await wrapper.get('[data-page="profile"]').trigger('click')
-    expect((wrapper.get('input[autocomplete="nickname"]').element as HTMLInputElement).value).toBe('Nova')
+    expect((wrapper.get('input[autocomplete="nickname"]').element as HTMLInputElement).value).toBe(
+      'Nova',
+    )
   })
   it('messages update counts and show a clear unread empty state', async () => {
     const wrapper = await create()
@@ -72,15 +86,25 @@ describe('NovaAccountCenter', () => {
     await button(wrapper, '修改').trigger('click')
     wrapper.vm.fillSecurity(DEMO_ACCOUNT_VALUES)
     await flushPromises()
-    expect((wrapper.get('dialog[open] input[type="password"]').element as HTMLInputElement).value).toBe(DEMO_ACCOUNT_VALUES.currentPassword)
+    expect(
+      (wrapper.get('dialog[open] input[type="password"]').element as HTMLInputElement).value,
+    ).toBe(DEMO_ACCOUNT_VALUES.currentPassword)
     await button(wrapper, '取消').trigger('click')
     await button(wrapper, '修改').trigger('click')
-    expect((wrapper.get('dialog[open] input[type="password"]').element as HTMLInputElement).value).toBe('')
+    expect(
+      (wrapper.get('dialog[open] input[type="password"]').element as HTMLInputElement).value,
+    ).toBe('')
   })
   it('does not let a late email code response revive a closed or reopened modal', async () => {
     const base = createDemoAccountAdapter({ wait: () => Promise.resolve() })
     let resolve!: (value: CodeDelivery) => void
-    const adapter: AccountAdapter = { ...base, requestEmailChangeCode: () => new Promise(done => { resolve = done }) }
+    const adapter: AccountAdapter = {
+      ...base,
+      requestEmailChangeCode: () =>
+        new Promise((done) => {
+          resolve = done
+        }),
+    }
     const wrapper = await create(true, adapter)
     await wrapper.get('[data-page="security"]').trigger('click')
     await button(wrapper, '更换').trigger('click')
@@ -98,16 +122,25 @@ describe('NovaAccountCenter', () => {
     const wrapper = await create(false)
     await wrapper.get('[data-page="security"]').trigger('click')
     expect(wrapper.get('main').text()).toContain('真实二次认证流程')
-    expect(wrapper.findAll('main button').some(item => item.text() === '修改')).toBe(false)
-    expect(wrapper.findAll('main button').some(item => item.text() === '开启')).toBe(false)
+    expect(wrapper.findAll('main button').some((item) => item.text() === '修改')).toBe(false)
+    expect(wrapper.findAll('main button').some((item) => item.text() === '开启')).toBe(false)
   })
   it('switches adapter identity without accepting an old pending load', async () => {
     const base = createDemoAccountAdapter({ wait: () => Promise.resolve() })
     let resolve!: (value: ReturnType<typeof createInitialAccount>) => void
-    const oldAdapter: AccountAdapter = { ...base, load: () => new Promise(done => { resolve = done }) }
+    const oldAdapter: AccountAdapter = {
+      ...base,
+      load: () =>
+        new Promise((done) => {
+          resolve = done
+        }),
+    }
     const wrapper = await create(true, oldAdapter)
     const replacement = createDemoAccountAdapter({ wait: () => Promise.resolve() })
-    await replacement.updateProfile({ nickname: 'Replacement', bio: '', avatar: 'teal' }, { revision: '0', signal: new AbortController().signal, requestId: 'replacement' })
+    await replacement.updateProfile(
+      { nickname: 'Replacement', bio: '', avatar: 'teal' },
+      { revision: '0', signal: new AbortController().signal, requestId: 'replacement' },
+    )
     await wrapper.setProps({ adapter: replacement })
     await flushPromises()
     expect(wrapper.text()).toContain('Replacement')
@@ -124,5 +157,32 @@ describe('NovaAccountCenter', () => {
     expect(wrapper.emitted('logout')).toBeUndefined()
     await button(wrapper, '放弃并离开').trigger('click')
     expect(wrapper.emitted('logout')).toHaveLength(1)
+  })
+})
+
+describe('navigation during initial load', () => {
+  it('finishes the shared load after both internal and external page changes', async () => {
+    const snapshot = createInitialAccount(Date.now())
+    let resolve!: (value: typeof snapshot) => void
+    let signal!: AbortSignal
+    const base = createDemoAccountAdapter({ wait: () => Promise.resolve() })
+    const adapter: AccountAdapter = {
+      ...base,
+      load: (context) => {
+        signal = context.signal
+        return new Promise((done) => {
+          resolve = done
+        })
+      },
+    }
+    const wrapper = await create(false, adapter)
+    await wrapper.get('[data-page="messages"]').trigger('click')
+    await wrapper.setProps({ page: 'devices' })
+    expect(signal.aborted).toBe(false)
+    resolve(snapshot)
+    await flushPromises()
+    expect(wrapper.get('h1').text()).toBe('登录设备')
+    expect(wrapper.findAll('main article')).toHaveLength(3)
+    expect(wrapper.get('main').text()).not.toContain('正在加载账户')
   })
 })

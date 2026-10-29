@@ -1,0 +1,12 @@
+node_modules/
+dist/
+demo-dist/
+.nuxt/
+.output/
+coverage/
+output/
+package-lock.json
+examples/**/package-lock.json
+.mimosa/
+.video_agent/
+*.tgz

@@ -1,10 +1,18 @@
+import { useNovaLocale } from '../locale'
 import { computed, getCurrentScope, onScopeDispose, shallowRef, ref, watch } from 'vue'
-import type { AccountAdapter, AccountSnapshot, MutationContext, RequestContext } from '../types'
+import type {
+  AccountAdapter,
+  AccountSnapshot,
+  MutationContext,
+  RequestContext,
+  NovaRequestResult,
+} from '../types'
 
 /** One isolated controller per account surface. Cancellation suppresses stale UI writes;
  * it cannot undo a mutation a remote server has already committed. Reload to reconcile. */
 export function useAccount(adapter: AccountAdapter | (() => AccountAdapter)) {
-  const getAdapter = () => typeof adapter === 'function' ? adapter() : adapter
+  const { t } = useNovaLocale()
+  const getAdapter = () => (typeof adapter === 'function' ? adapter() : adapter)
   const snapshot = shallowRef<AccountSnapshot | null>(null)
   const busy = ref(false)
   const error = ref('')
@@ -21,8 +29,10 @@ export function useAccount(adapter: AccountAdapter | (() => AccountAdapter)) {
     busy.value = false
     error.value = ''
   }
-  async function request<T>(operation: (context: RequestContext) => Promise<T>): Promise<T | undefined> {
-    if (busy.value) return undefined
+  async function requestResult<T>(
+    operation: (context: RequestContext) => Promise<T>,
+  ): Promise<NovaRequestResult<T>> {
+    if (busy.value) return { status: 'busy' }
     const epoch = ++generation
     controller = new AbortController()
     const context = { signal: controller.signal, requestId: `account-${instanceId}-${++sequence}` }
@@ -31,29 +41,40 @@ export function useAccount(adapter: AccountAdapter | (() => AccountAdapter)) {
     notice.value = ''
     try {
       const result = await operation(context)
-      if (epoch !== generation || context.signal.aborted) return undefined
-      return result
+      if (epoch !== generation || context.signal.aborted) return { status: 'cancelled' }
+      return { status: 'success', value: result }
     } catch (cause) {
       if (epoch === generation && !context.signal.aborted) {
-        error.value = cause instanceof Error ? cause.message : '操作未完成，请稍后重试。'
+        error.value = cause instanceof Error ? cause.message : t('common.error')
+        return { status: 'error', error: cause }
       }
-      return undefined
+      return { status: 'cancelled' }
     } finally {
       if (epoch === generation) busy.value = false
     }
   }
+  /** Compatibility API: busy, cancelled and failed requests still return undefined. */
+  async function request<T>(
+    operation: (context: RequestContext) => Promise<T>,
+  ): Promise<T | undefined> {
+    const result = await requestResult(operation)
+    return result.status === 'success' ? result.value : undefined
+  }
   async function load() {
     const epoch = generation + 1
-    const result = await request(context => getAdapter().load(context))
+    const result = await request((context) => getAdapter().load(context))
     if (!result || epoch !== generation) return undefined
     snapshot.value = result
     return result
   }
-  async function mutate(operation: (context: MutationContext) => Promise<AccountSnapshot>, message = '修改已保存。') {
+  async function mutate(
+    operation: (context: MutationContext) => Promise<AccountSnapshot>,
+    message = t('common.saved'),
+  ) {
     if (!snapshot.value) return undefined
     const revision = snapshot.value.revision
     const epoch = generation + 1
-    const result = await request(context => operation({ ...context, revision }))
+    const result = await request((context) => operation({ ...context, revision }))
     if (!result || epoch !== generation) return undefined
     if (result) {
       snapshot.value = result
@@ -61,13 +82,25 @@ export function useAccount(adapter: AccountAdapter | (() => AccountAdapter)) {
     }
     return result
   }
-  function clear() { cancel(); snapshot.value = null; notice.value = '' }
+  function clear() {
+    cancel()
+    snapshot.value = null
+    notice.value = ''
+  }
   // The exported composable must isolate adapters itself, not rely on a component watcher.
   watch(getAdapter, clear, { flush: 'sync' })
   if (getCurrentScope()) onScopeDispose(clear)
   return {
-    snapshot, busy, error, notice,
-    unread: computed(() => snapshot.value?.messages.filter(message => !message.read).length ?? 0),
-    request, load, mutate, cancel, clear,
+    snapshot,
+    busy,
+    error,
+    notice,
+    unread: computed(() => snapshot.value?.messages.filter((message) => !message.read).length ?? 0),
+    request,
+    requestResult,
+    load,
+    mutate,
+    cancel,
+    clear,
   }
 }

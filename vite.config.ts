@@ -7,7 +7,12 @@ export default defineConfig({
   plugins: [vue(), tailwindcss(), dts({ include: ['src'], entryRoot: 'src', bundleTypes: true })],
   css: { postcss: { plugins: [scopeNovaCss()] } },
   build: {
-    lib: { entry: 'src/index.ts', formats: ['es'], fileName: 'nova-account', cssFileName: 'nova-account' },
+    lib: {
+      entry: 'src/index.ts',
+      formats: ['es'],
+      fileName: 'nova-account',
+      cssFileName: 'nova-account',
+    },
     rolldownOptions: { external: ['vue'] },
     sourcemap: true,
   },

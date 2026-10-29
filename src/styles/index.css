@@ -1,35 +1,109 @@
 @layer theme, nova-base, utilities;
-@import "tailwindcss/theme.css" layer(theme) prefix(na);
-@import "tailwindcss/utilities.css" layer(utilities) prefix(na) source(none);
+@import 'tailwindcss/theme.css' layer(theme) prefix(na);
+@import 'tailwindcss/utilities.css' layer(utilities) prefix(na) source(none);
 @source "../components";
 
 /* Component-scoped foundation, intentionally no Tailwind Preflight or document reset. */
 .nova-account {
-  --na-canvas:#f9f9fb; --na-surface:#fff; --na-ink:#272633; --na-muted:#71657e;
-  --na-line:#e4ddea; --na-control:#9d8eac; --na-error:#ae4554;
-  --na-brand:#6958c5; --na-soft:#f0edf9; --na-on-brand:#fff;
-  --na-sidebar:#f3f1f7; --na-backdrop:#25203166;
-  color-scheme:light; color:var(--na-ink); background:var(--na-canvas);
-  font-family:Inter,"Noto Sans SC",-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
-  font-size:14px; line-height:1.6; text-align:left;
+  --na-canvas: #f9f9fb;
+  --na-surface: #fff;
+  --na-ink: #272633;
+  --na-muted: #71657e;
+  --na-line: #e4ddea;
+  --na-control: #9d8eac;
+  --na-error: #ae4554;
+  --na-brand: #6958c5;
+  --na-soft: #f0edf9;
+  --na-on-brand: #fff;
+  --na-sidebar: #f3f1f7;
+  --na-backdrop: #25203166;
+  color-scheme: light;
+  color: var(--na-ink);
+  background: var(--na-canvas);
+  font-family:
+    Inter,
+    'Noto Sans SC',
+    -apple-system,
+    BlinkMacSystemFont,
+    'Segoe UI',
+    sans-serif;
+  font-size: 14px;
+  line-height: 1.6;
+  text-align: left;
 }
-.nova-account[data-theme=dark] { --na-canvas:#14131b; --na-surface:#1c1a25; --na-ink:#f0edf8; --na-muted:#b4aabd; --na-line:#3c364a; --na-control:#756782; --na-error:#f3a5b6; --na-sidebar:#181621; --na-backdrop:#08070bbb; --na-brand:#b5a6ff; --na-soft:#302940; --na-on-brand:#181520; color-scheme:dark; }
-.nova-account[data-accent=blue] { --na-brand:#346bbd; --na-soft:#edf2fb; }
-.nova-account[data-accent=teal] { --na-brand:#217560; --na-soft:#eaf4f0; }
-.nova-account[data-accent=amber] { --na-brand:#956100; --na-soft:#fbf1df; }
-.nova-account[data-theme=dark][data-accent=blue] { --na-brand:#a0c2ff; --na-soft:#233249; }
-.nova-account[data-theme=dark][data-accent=teal] { --na-brand:#82d7be; --na-soft:#1e3733; }
-.nova-account[data-theme=dark][data-accent=amber] { --na-brand:#f2c274; --na-soft:#3d3020; }
+.nova-account[data-theme='dark'] {
+  --na-canvas: #14131b;
+  --na-surface: #1c1a25;
+  --na-ink: #f0edf8;
+  --na-muted: #b4aabd;
+  --na-line: #3c364a;
+  --na-control: #756782;
+  --na-error: #f3a5b6;
+  --na-sidebar: #181621;
+  --na-backdrop: #08070bbb;
+  --na-brand: #b5a6ff;
+  --na-soft: #302940;
+  --na-on-brand: #181520;
+  color-scheme: dark;
+}
+.nova-account[data-accent='blue'] {
+  --na-brand: #346bbd;
+  --na-soft: #edf2fb;
+}
+.nova-account[data-accent='teal'] {
+  --na-brand: #217560;
+  --na-soft: #eaf4f0;
+}
+.nova-account[data-accent='amber'] {
+  --na-brand: #956100;
+  --na-soft: #fbf1df;
+}
+.nova-account[data-theme='dark'][data-accent='blue'] {
+  --na-brand: #a0c2ff;
+  --na-soft: #233249;
+}
+.nova-account[data-theme='dark'][data-accent='teal'] {
+  --na-brand: #82d7be;
+  --na-soft: #1e3733;
+}
+.nova-account[data-theme='dark'][data-accent='amber'] {
+  --na-brand: #f2c274;
+  --na-soft: #3d3020;
+}
 @layer nova-base {
-.nova-account :where(*, *::before, *::after) { box-sizing:border-box; }
-.nova-account :where(h1,h2,h3,h4,p,ul,ol) { margin:0; }
-.nova-account :where(button,input,textarea,select) { font:inherit; color:inherit; }
-.nova-account :where(button) { cursor:pointer; background:transparent; border-width:0; }
-.nova-account :where(button,input,textarea,select,a):focus-visible { outline:2px solid var(--na-brand); outline-offset:3px; }
-.nova-account :where(button) { border-style:solid; }
-.nova-account :where(a) { color:var(--na-brand); }
-.nova-account .nova-dialog::backdrop { background:var(--na-backdrop); }
-.nova-account :where(input[type=checkbox],input[type=range]) { accent-color:var(--na-brand); }
-.nova-account ::selection { background:var(--na-soft); color:var(--na-ink); }
-
+  .nova-account :where(*, *::before, *::after) {
+    box-sizing: border-box;
+  }
+  .nova-account :where(h1, h2, h3, h4, p, ul, ol) {
+    margin: 0;
+  }
+  .nova-account :where(button, input, textarea, select) {
+    font: inherit;
+    color: inherit;
+  }
+  .nova-account :where(button) {
+    cursor: pointer;
+    background: transparent;
+    border-width: 0;
+  }
+  .nova-account :where(button, input, textarea, select, a):focus-visible {
+    outline: 2px solid var(--na-brand);
+    outline-offset: 3px;
+  }
+  .nova-account :where(button) {
+    border-style: solid;
+  }
+  .nova-account :where(a) {
+    color: var(--na-brand);
+  }
+  .nova-account .nova-dialog::backdrop {
+    background: var(--na-backdrop);
+  }
+  .nova-account :where(input[type='checkbox'], input[type='range']) {
+    accent-color: var(--na-brand);
+  }
+  .nova-account ::selection {
+    background: var(--na-soft);
+    color: var(--na-ink);
+  }
 }

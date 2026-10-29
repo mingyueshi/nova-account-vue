@@ -2,6 +2,8 @@
 
 **状态：`0.1.0-dev.1`，可复用组件库的开发交付，不是生产认证系统。**
 
+[English](README.en.md) · [MIT 许可证](LICENSE) · [更新与升级策略](CHANGELOG.md)
+
 由已认可的 Nova Account 交互原型重新实现为原生 **Vue 3 + TypeScript SFC + Tailwind CSS 4**。不是 iframe、HTML 字符串包装或旧脚本容器。认证流程、账户状态、展示组件与业务接口适配器分层；独立演示使用内存 mock，mock 不进入库包。
 
 官方源码仓库：[mingyueshi/nova-account-vue](https://github.com/mingyueshi/nova-account-vue)。[公开交互演示](https://nova-account.mingyueshi.chatgpt.site)由独立托管流程管理；本次入库不触发部署。尚未发布 npm，也未接入 Hen / CSGO 真实账户或变更两站。
@@ -18,14 +20,17 @@
 
 ## 开发
 
-本轮验证环境 Node `24.22.1` / npm `11.9.0`。锁文件固定依赖；仓库不包含 `.npmrc`、凭据、缓存、依赖目录或构建产物。
+本轮本机验证环境 Node `24.21.0` / npm `11.19.0`；同时检查最低 Node `22.12.0`。锁文件固定依赖；仓库不包含 `.npmrc`、凭据、缓存、依赖目录或构建产物。
 
 ```sh
 git clone https://github.com/mingyueshi/nova-account-vue.git
 cd nova-account-vue
 npm ci
-npm run check           # vue-tsc + Vitest + library + offline standalone demo
+npm run check           # lint + format + strict types + coverage + builds + gzip budgets
 npm run verify:package  # pack、独立consumer安装、ESM/CSS/Node SSR/严格TS
+npm run verify:nuxt     # Nuxt 3/4 真实tarball + typecheck/build/SSR smoke
+npx playwright install chromium firefox webkit
+npm run test:e2e        # 临时loopback演示站；交互、键盘、视口、axe与主题截图
 npm run dev            # Vite演示开发；demo CSP禁止业务网络连接
 ```
 
@@ -66,7 +71,43 @@ const adapter = createSiteAccountAdapter()
 </NovaTheme>
 ```
 
-单独组件应置于 `NovaTheme` 内。`NovaAccount` 已内置该根容器。`NovaAccount` 采用 `100dvh` 全屏应用壳；嵌入现有页面时可改用独立 `NovaAuthForm` / `NovaAccountCenter` 组件自行布局。
+单独组件应置于 `NovaTheme` 内。`NovaAccount` 已内置该根容器。外壳默认采用 `100dvh` 全屏布局；嵌入现有页面可设置 `layout="embedded"`，保留 header/footer 并使用自然页面高度。
+
+### 语言、时间与路由
+
+```vue
+<script setup lang="ts">
+import { ref } from 'vue'
+import { NovaAccount, type AccountPage, type NovaMessages } from 'nova-account'
+
+const page = ref<AccountPage>('messages')
+const messages: Partial<NovaMessages> = { 'auth.welcome': '登录你的账户' }
+// adapter 由宿主 setup 中创建；此处沿用上文实现。
+</script>
+
+<template>
+  <NovaAccount
+    v-model:page="page"
+    :adapter="adapter"
+    locale="zh-CN"
+    :messages="messages"
+    time-zone="Asia/Shanghai"
+    layout="embedded"
+  />
+</template>
+```
+
+`NovaTheme` / `NovaAccount` 提供按根隔离的 `locale`（默认 `zh-CN`，内置 `en-US`）、typed `messages` 局部覆盖、`timeZone`、`dateTimeOptions` 和 `formatTime`。独立宿主也可在 setup 调用 `provideNovaLocale(() => options)`。不依赖 vue-i18n，不使用全局可变语言状态。adapter 错误、用户内容及宿主 slot 文案由接入方翻译；演示工具与合成数据仍为中文。
+
+日期使用 `Intl.DateTimeFormat`，默认时区 UTC，避免服务器与浏览器时区差异导致 hydration 不一致；中文接入通常显式设置 `Asia/Shanghai`。服务端与客户端需传入相同配置；无效日期显示占位符，无效 Intl 配置回退到 UTC 日期。
+
+`page` + `update:page` 支持受控导航，`initialPage` 仅设置非受控初始页，`pageChange` 反映实际页签变化。内部导航先执行 dirty guard；外部 page 更新视为宿主权威跳转，路由卸载、后退等仍需宿主自己的离开确认。
+
+验证码默认限制 6 个字符，可用 `codeLength` 调整，传 `null` 可取消展示限制。`passwordStrength(password)` 可选返回 `{score:0..4,label,hint?}`，仅展示宿主评估，不影响提交。`NovaField` 支持 `as="textarea"`、`maxlength` 与 prefix/suffix 插槽；原生 maxlength 按 UTF-16 code units 计数，服务端独立执行实际长度和密码策略。
+
+`useAccount().requestResult(operation)` 返回 `success` / `busy` / `cancelled` / `error` 可区分结果。原有 `request` / `load` / `mutate` 保留 `T | undefined` 兼容行为，忙碌调用不会执行或自动排队。
+
+发行物**仅 ESM**，没有 CommonJS `require` 导出；请使用 ESM 导入或支持 ESM 的构建工具。
 
 ### 样式隔离
 
@@ -80,15 +121,15 @@ const adapter = createSiteAccountAdapter()
 
 ## 导出与契约
 
-| 类别 | 导出 |
-| --- | --- |
-| 组合外壳 | `NovaAccount`, `NovaTheme` |
-| 业务展示 | `NovaAuthForm`, `NovaAccountCenter`, `NovaAppearance`, `NovaCaptcha` |
-| 基础组件 | `NovaButton`, `NovaField`, `NovaDialog` |
-| 响应式流程 | `useAuthFlow`, `useAccount`, `useAppearance`, `parseAppearance` |
-| 类型 | `NovaAdapter`, `AuthAdapter`, `AccountAdapter`, `RequestContext`, `MutationContext`, snapshots、用户、主题等；`NovaError` |
+| 类别       | 导出                                                                                                                      |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------- |
+| 组合外壳   | `NovaAccount`, `NovaTheme`                                                                                                |
+| 业务展示   | `NovaAuthForm`, `NovaAccountCenter`, `NovaAppearance`, `NovaCaptcha`                                                      |
+| 基础组件   | `NovaButton`, `NovaField`, `NovaDialog`                                                                                   |
+| 响应式流程 | `useAuthFlow`, `useAccount`, `useAppearance`, `parseAppearance`                                                           |
+| 类型       | `NovaAdapter`, `AuthAdapter`, `AccountAdapter`, `RequestContext`, `MutationContext`, snapshots、用户、主题等；`NovaError` |
 
-详见 [接口与安全边界](docs/contracts.md)、[Nuxt 接入与验证](docs/nuxt.md)、[QA / 验证范围](QA.md)。
+详见 [接口与安全边界](docs/contracts.md)、[fetch adapter 模板](docs/adapter.md)、[接入方上线清单](docs/production-checklist.md)、[Nuxt 接入与验证](docs/nuxt.md)、[QA / 验证范围](QA.md)。
 
 ## 独立演示
 
@@ -106,7 +147,7 @@ const adapter = createSiteAccountAdapter()
 
 `AbortSignal` 和代数检查只防止旧响应写回当前 UI，不承诺回滚服务器已执行的操作或撤回邮件。取消后结果未知时必须由接入方服务端幂等键与查询机制核实，不得盲目重发。
 
-本轮自动检查不替代浏览器视觉、跨浏览器、移动键盘、无障碍辅助技术、真实后端安全测试。包未声称生产就绪。
+自动 smoke 与 axe 扫描不替代完整视觉验收、移动软键盘、无障碍辅助技术与真实后端安全测试。包未声称生产就绪。
 
 ## 结构
 

@@ -12,10 +12,18 @@ import { useAccount } from '../src/composables/useAccount'
 import type { AccountAdapter, AuthAdapter } from '../src/types'
 
 function unconfiguredAdapter() {
-  const reject = vi.fn(async (): Promise<never> => { throw new Error('ADAPTER_NOT_CONFIGURED') })
+  const reject = vi.fn(async (): Promise<never> => {
+    throw new Error('ADAPTER_NOT_CONFIGURED')
+  })
   const adapter: AuthAdapter = {
-    challenge: reject, verifyCaptcha: reject, sendCode: reject, login: reject,
-    register: reject, verifyResetCode: reject, resetPassword: reject, logout: reject,
+    challenge: reject,
+    verifyCaptcha: reject,
+    sendCode: reject,
+    login: reject,
+    register: reject,
+    verifyResetCode: reject,
+    resetPassword: reject,
+    logout: reject,
   }
   return { adapter, reject }
 }
@@ -25,9 +33,21 @@ describe('SSR without browser globals', () => {
     expect(typeof window).toBe('undefined')
     expect(typeof document).toBe('undefined')
     const { adapter, reject } = unconfiguredAdapter()
-    const html = await renderToString(createSSRApp({ render: () => h(NovaTheme, {}, {
-      default: () => [h(NovaButton, {}, { default: () => 'SSR ready' }), h(NovaAuthForm, { adapter })],
-    }) }))
+    const html = await renderToString(
+      createSSRApp({
+        render: () =>
+          h(
+            NovaTheme,
+            {},
+            {
+              default: () => [
+                h(NovaButton, {}, { default: () => 'SSR ready' }),
+                h(NovaAuthForm, { adapter }),
+              ],
+            },
+          ),
+      }),
+    )
     expect(html).toContain('SSR ready')
     expect(html).toContain('欢迎回来')
     expect(html).toContain('data-theme="light"')
@@ -44,14 +64,23 @@ describe('SSR without browser globals', () => {
       setup(props) {
         const flow = useAuthFlow(unconfiguredAdapter().adapter)
         const theme = useAppearance()
-        captured.push(flow); themes.push(theme)
+        captured.push(flow)
+        themes.push(theme)
         flow.fill({ email: `${props.label}@example.test` })
         if (props.label === 'first') theme.setAppearance({ mode: 'dark', accent: 'teal' })
-        return () => h('p', `${flow.fields.email}:${theme.appearance.value.mode}:${theme.appearance.value.accent}`)
+        return () =>
+          h(
+            'p',
+            `${flow.fields.email}:${theme.appearance.value.mode}:${theme.appearance.value.accent}`,
+          )
       },
     })
-    const first = await renderToString(createSSRApp({ render: () => h(surface, { label: 'first' }) }))
-    const second = await renderToString(createSSRApp({ render: () => h(surface, { label: 'second' }) }))
+    const first = await renderToString(
+      createSSRApp({ render: () => h(surface, { label: 'first' }) }),
+    )
+    const second = await renderToString(
+      createSSRApp({ render: () => h(surface, { label: 'second' }) }),
+    )
     expect(first).toContain('first@example.test:dark:teal')
     expect(second).toContain('second@example.test:light:iris')
     expect(captured[0]).not.toBe(captured[1])
@@ -60,23 +89,47 @@ describe('SSR without browser globals', () => {
   })
 
   it('gives multiple forms distinct field ids in a single SSR page', async () => {
-    const html = await renderToString(createSSRApp({ render: () => h('main', [
-      h(NovaAuthForm, { adapter: unconfiguredAdapter().adapter }),
-      h(NovaAuthForm, { adapter: unconfiguredAdapter().adapter }),
-    ]) }))
-    const inputIds = [...html.matchAll(/<input[^>]*\sid="([^"]+)"/g)].map(match => match[1])
+    const html = await renderToString(
+      createSSRApp({
+        render: () =>
+          h('main', [
+            h(NovaAuthForm, { adapter: unconfiguredAdapter().adapter }),
+            h(NovaAuthForm, { adapter: unconfiguredAdapter().adapter }),
+          ]),
+      }),
+    )
+    const inputIds = [...html.matchAll(/<input[^>]*\sid="([^"]+)"/g)].map((match) => match[1])
     expect(inputIds.length).toBe(4)
     expect(new Set(inputIds).size).toBe(inputIds.length)
   })
 
   it('renders the account surface safely and isolates account controllers on SSR', async () => {
-    const reject = vi.fn(async (): Promise<never> => { throw new Error('ADAPTER_NOT_CONFIGURED') })
-    const adapter: AccountAdapter = { load: reject, updateProfile: reject, updateNotifications: reject, changePassword: reject, requestEmailChangeCode: reject, changeEmail: reject, revokeDevice: reject, revokeOtherDevices: reject, markMessageRead: reject, markAllMessagesRead: reject, setTwoStep: reject }
+    const reject = vi.fn(async (): Promise<never> => {
+      throw new Error('ADAPTER_NOT_CONFIGURED')
+    })
+    const adapter: AccountAdapter = {
+      load: reject,
+      updateProfile: reject,
+      updateNotifications: reject,
+      changePassword: reject,
+      requestEmailChangeCode: reject,
+      changeEmail: reject,
+      revokeDevice: reject,
+      revokeOtherDevices: reject,
+      markMessageRead: reject,
+      markAllMessagesRead: reject,
+      setTwoStep: reject,
+    }
     const controllers: ReturnType<typeof useAccount>[] = []
-    const application = () => createSSRApp(defineComponent({ setup() {
-      controllers.push(useAccount(adapter))
-      return () => h(NovaTheme, {}, { default: () => h(NovaAccountCenter, { adapter }) })
-    } }))
+    const application = () =>
+      createSSRApp(
+        defineComponent({
+          setup() {
+            controllers.push(useAccount(adapter))
+            return () => h(NovaTheme, {}, { default: () => h(NovaAccountCenter, { adapter }) })
+          },
+        }),
+      )
     const first = await renderToString(application())
     const second = await renderToString(application())
     expect(first).toContain('nova-account')
@@ -85,5 +138,38 @@ describe('SSR without browser globals', () => {
     expect(controllers[0]!.snapshot).not.toBe(controllers[1]!.snapshot)
     controllers[0]!.error.value = 'Only the first request'
     expect(controllers[1]!.error.value).toBe('')
+  })
+})
+
+describe('SSR locale configuration', () => {
+  it('keeps request languages and message overrides independent without browser globals', async () => {
+    const english = await renderToString(
+      createSSRApp({
+        render: () =>
+          h(
+            NovaTheme,
+            { locale: 'en-US', messages: { 'auth.welcome': 'Tenant sign in' } },
+            {
+              default: () => h(NovaAuthForm, { adapter: unconfiguredAdapter().adapter }),
+            },
+          ),
+      }),
+    )
+    const chinese = await renderToString(
+      createSSRApp({
+        render: () =>
+          h(
+            NovaTheme,
+            {},
+            {
+              default: () => h(NovaAuthForm, { adapter: unconfiguredAdapter().adapter }),
+            },
+          ),
+      }),
+    )
+    expect(english).toContain('Tenant sign in')
+    expect(english).toContain('lang="en-US"')
+    expect(chinese).toContain('欢迎回来')
+    expect(chinese).not.toContain('Tenant sign in')
   })
 })
