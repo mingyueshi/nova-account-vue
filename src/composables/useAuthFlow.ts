@@ -38,12 +38,31 @@ export function useAuthFlow(
   const busy = ref(false)
   const error = ref('')
   const notice = ref('')
-  const fieldErrors = reactive({
+  const fieldMessages = reactive<Record<keyof typeof fields, string | (() => string)>>({
     email: '',
     password: '',
     confirmPassword: '',
     code: '',
     consent: '',
+  })
+  // Keep public string properties writable, while built-in messages follow locale overrides.
+  function fieldError(field: keyof typeof fields) {
+    return computed({
+      get() {
+        const message = fieldMessages[field]
+        return typeof message === 'function' ? message() : message
+      },
+      set(value: string) {
+        fieldMessages[field] = value
+      },
+    })
+  }
+  const fieldErrors = reactive({
+    email: fieldError('email'),
+    password: fieldError('password'),
+    confirmPassword: fieldError('confirmPassword'),
+    code: fieldError('code'),
+    consent: fieldError('consent'),
   })
   const challenge = shallowRef<Challenge | null>(null)
   const challengeOpen = ref(false)
@@ -168,18 +187,20 @@ export function useAuthFlow(
     const valid =
       normalizedEmail.value.length <= 254 &&
       /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail.value)
-    fieldErrors.email = valid ? '' : t('flow.emailInvalid')
+    fieldMessages.email = valid ? '' : () => t('flow.emailInvalid')
     return valid
   }
   function validatePassword() {
-    fieldErrors.password =
-      fields.password.length > 0 && fields.password.length <= 1024 ? '' : t('flow.passwordInvalid')
+    fieldMessages.password =
+      fields.password.length > 0 && fields.password.length <= 1024
+        ? ''
+        : () => t('flow.passwordInvalid')
     return !fieldErrors.password
   }
   function validateCode() {
-    fieldErrors.code = fields.code.trim() ? '' : t('flow.codeRequired')
-    if (!delivery.value) fieldErrors.code = t('flow.deliveryRequired')
-    else if (delivery.value.expiresAt <= now()) fieldErrors.code = t('flow.codeExpired')
+    fieldMessages.code = fields.code.trim() ? '' : () => t('flow.codeRequired')
+    if (!delivery.value) fieldMessages.code = () => t('flow.deliveryRequired')
+    else if (delivery.value.expiresAt <= now()) fieldMessages.code = () => t('flow.codeExpired')
     return !fieldErrors.code
   }
   function message(cause: unknown) {
@@ -291,14 +312,14 @@ export function useAuthFlow(
     }
     if (mode.value === 'register' && !validatePassword()) return
     if (mode.value === 'register' && !fields.consent) {
-      fieldErrors.consent = t('flow.consentRequired')
+      fieldMessages.consent = () => t('flow.consentRequired')
       return
     }
     const isResetPassword = mode.value === 'reset' && resetVerification.value !== null
     if (isResetPassword) {
       if (!validatePassword()) return
       if (fields.password !== fields.confirmPassword) {
-        fieldErrors.confirmPassword = t('flow.passwordMismatch')
+        fieldMessages.confirmPassword = () => t('flow.passwordMismatch')
         return
       }
     } else if (!validateCode()) return

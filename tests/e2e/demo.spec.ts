@@ -109,6 +109,32 @@ for (const mode of ['code', 'register', 'reset'] as const) {
   })
 }
 
+test('a rejected code sign-in focuses the global error and permits an explicit retry', async ({
+  page,
+}) => {
+  await page.getByRole('tab', { name: '验证码登录', exact: true }).click()
+  await page.getByLabel('邮箱', { exact: true }).fill('demo@nova.example')
+  await page.getByRole('button', { name: '获取验证码', exact: true }).click()
+  await verify(page)
+  let dialog = await settings(page)
+  await dialog.getByRole('combobox', { name: '业务请求', exact: true }).selectOption('fail')
+  await dialog.getByRole('button', { name: '关闭对话框', exact: true }).click()
+  const code = page.getByLabel('验证码', { exact: true })
+  await expect(code).toHaveAttribute('maxlength', '6')
+  await code.fill('246810')
+  await page.getByRole('button', { name: '登录', exact: true }).click()
+  const error = page.getByRole('alert').filter({ hasText: '模拟请求被拒绝，状态未改变。' })
+  await expect(error).toBeFocused()
+  await expect(code).toHaveValue('246810')
+  await expect(page.getByRole('heading', { name: '账户概览', exact: true })).not.toBeVisible()
+
+  dialog = await settings(page)
+  await dialog.getByRole('combobox', { name: '业务请求', exact: true }).selectOption('normal')
+  await dialog.getByRole('button', { name: '关闭对话框', exact: true }).click()
+  await page.getByRole('button', { name: '登录', exact: true }).click()
+  await expect(page.getByRole('heading', { name: '账户概览', exact: true })).toBeVisible()
+})
+
 test('dirty navigation: native focus containment, Escape, discard, and focus return', async ({
   page,
 }) => {
@@ -230,10 +256,17 @@ for (const viewport of [
 test('English locale, appearance radio keyboard control and appearance-only persistence', async ({
   page,
 }) => {
+  await page.getByRole('button', { name: '登录', exact: true }).click()
+  await expect(page.getByLabel('邮箱', { exact: true })).toBeFocused()
+  await expect(page.getByText('请输入有效的邮箱地址。', { exact: true })).toBeVisible()
   const dialog = await settings(page)
-  await dialog.getByRole('combobox', { name: '界面语言', exact: true }).selectOption('en-US')
+  const language = dialog.getByRole('combobox', { name: '界面语言', exact: true })
+  await language.focus()
+  await language.selectOption('en-US')
+  await expect(language).toBeFocused()
   await dialog.getByRole('button', { name: 'Close dialog', exact: true }).click()
   await expect(page.getByRole('heading', { name: 'Welcome back', exact: true })).toBeVisible()
+  await expect(page.getByText('Enter a valid email address.', { exact: true })).toBeVisible()
   await preview(page, 'Edit profile')
   await page.locator('[data-page="appearance"]').click()
   const dark = await chooseRadio(page, 'Dark')

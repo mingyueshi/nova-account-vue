@@ -28,6 +28,43 @@ function adapter(kind: 'slider' | 'custom' = 'slider'): AuthAdapter {
 }
 
 describe('authentication components', () => {
+  it('focuses the first invalid field, then the global error when the adapter rejects submission', async () => {
+    const service = adapter()
+    service.login = vi.fn(async () => {
+      throw new Error('Service unavailable. Try again.')
+    })
+    const wrapper = mount(NovaAuthForm, {
+      attachTo: document.body,
+      props: { adapter: service },
+    })
+    wrappers.push(wrapper)
+    await wrapper.get('form').trigger('submit')
+    await flushPromises()
+    expect(document.activeElement).toBe(wrapper.get('input[type="email"]').element)
+
+    wrapper.vm.setMode('code')
+    wrapper.vm.fill({ email: 'person@example.test' })
+    await flushPromises()
+    await wrapper
+      .findAll('button')
+      .find((button) => button.text() === '获取验证码')!
+      .trigger('click')
+    await flushPromises()
+    const slider = wrapper.get('input[type="range"]')
+    await slider.setValue(100)
+    await slider.trigger('keydown', { key: 'Enter' })
+    await flushPromises()
+    wrapper.vm.fill({ code: '123456' })
+    await wrapper.get('form').trigger('submit')
+    await flushPromises()
+
+    const error = wrapper.get('form [role="alert"]')
+    expect(error.text()).toBe('Service unavailable. Try again.')
+    expect(document.activeElement).toBe(error.element)
+    expect(wrapper.emitted('authenticated')).toBeUndefined()
+    expect(service.login).toHaveBeenCalledTimes(1)
+  })
+
   it('renders a real Vue form without a permanently visible captcha', async () => {
     const service = adapter(),
       wrapper = mount(NovaAuthForm, { props: { adapter: service, simulated: true } })

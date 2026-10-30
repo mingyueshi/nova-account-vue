@@ -80,6 +80,8 @@ Props：`adapter:AuthAdapter`（必填）、`simulated?:boolean`、`codeLength?:
 
 Exposed：`fill(...)`、`cancel()`、`setMode(AuthMode)`。宿主应提供服务条款/隐私说明内容；默认句子不是已配置的法律文件。
 
+表单提交失败后优先聚焦首个 `aria-invalid` 字段；没有字段错误时，聚焦本次提交产生的全局错误摘要。摘要保留 `role="alert"`，使用 `tabindex="-1"` 接收程序焦点，不增加常规 Tab 停靠点。不会仅因语言切换或文案覆盖更新而移动焦点；真实屏幕阅读器播报仍需宿主验收。
+
 ### `NovaAccountCenter`
 
 Props：`adapter:AccountAdapter`（必填）、`simulated?:boolean`、`page?:AccountPage`、`initialPage?:AccountPage`。Events：`logout()`、`update:page(AccountPage)`、`pageChange(AccountPage)`。Slots：`appearance`、`security({snapshot,adapter,refresh})`、`securityFormTools({fill})`。Exposed：`refresh()`、`fillSecurity(...)`。
@@ -93,6 +95,8 @@ Theme props：`modelValue?:Appearance`, `storageKey?:string|false`；event `upda
 Theme 与 Account 都接受 `NovaLocaleOptions`：`locale?:'zh-CN'|'en-US'`、`messages?:Partial<NovaMessages>`、`timeZone?:string`、`dateTimeOptions?:Intl.DateTimeFormatOptions`、`formatTime?:(value:string)=>string`。默认中文和 UTC。时间源为 adapter 带 Z 或时区偏移的 ISO 字符串；不使用宿主操作系统默认时区。非法日期显示 `common.invalidTime`，非法 Intl 配置回退 UTC 日期。formatter 优先级最高，由宿主负责输出稳定性。
 
 可在 setup 中 `provideNovaLocale(() => reactiveOptions)`，子组件通过 `useNovaLocale()` 读取 `{locale,t,formatTime}`；NovaTheme 已内置 provider。嵌套主题继承上层配置，messages 按 key 合并；同页根和 SSR 请求互相隔离。导出 `zhCN` / `enUS` 完整词典及 `NovaMessageKey` / `NovaMessages` 类型。插槽、用户数据、challenge.label 与 adapter Error.message 不自动翻译。
+
+内置字段校验错误在显示时解析当前词典；locale 或 messages 改变后，已有错误随之更新，不会重新校验、重发 adapter 请求或清空输入。`useAuthFlow().fieldErrors` 仍是可读写的字符串属性，接入方直接写入的自定义错误由接入方维护翻译。
 
 Appearance props：`modelValue:Appearance`, `storageError?:string`；event `update:modelValue`。`Appearance = {mode:'light'|'dark'|'system',accent:'iris'|'blue'|'teal'|'amber'}`。
 

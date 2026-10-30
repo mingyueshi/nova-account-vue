@@ -23,8 +23,10 @@
 ### Fixed
 
 - Message action names now include their visible content, preserving read state and satisfying the axe label-in-name check.
-
 - Navigating before the first account snapshot finishes loading no longer cancels the shared load and leaves an empty page.
+- Existing built-in field validation errors follow locale and message override changes without resubmission or clearing input.
+- Failed auth submissions focus the first invalid field, or the global error summary when the adapter rejects a submission without field errors. Language changes do not move focus.
+- Demo viewport metadata no longer uses `interactive-widget`, which produces a console error in Linux WebKit and failed the browser CI job. Responsive layout and `viewport-fit=cover` remain in place; real soft-keyboard acceptance is still pending.
 
 ### Compatibility and release policy
 

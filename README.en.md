@@ -45,7 +45,7 @@ const page = ref<AccountPage>('messages')
 
 ## Configuration
 
-- Default language: `zh-CN`. Built-in `en-US` and typed partial `messages` overrides apply to all library components, validation and accessibility labels. Host adapter errors, user content and custom slots are translated by the host.
+- Default language: `zh-CN`. Built-in `en-US` and typed partial `messages` overrides apply to all library components, validation and accessibility labels. Existing built-in field validation errors update when the locale or messages change. Host adapter errors, user content and custom slots are translated by the host.
 - Configure locale and dates on `NovaAccount` or `NovaTheme`, or call `provideNovaLocale(() => options)` in component setup. No global locale singleton or vue-i18n dependency is required.
 - `timeZone` defaults to UTC for deterministic SSR. Use `dateTimeOptions` for Intl options or `formatTime` for a host formatter; server and client must use matching settings.
 - `page` / `update:page` provide controlled navigation; `initialPage` initializes uncontrolled mode. `pageChange` reports committed changes. External prop changes are authoritative; implement host router leave guards for forced route changes or unmounts.

@@ -97,7 +97,7 @@ const messages: Partial<NovaMessages> = { 'auth.welcome': '登录你的账户' }
 </template>
 ```
 
-`NovaTheme` / `NovaAccount` 提供按根隔离的 `locale`（默认 `zh-CN`，内置 `en-US`）、typed `messages` 局部覆盖、`timeZone`、`dateTimeOptions` 和 `formatTime`。独立宿主也可在 setup 调用 `provideNovaLocale(() => options)`。不依赖 vue-i18n，不使用全局可变语言状态。adapter 错误、用户内容及宿主 slot 文案由接入方翻译；演示工具与合成数据仍为中文。
+`NovaTheme` / `NovaAccount` 提供按根隔离的 `locale`（默认 `zh-CN`，内置 `en-US`）、typed `messages` 局部覆盖、`timeZone`、`dateTimeOptions` 和 `formatTime`。独立宿主也可在 setup 调用 `provideNovaLocale(() => options)`。不依赖 vue-i18n，不使用全局可变语言状态。已显示的内置字段校验错误会随 locale / messages 更新，无需重新提交。adapter 错误、用户内容及宿主 slot 文案由接入方翻译；演示工具与合成数据仍为中文。
 
 日期使用 `Intl.DateTimeFormat`，默认时区 UTC，避免服务器与浏览器时区差异导致 hydration 不一致；中文接入通常显式设置 `Asia/Shanghai`。服务端与客户端需传入相同配置；无效日期显示占位符，无效 Intl 配置回退到 UTC 日期。
 
@@ -121,13 +121,15 @@ const messages: Partial<NovaMessages> = { 'auth.welcome': '登录你的账户' }
 
 ## 导出与契约
 
-| 类别       | 导出                                                                                                                      |
-| ---------- | ------------------------------------------------------------------------------------------------------------------------- |
-| 组合外壳   | `NovaAccount`, `NovaTheme`                                                                                                |
-| 业务展示   | `NovaAuthForm`, `NovaAccountCenter`, `NovaAppearance`, `NovaCaptcha`                                                      |
-| 基础组件   | `NovaButton`, `NovaField`, `NovaDialog`                                                                                   |
-| 响应式流程 | `useAuthFlow`, `useAccount`, `useAppearance`, `parseAppearance`                                                           |
-| 类型       | `NovaAdapter`, `AuthAdapter`, `AccountAdapter`, `RequestContext`, `MutationContext`, snapshots、用户、主题等；`NovaError` |
+| 类别       | 导出                                                                                                                                                   |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 组合外壳   | `NovaAccount`, `NovaTheme`                                                                                                                             |
+| 业务展示   | `NovaAuthForm`, `NovaAccountCenter`, `NovaAppearance`, `NovaCaptcha`                                                                                   |
+| 基础组件   | `NovaButton`, `NovaField`, `NovaDialog`                                                                                                                |
+| 响应式流程 | `useAuthFlow`, `useAccount`, `useAppearance`, `parseAppearance`                                                                                        |
+| 语言与时间 | `provideNovaLocale`, `useNovaLocale`, `zhCN`, `enUS`                                                                                                   |
+| 错误与结果 | `NovaError`, `NOVA_ERROR_CODES`；类型 `NovaErrorCode`, `NovaRequestResult`                                                                             |
+| 类型       | `NovaAdapter`, `AuthAdapter`, `AccountAdapter`, `RequestContext`, `MutationContext`, `NovaLocaleOptions`, `NovaMessages`，以及 snapshots、用户、主题等 |
 
 详见 [接口与安全边界](docs/contracts.md)、[fetch adapter 模板](docs/adapter.md)、[接入方上线清单](docs/production-checklist.md)、[Nuxt 接入与验证](docs/nuxt.md)、[QA / 验证范围](QA.md)。
 

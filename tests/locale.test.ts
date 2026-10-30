@@ -59,6 +59,26 @@ describe('per-root locale and time display', () => {
     expect(wrapper.text()).toContain('Enter a valid email address.')
   })
 
+  it('updates an existing validation error when the locale or host messages change', async () => {
+    const adapter = createDemoAuthAdapter()
+    const wrapper = mount(NovaTheme, {
+      slots: { default: () => h(NovaAuthForm, { adapter }) },
+    })
+    wrappers.push(wrapper)
+    await wrapper.get('input[type="email"]').setValue('invalid-address')
+    await wrapper.get('form').trigger('submit')
+    expect(wrapper.text()).toContain(zhCN['flow.emailInvalid'])
+    await wrapper.setProps({ locale: 'en-US' })
+    expect(wrapper.text()).toContain(enUS['flow.emailInvalid'])
+    expect(wrapper.text()).not.toContain(zhCN['flow.emailInvalid'])
+    await wrapper.setProps({ messages: { 'flow.emailInvalid': 'Check your address.' } })
+    expect(wrapper.text()).toContain('Check your address.')
+    expect(wrapper.text()).not.toContain(enUS['flow.emailInvalid'])
+    expect((wrapper.get('input[type="email"]').element as HTMLInputElement).value).toBe(
+      'invalid-address',
+    )
+  })
+
   it('isolates two roots and inherits locale through a nested theme', () => {
     const wrapper = mount(
       defineComponent({

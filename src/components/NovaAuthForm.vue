@@ -57,6 +57,7 @@ const {
 const id = useId()
 const form = ref<HTMLFormElement>()
 const title = ref<HTMLElement>()
+const errorSummary = ref<HTMLElement>()
 const showPassword = ref(false)
 const isLogin = computed(() => mode.value === 'password' || mode.value === 'code')
 const heading = computed(() =>
@@ -129,7 +130,9 @@ async function tabKey(event: KeyboardEvent) {
 async function submit() {
   await flow.submit()
   await nextTick()
-  form.value?.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus()
+  const invalid = form.value?.querySelector<HTMLElement>('[aria-invalid="true"]')
+  if (invalid) invalid.focus()
+  else if (error.value) errorSummary.value?.focus({ preventScroll: true })
 }
 async function requestCode() {
   await flow.requestCode()
@@ -318,7 +321,9 @@ defineExpose({ fill: flow.fill, cancel: flow.cancel, setMode })
       </div>
       <p
         v-if="error"
+        ref="errorSummary"
         role="alert"
+        tabindex="-1"
         class="na:rounded-lg na:border na:border-[var(--na-error)] na:p-3 na:text-sm na:text-[var(--na-error)]"
       >
         {{ error }}
