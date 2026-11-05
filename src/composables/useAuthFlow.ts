@@ -16,6 +16,8 @@ import type {
 export interface AuthFlowOptions {
   onAuthenticated?: (result: AuthResult) => void
   onReset?: () => void
+  /** Which identifier the account field collects; the adapter receives it in `email`. */
+  identifier?: 'email' | 'username'
   now?: () => number
 }
 
@@ -190,6 +192,13 @@ export function useAuthFlow(
     fieldMessages.email = valid ? '' : () => t('flow.emailInvalid')
     return valid
   }
+  function validateIdentifier() {
+    if ((options.identifier ?? 'email') === 'email') return validateEmail()
+    const value = fields.email.trim()
+    const valid = value.length > 0 && value.length <= 150 && !/\s/.test(value)
+    fieldMessages.email = valid ? '' : () => t('flow.accountInvalid')
+    return valid
+  }
   function validatePassword() {
     fieldMessages.password =
       fields.password.length > 0 && fields.password.length <= 1024
@@ -214,7 +223,7 @@ export function useAuthFlow(
   async function loadChallenge(nextAction: 'login' | 'send-code') {
     if (busy.value || disposed) return
     clearErrors()
-    if (!validateEmail() || (nextAction === 'login' && !validatePassword())) return
+    if (!validateIdentifier() || (nextAction === 'login' && !validatePassword())) return
     tick()
     if (nextAction === 'send-code' && (mode.value === 'password' || resendSeconds.value > 0)) return
     action = nextAction
@@ -305,7 +314,7 @@ export function useAuthFlow(
     if (busy.value || challengeOpen.value || disposed) return
     clearErrors()
     notice.value = ''
-    if (!validateEmail()) return
+    if (!validateIdentifier()) return
     if (mode.value === 'password') {
       await loadChallenge('login')
       return

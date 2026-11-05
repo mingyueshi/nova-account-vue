@@ -34,6 +34,14 @@ Existing adapter methods, default full layout, Chinese UI and `request()` return
 
 The repository remains `0.1.0-dev.1`, private and unpublished. During `0.x`, record incompatible changes here and increment the minor version before publishing one; use patch releases for compatible fixes, and prerelease suffixes for development builds. Every release must run the documented checks and explicitly list remaining host acceptance work.
 
+## 0.1.0-dev.2 — 2026-11-05
+
+### Added
+
+- `identifier: 'email' | 'username'` on `NovaAuthForm` / `NovaAccount` (default `email`). Username mode switches the account field to text input with `autocomplete="username"`, the `auth.account` label, and a non-empty / ≤150 / whitespace-free validation; the adapter contract is unchanged and receives the value in `email`.
+- `modes: AuthMode[]` on `NovaAuthForm` / `NovaAccount` (default all four). Hidden flows never render their entries: a single login tab removes the tablist, and register / reset entries disappear accordingly.
+- `pages: AccountPage[]` on `NovaAccountCenter` / `NovaAccount` (default all seven) to restrict visible account pages, and `twoStep: boolean` (default `true`) to hide the security-page two-step row when the host has no step-up implementation.
+
 ## 0.1.0-dev.1 — 2026-10-27
 
 - Initial Vue 3 presentation library, injected adapters, isolated CSS, offline demo, strict package consumer checks, and Nuxt SSR examples.

@@ -15,8 +15,17 @@ const props = withDefaults(
     simulated?: boolean
     codeLength?: number | null
     passwordStrength?: (password: string) => PasswordStrength
+    /** Account field semantics; username keeps the wire contract on `email`. */
+    identifier?: 'email' | 'username'
+    /** Allowed flows; hidden entries never emit mode switches. */
+    modes?: AuthMode[]
   }>(),
-  { simulated: false, codeLength: 6 },
+  {
+    simulated: false,
+    codeLength: 6,
+    identifier: 'email',
+    modes: () => ['password', 'code', 'register', 'reset'],
+  },
 )
 const emit = defineEmits<{
   authenticated: [result: AuthResult]
@@ -38,6 +47,7 @@ defineSlots<{
 const flow = useAuthFlow(() => props.adapter, {
   onAuthenticated: (result) => emit('authenticated', result),
   onReset: () => emit('reset'),
+  identifier: props.identifier,
 })
 const {
   mode,
@@ -60,6 +70,12 @@ const title = ref<HTMLElement>()
 const errorSummary = ref<HTMLElement>()
 const showPassword = ref(false)
 const isLogin = computed(() => mode.value === 'password' || mode.value === 'code')
+const loginTabs = computed(() =>
+  (['password', 'code'] as const).filter((tab) => props.modes.includes(tab)),
+)
+const canRegister = computed(() => props.modes.includes('register'))
+const canReset = computed(() => props.modes.includes('reset'))
+const isUsername = computed(() => props.identifier === 'username')
 const heading = computed(() =>
   mode.value === 'register'
     ? t('auth.create')
@@ -121,7 +137,14 @@ async function switchView(value: AuthMode) {
 async function tabKey(event: KeyboardEvent) {
   if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return
   event.preventDefault()
-  setMode(event.key === 'ArrowLeft' || event.key === 'Home' ? 'password' : 'code')
+  const tabs = loginTabs.value
+  if (tabs.length < 2) return
+  const index = tabs.indexOf(mode.value as (typeof tabs)[number])
+  const backward = event.key === 'ArrowLeft' || event.key === 'Home'
+  const next = backward
+    ? (index <= 0 ? tabs.length - 1 : index - 1)
+    : (index < 0 || index >= tabs.length - 1 ? 0 : index + 1)
+  setMode(tabs[next]!)
   await nextTick()
   form.value?.parentElement
     ?.querySelector<HTMLButtonElement>('[role="tab"][aria-selected="true"]')
@@ -161,14 +184,14 @@ defineExpose({ fill: flow.fill, cancel: flow.cancel, setMode })
       </p>
     </header>
     <div
-      v-if="isLogin"
+      v-if="isLogin && loginTabs.length > 1"
       role="tablist"
       :aria-label="t('auth.method')"
       class="na:mb-7 na:flex na:border-b na:border-[var(--na-line)]"
       @keydown="tabKey"
     >
       <button
-        v-for="tab in ['password', 'code'] as const"
+        v-for="tab in loginTabs"
         :id="`${id}-${tab}-tab`"
         :key="tab"
         type="button"
@@ -199,10 +222,10 @@ defineExpose({ fill: flow.fill, cancel: flow.cancel, setMode })
       <NovaField
         v-if="mode !== 'reset' || resetStage === 'verify'"
         v-model="fields.email"
-        :label="t('auth.email')"
-        type="email"
-        autocomplete="email"
-        :placeholder="t('auth.emailPlaceholder')"
+        :label="isUsername ? t('auth.account') : t('auth.email')"
+        :type="isUsername ? 'text' : 'email'"
+        :autocomplete="isUsername ? 'username' : 'email'"
+        :placeholder="isUsername ? t('auth.accountPlaceholder') : t('auth.emailPlaceholder')"
         :disabled="inputBlocked"
         :error="fieldErrors.email"
       />
@@ -233,7 +256,7 @@ defineExpose({ fill: flow.fill, cancel: flow.cancel, setMode })
               {{ showPassword ? t('auth.hidePassword') : t('auth.showPassword') }}
             </button>
             <button
-              v-if="mode === 'password'"
+              v-if="mode === 'password' && canReset"
               type="button"
               class="na:border-0 na:bg-transparent na:p-0 na:text-[var(--na-brand)]"
               @click="switchView('reset')"
@@ -343,7 +366,7 @@ defineExpose({ fill: flow.fill, cancel: flow.cancel, setMode })
         >{{ busy ? t('common.processing') : submitLabel }}</NovaButton
       >
     </form>
-    <p v-if="isLogin" class="na:mt-7 na:text-center na:text-sm na:text-[var(--na-muted)]">
+    <p v-if="isLogin && canRegister" class="na:mt-7 na:text-center na:text-sm na:text-[var(--na-muted)]">
       {{ t('auth.noAccount')
       }}<button
         type="button"

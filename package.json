@@ -1,6 +1,6 @@
 {
   "name": "nova-account",
-  "version": "0.1.0-dev.1",
+  "version": "0.1.0-dev.2",
   "private": true,
   "description": "Vue 3 account presentation components with injected business adapters and isolated compiled Tailwind CSS",
   "type": "module",

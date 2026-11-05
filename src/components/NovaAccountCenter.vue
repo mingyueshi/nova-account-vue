@@ -19,6 +19,10 @@ const props = defineProps<{
   simulated?: boolean
   page?: AccountPage
   initialPage?: AccountPage
+  /** Visible account pages; defaults to all seven. */
+  pages?: AccountPage[]
+  /** Hide the two-step row when the host has no step-up implementation. */
+  twoStep?: boolean
 }>()
 const emit = defineEmits<{
   logout: []
@@ -101,6 +105,10 @@ const tabs = computed<{ id: AccountPage; label: string; symbol: string; descript
   ],
 )
 const currentTab = computed(() => tabs.value.find((tab) => tab.id === page.value)!)
+const visibleTabs = computed(() =>
+  props.pages ? tabs.value.filter((tab) => props.pages!.includes(tab.id)) : tabs.value,
+)
+const showTwoStep = computed(() => props.twoStep !== false)
 const avatarOptions = computed<{ id: Profile['avatar']; label: string; color: string }[]>(() => [
   { id: 'iris', label: t('appearance.iris'), color: '#6958c5' },
   { id: 'teal', label: t('appearance.teal'), color: '#217560' },
@@ -429,7 +437,7 @@ defineExpose({ refresh, fillSecurity })
         class="na:flex na:gap-1 na:overflow-x-auto na:p-3 na:md:flex-col na:md:px-4 na:md:py-0"
       >
         <button
-          v-for="tab in tabs"
+          v-for="tab in visibleTabs"
           :key="tab.id"
           type="button"
           :aria-current="page === tab.id ? 'page' : undefined"
@@ -686,6 +694,7 @@ defineExpose({ refresh, fillSecurity })
                   >
                 </div>
                 <div
+                  v-if="showTwoStep"
                   class="na:flex na:items-center na:justify-between na:gap-4 na:border-t na:border-[var(--na-line)] na:pt-6"
                 >
                   <div>

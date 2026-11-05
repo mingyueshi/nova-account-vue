@@ -10,6 +10,7 @@ import type {
   AccountAdapter,
   AccountSnapshot,
   Appearance,
+  AuthMode,
   AuthResult,
   Challenge,
   NovaAdapter,
@@ -22,9 +23,17 @@ const props = withDefaults(
     NovaLocaleOptions & {
       page?: AccountPage
       initialPage?: AccountPage
+      /** Visible account pages; defaults to all seven. */
+      pages?: AccountPage[]
+      /** Hide the two-step toggle when the host has no step-up implementation. */
+      twoStep?: boolean
       layout?: 'full' | 'embedded'
       codeLength?: number | null
       passwordStrength?: (password: string) => PasswordStrength
+      /** Auth form identifier semantics, forwarded to NovaAuthForm. */
+      identifier?: 'email' | 'username'
+      /** Auth form allowed flows, forwarded to NovaAuthForm. */
+      modes?: AuthMode[]
       adapter: NovaAdapter
       initialUser?: SessionUser | null
       appearance?: Appearance
@@ -32,7 +41,15 @@ const props = withDefaults(
       brand?: string
     }
   >(),
-  { initialUser: null, storageKey: false, brand: 'nova', layout: 'full' },
+  {
+    initialUser: null,
+    storageKey: false,
+    brand: 'nova',
+    layout: 'full',
+    twoStep: true,
+    identifier: 'email',
+    modes: () => ['password', 'code', 'register', 'reset'],
+  },
 )
 const { t } = provideNovaLocale(() => props)
 const emit = defineEmits<{
@@ -179,6 +196,8 @@ defineExpose({
         :simulated="adapter.simulated"
         :page="page"
         :initial-page="initialPage"
+        :pages="pages"
+        :two-step="twoStep"
         @update:page="emit('update:page', $event)"
         @page-change="emit('pageChange', $event)"
         @logout="logout"
@@ -204,6 +223,8 @@ defineExpose({
             :simulated="adapter.simulated"
             :code-length="codeLength"
             :password-strength="passwordStrength"
+            :identifier="identifier"
+            :modes="modes"
             @authenticated="authenticated"
             ><template v-if="$slots.captcha" #captcha="slotProps"
               ><slot name="captcha" v-bind="slotProps" /></template
