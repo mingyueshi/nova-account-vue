@@ -6,6 +6,10 @@ body,
   min-height: 100%;
   margin: 0;
 }
+:root {
+  /* Host-page chrome uses light-dark() so it stays legible on either scheme. */
+  color-scheme: light dark;
+}
 .demo-stack {
   display: grid;
   gap: 16px;
@@ -117,4 +121,50 @@ body,
   padding: 12px;
   border: 1px dashed #d9a0a0;
   border-radius: 12px;
+}
+/* Multi-instance theme isolation view. Titles sit on the host page background;
+   each card lives inside its own NovaTheme root and uses that root's tokens. */
+.demo-multi-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 24px 16px 0;
+}
+.demo-multi-bar p {
+  margin: 0;
+  color: light-dark(#5a5a66, #c9c9d4);
+}
+.demo-multi {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  align-items: start;
+  gap: 16px;
+  padding: 16px;
+}
+.demo-multi-title {
+  margin: 0 0 8px;
+  font-size: 14px;
+  font-weight: 600;
+  color: light-dark(#23232b, #f5f5f7);
+}
+.demo-back {
+  min-height: 36px;
+  padding: 4px 14px;
+  border: 1px solid light-dark(#d8d8e0, #4a4a55);
+  border-radius: 999px;
+  background: light-dark(#fff, #2a2a33);
+  color: light-dark(#23232b, #f5f5f7);
+  font-size: 13px;
+  cursor: pointer;
+}
+.demo-multi-card {
+  display: grid;
+  gap: 12px;
+  padding: 20px;
+  border: 1px solid var(--na-line);
+  border-radius: 16px;
+  background: var(--na-surface);
+  color: var(--na-ink);
 }

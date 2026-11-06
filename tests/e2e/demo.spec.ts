@@ -495,3 +495,38 @@ test('storage fault surfaces storageError; OAuth placeholders render through #au
   await expect(page.getByRole('button', { name: 'GitHub' })).toBeDisabled()
   await expect(page.getByRole('button', { name: 'Google' })).toBeDisabled()
 })
+
+test('multi-instance view renders two independently themed auth roots', async ({ page }) => {
+  const host = await hostPanel(page)
+  // Toggling replaces the main view and unmounts the dialog, so verify via a raw click.
+  await host
+    .getByRole('checkbox', { name: /多实例主题隔离/ })
+    .evaluate((el) => (el as HTMLElement).click())
+  await expect(page.getByRole('heading', { name: '实例 A · 深色 / 暖琥珀' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: '实例 B · 浅色 / 湖水绿' })).toBeVisible()
+  const rootA = page.locator('.nova-account[data-accent="amber"]')
+  const rootB = page.locator('.nova-account[data-accent="teal"]')
+  await expect(rootA).toHaveCount(1)
+  await expect(rootB).toHaveCount(1)
+  await rootA.getByLabel('邮箱', { exact: true }).fill('demo@nova.example')
+  await rootA.getByLabel('密码', { exact: true }).fill('NovaDemo2026!')
+  await rootA.getByRole('button', { name: '登录', exact: true }).click()
+  const slider = rootA.getByRole('slider')
+  await expect(slider).toBeEnabled()
+  await slider.press('End')
+  await slider.press('Enter')
+  await expect(rootA.getByText('此实例已登录')).toBeVisible()
+  await expect(rootB.getByRole('button', { name: '登录', exact: true })).toBeVisible()
+  await page.getByRole('button', { name: '返回单实例演示' }).click()
+  await expect(page.getByRole('heading', { name: '欢迎回来', exact: true })).toBeVisible()
+})
+
+test('viewport preview opens the demo in a real narrow window', async ({ page }) => {
+  const host = await hostPanel(page)
+  await host.getByRole('combobox', { name: '手机视口预览' }).selectOption('390')
+  const popupPromise = page.waitForEvent('popup')
+  await host.getByRole('button', { name: '打开预览窗口' }).click()
+  const popup = await popupPromise
+  expect(popup.viewportSize()?.width).toBe(390)
+  await popup.close()
+})
