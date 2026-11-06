@@ -39,3 +39,59 @@ body,
 .nova-demo.demo-auth > div > main > div > section {
   padding-block: 0;
 }
+/* Fake host page chrome for the layout="embedded" demo. It sits outside the
+   component root, so it uses fixed colors matching the host page background. */
+.demo-embedded {
+  display: grid;
+  gap: 16px;
+  max-width: 920px;
+  margin: 0 auto;
+  padding: 24px 16px 48px;
+}
+.demo-hostbar,
+.demo-hostbody {
+  border: 1px solid #d8d8e0;
+  border-radius: 12px;
+  background: #fff;
+  color: #5a5a66;
+  font-size: 13px;
+}
+.demo-hostbar {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 12px 16px;
+}
+.demo-hostbar strong {
+  color: #23232b;
+}
+.demo-hostbody {
+  margin: 0;
+  padding: 16px;
+  border-style: dashed;
+}
+/* Tools-dialog controls for the host integration panel. */
+.demo-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.demo-chip {
+  min-height: 36px;
+  padding: 4px 14px;
+  border: 1px solid var(--na-control);
+  border-radius: 999px;
+  background: var(--na-surface);
+  color: var(--na-ink);
+  font-size: 13px;
+  cursor: pointer;
+}
+.demo-chip:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.demo-chip-on {
+  border-color: var(--na-brand);
+  color: var(--na-brand);
+}

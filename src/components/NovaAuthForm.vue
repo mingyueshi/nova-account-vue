@@ -142,8 +142,12 @@ async function tabKey(event: KeyboardEvent) {
   const index = tabs.indexOf(mode.value as (typeof tabs)[number])
   const backward = event.key === 'ArrowLeft' || event.key === 'Home'
   const next = backward
-    ? (index <= 0 ? tabs.length - 1 : index - 1)
-    : (index < 0 || index >= tabs.length - 1 ? 0 : index + 1)
+    ? index <= 0
+      ? tabs.length - 1
+      : index - 1
+    : index < 0 || index >= tabs.length - 1
+      ? 0
+      : index + 1
   setMode(tabs[next]!)
   await nextTick()
   form.value?.parentElement
@@ -366,7 +370,10 @@ defineExpose({ fill: flow.fill, cancel: flow.cancel, setMode })
         >{{ busy ? t('common.processing') : submitLabel }}</NovaButton
       >
     </form>
-    <p v-if="isLogin && canRegister" class="na:mt-7 na:text-center na:text-sm na:text-[var(--na-muted)]">
+    <p
+      v-if="isLogin && canRegister"
+      class="na:mt-7 na:text-center na:text-sm na:text-[var(--na-muted)]"
+    >
       {{ t('auth.noAccount')
       }}<button
         type="button"

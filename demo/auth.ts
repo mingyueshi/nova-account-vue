@@ -8,15 +8,24 @@ export const DEMO_NEXT_EMAIL = 'novanext@nova.example'
 export interface DemoSettings {
   network: 'normal' | 'slow' | 'offline'
   captcha: 'normal' | 'fail' | 'expired'
+  /** `slider` renders the built-in slider; `math` exercises the host `#captcha` slot. */
+  challenge: 'slider' | 'math'
   code: 'normal' | 'expired'
   auth: 'normal' | 'fail'
+  /** Presentation limit mirrored by the auth form `codeLength` prop. */
+  codeLength: 4 | 6 | null
 }
 export const defaultSettings = (): DemoSettings => ({
   network: 'normal',
   captcha: 'normal',
+  challenge: 'slider',
   code: 'normal',
   auth: 'normal',
+  codeLength: 6,
 })
+/** Demo code follows the presented code length; `null` keeps the full six digits. */
+export const demoCode = (codeLength: 4 | 6 | null = 6) =>
+  codeLength ? DEMO_CODE.slice(0, codeLength) : DEMO_CODE
 export const demoUser = () => ({ id: 'nova-demo', email: DEMO_EMAIL, displayName: 'Nova' })
 export function fail(code: string, message: string): never {
   throw new NovaError(code, message)
@@ -36,8 +45,14 @@ export function createDemoAuthAdapter(
   const now = options.now ?? Date.now
   const delay = options.delay ?? sleep
   let sequence = 0
-  let challenge: { id: string; email: string; purpose: CaptchaPurpose; expiresAt: number } | null =
-    null
+  let challenge: {
+    id: string
+    email: string
+    purpose: CaptchaPurpose
+    expiresAt: number
+    kind: 'slider' | 'custom'
+    answer?: number
+  } | null = null
   let proof: { token: string; email: string; purpose: CaptchaPurpose; expiresAt: number } | null =
     null
   let delivery: {
@@ -87,7 +102,8 @@ export function createDemoAuthAdapter(
       fail('CODE_BINDING', '请先获取当前操作的演示验证码。')
     if (settings().code === 'expired' || now() >= delivery.expiresAt)
       fail('CODE_EXPIRED', '演示验证码已过期，请重新获取。')
-    if (code !== DEMO_CODE) fail('CODE_INVALID', `演示验证码为 ${DEMO_CODE}。`)
+    const expected = demoCode(settings().codeLength)
+    if (code !== expected) fail('CODE_INVALID', `演示验证码为 ${expected}。`)
   }
   return {
     async challenge(input, context) {
@@ -95,9 +111,16 @@ export function createDemoAuthAdapter(
       const id = `demo-challenge-${++sequence}`
       challenge = null
       proof = null
-      await wait(context)
-      challenge = { id, email: address, purpose: input.purpose, expiresAt: now() + 45_000 }
-      return { ...challenge, kind: 'slider', label: '滑动完成演示验证' }
+      const config = await wait(context)
+      const base = { id, email: address, purpose: input.purpose, expiresAt: now() + 45_000 }
+      if (config.challenge === 'math') {
+        const left = 6 + Math.floor(Math.random() * 4)
+        const right = 6 + Math.floor(Math.random() * 4)
+        challenge = { ...base, kind: 'custom', answer: left * right }
+        return { ...challenge, label: `请计算 ${left} × ${right} 的结果` }
+      }
+      challenge = { ...base, kind: 'slider' }
+      return { ...challenge, label: '滑动完成演示验证' }
     },
     async verifyCaptcha(input, context) {
       const address = email(input.email)
@@ -111,8 +134,17 @@ export function createDemoAuthAdapter(
         fail('CHALLENGE_BINDING', '验证已失效，请重新开始。')
       if (config.captcha === 'expired' || now() >= challenge.expiresAt)
         fail('CHALLENGE_EXPIRED', '演示验证已过期，请关闭后重试。')
-      const response = input.response as { value?: unknown } | null
-      if (config.captcha === 'fail' || !response || response.value !== 100)
+      const response = input.response as { value?: unknown; answer?: unknown } | null
+      if (challenge.kind === 'custom') {
+        const answer = Number(response?.answer)
+        if (
+          config.captcha === 'fail' ||
+          !response ||
+          !Number.isInteger(answer) ||
+          answer !== challenge.answer
+        )
+          fail('CHALLENGE_FAILED', `演示计算未通过（正确答案 ${challenge.answer}），请换一题重试。`)
+      } else if (config.captcha === 'fail' || !response || response.value !== 100)
         fail('CHALLENGE_FAILED', '演示验证未通过，请重试。')
       proof = {
         token: `demo-proof-${++sequence}`,
@@ -125,7 +157,7 @@ export function createDemoAuthAdapter(
     },
     async sendCode(input, context) {
       const address = email(input.email)
-      await wait(context, true)
+      const config = await wait(context, true)
       checkProof(input.proof, address, input.purpose)
       if (delivery && now() < delivery.resendAt) fail('COOLDOWN', '请稍后再获取验证码。')
       proof = null
@@ -136,7 +168,11 @@ export function createDemoAuthAdapter(
         expiresAt: now() + 120_000,
         resendAt: now() + 30_000,
       }
-      return { expiresAt: delivery.expiresAt, retryAfter: 30, demoCode: DEMO_CODE }
+      return {
+        expiresAt: delivery.expiresAt,
+        retryAfter: 30,
+        demoCode: demoCode(config.codeLength),
+      }
     },
     async login(input, context) {
       const address = email(input.email),

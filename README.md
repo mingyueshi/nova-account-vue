@@ -137,6 +137,8 @@ const messages: Partial<NovaMessages> = { 'auth.welcome': '登录你的账户' }
 
 右上 **体验工具 → 一键填入示例**；不会默认在主界面堆放示例凭据。工具内可快捷预览、切换外观、选择慢速/断网/验证失败/验证码过期/业务拒绝。
 
+- **宿主集成演示**面板：全屏 / `layout="embedded"` 切换（附虚构宿主页面外壳）、`v-model:page` 受控跳转与 `pageChange` 事件记录、`codeLength` 调整（4 位时演示码同步为 `2468`）、宿主 `passwordStrength` 强度评估、`#security` 插槽的 TOTP 形式二次认证演示、禁用本地存储以触发 `storageError`。
+- **演示设置**中可把挑战方式切换为算术题，走宿主 `#captcha` 插槽的出题、错误提示与换一题流程；“滑块结果”的失败与过期同样适用于算术题。
 - 合成邮箱 `demo@nova.example`，密码 `NovaDemo2026!`，验证码 `246810`。
 - 安全弹窗提供“填入示例”：新密码 `NovaNext2026!`，新邮箱 `novanext@nova.example`。
 - 模拟更改不影响登录固定凭据。验证码只在演示适配器返回，真实服务不得返回明文码。

@@ -1,12 +1,28 @@
 <script setup lang="ts">
 import { reactive, ref, shallowRef } from 'vue'
-import { NovaAccount, NovaAppearance, NovaButton, NovaDialog, NovaError } from '../src'
-import type { NovaAdapter, NovaLocale } from '../src'
+import {
+  NovaAccount,
+  NovaAppearance,
+  NovaButton,
+  NovaCaptcha,
+  NovaDialog,
+  NovaError,
+  NovaField,
+} from '../src'
+import type {
+  AccountAdapter,
+  AccountPage,
+  AccountSnapshot,
+  Appearance,
+  NovaAdapter,
+  NovaLocale,
+  PasswordStrength,
+} from '../src'
 import {
   createDemoAuthAdapter,
   defaultSettings,
+  demoCode,
   demoUser,
-  DEMO_CODE,
   DEMO_EMAIL,
   DEMO_PASSWORD,
 } from './auth'
@@ -17,7 +33,26 @@ const signedIn = ref(false)
 const locale = ref<NovaLocale>('zh-CN')
 const timeZone = ref('Asia/Shanghai')
 const toolsOpen = ref(false)
-const panel = ref<'tools' | 'appearance' | 'settings' | 'about'>('tools')
+const panel = ref<'tools' | 'appearance' | 'settings' | 'host' | 'about'>('tools')
+const layout = ref<'full' | 'embedded'>('full')
+const strengthOn = ref(false)
+const customSecurity = ref(false)
+const page = ref<AccountPage>('overview')
+const pageLog = ref<string[]>([])
+const pageLabels: Record<AccountPage, string> = {
+  overview: '账户概览',
+  profile: '个人资料',
+  security: '安全设置',
+  devices: '登录设备',
+  notifications: '通知偏好',
+  messages: '消息中心',
+  appearance: '外观',
+}
+const pages = Object.entries(pageLabels) as [AccountPage, string][]
+const totp = reactive({ password: '', code: '', busy: false, error: '' })
+const mathAnswer = ref('')
+const storageFault = ref(false)
+const storageNote = ref('')
 const account = ref<InstanceType<typeof NovaAccount>>()
 function createAdapter(): NovaAdapter {
   return {
@@ -42,7 +77,7 @@ function fill() {
     email: DEMO_EMAIL,
     password: DEMO_PASSWORD,
     confirmPassword: DEMO_PASSWORD,
-    code: DEMO_CODE,
+    code: demoCode(settings.codeLength),
   })
 }
 function preview() {
@@ -52,124 +87,393 @@ function preview() {
 }
 function resetDemo() {
   signedIn.value = false
+  page.value = 'overview'
+  pageLog.value = []
+  totp.password = ''
+  totp.code = ''
+  totp.error = ''
   adapter.value = createAdapter()
 }
 function openTools() {
   panel.value = 'tools'
   toolsOpen.value = true
 }
+function onPageChange(value: AccountPage) {
+  const time = new Date().toLocaleTimeString('zh-CN', { hour12: false })
+  pageLog.value = [`${time} ${pageLabels[value]}`, ...pageLog.value].slice(0, 4)
+}
+/** Strength evaluation lives in the host; presentation only, never a submission gate. */
+function demoStrength(password: string): PasswordStrength {
+  const length = [...password].length
+  const kinds = [/[a-z]/, /[A-Z]/, /[0-9]/, /[^A-Za-z0-9]/].filter((pattern) =>
+    pattern.test(password),
+  ).length
+  const score = Math.min(
+    4,
+    (length >= 12 ? 2 : length >= 8 ? 1 : 0) + (kinds >= 3 ? 2 : kinds >= 2 ? 1 : 0),
+  )
+  const labels = ['过短', '较弱', '一般', '良好', '很强']
+  const hints = [
+    '至少使用 8 个字符。',
+    '加长到 12 位以上，并混合大小写、数字与符号。',
+    '再混合更多字符类型会更安全。',
+    '不错的长度与字符组合。',
+    '长度与字符类型都很充分。',
+  ]
+  return { score: score as PasswordStrength['score'], label: labels[score]!, hint: hints[score] }
+}
+function submitMath(captcha: { busy: boolean; submit: (response: unknown) => Promise<void> }) {
+  if (captcha.busy) return
+  const answer = mathAnswer.value.trim()
+  mathAnswer.value = ''
+  void captcha.submit({ answer })
+}
+async function submitTotp(
+  accountAdapter: AccountAdapter,
+  snapshot: AccountSnapshot,
+  refresh: () => Promise<AccountSnapshot | undefined>,
+) {
+  if (totp.busy) return
+  totp.busy = true
+  totp.error = ''
+  try {
+    await accountAdapter.setTwoStep(
+      {
+        enabled: !snapshot.security.twoStepEnabled,
+        currentPassword: totp.password,
+        code: totp.code,
+      },
+      {
+        signal: new AbortController().signal,
+        requestId: `demo-totp-${Date.now()}`,
+        revision: snapshot.revision,
+      },
+    )
+    await refresh()
+    totp.password = ''
+    totp.code = ''
+  } catch (cause) {
+    totp.error = cause instanceof Error ? cause.message : '操作失败，请重试。'
+  } finally {
+    totp.busy = false
+  }
+}
+let savedStorage: PropertyDescriptor | undefined
+function onStorageChange(
+  theme: { appearance: Appearance; setAppearance: (value: Appearance, persist?: boolean) => void },
+  event: Event,
+) {
+  const broken = (event.target as HTMLInputElement).checked
+  storageFault.value = broken
+  storageNote.value = ''
+  if (broken) {
+    if (!savedStorage) savedStorage = Object.getOwnPropertyDescriptor(window, 'localStorage')
+    Object.defineProperty(window, 'localStorage', {
+      configurable: true,
+      get() {
+        throw new DOMException('演示：本地存储已禁用。', 'SecurityError')
+      },
+    })
+    // Trigger one write so the resulting storageError shows up immediately.
+    theme.setAppearance(theme.appearance)
+    storageNote.value = '已拦截 localStorage，并尝试写入一次外观偏好。'
+  } else if (savedStorage) {
+    Object.defineProperty(window, 'localStorage', savedStorage)
+    savedStorage = undefined
+    storageNote.value = '已恢复本地存储；下次成功保存外观时错误提示会消失。'
+  }
+}
 </script>
 <template>
-  <NovaAccount
-    ref="account"
-    class="nova-demo"
-    :class="signedIn ? 'demo-account' : 'demo-auth'"
-    :adapter="adapter"
-    :locale="locale"
-    :time-zone="timeZone"
-    storage-key="nova-appearance-v1"
-    @authenticated="signedIn = true"
-    @logout="resetDemo"
-  >
-    <template #tools="theme">
-      <NovaButton variant="ghost" @click="openTools"
-        >体验工具 <span aria-hidden="true">↗</span></NovaButton
-      >
-      <NovaDialog
-        :open="toolsOpen"
-        :title="
-          panel === 'appearance'
-            ? '外观设置'
-            : panel === 'settings'
-              ? '演示设置'
-              : panel === 'about'
-                ? '关于这份组件库'
-                : '体验工具'
-        "
-        @close="toolsOpen = false"
-      >
-        <div v-if="panel === 'tools'" class="demo-stack">
-          <NovaButton variant="primary" @click="fill">一键填入示例</NovaButton>
-          <NovaButton @click="preview">用户中心预览</NovaButton>
-          <NovaButton @click="panel = 'appearance'">外观设置</NovaButton>
-          <NovaButton @click="panel = 'settings'">演示设置</NovaButton>
-          <NovaButton @click="panel = 'about'">组件库与隐私说明</NovaButton>
-          <p class="demo-note">全部账户、设备与消息均为虚构。快捷预览不代表身份认证。</p>
-        </div>
-        <NovaAppearance
-          v-else-if="panel === 'appearance'"
-          :model-value="theme.appearance"
-          :storage-error="theme.storageError"
-          @update:model-value="theme.setAppearance"
-        />
-        <div v-else-if="panel === 'settings'" class="demo-stack">
-          <label
-            >界面语言<select v-model="locale">
-              <option value="zh-CN">简体中文</option>
-              <option value="en-US">English</option>
-            </select></label
-          >
-          <label
-            >显示时区<select v-model="timeZone">
-              <option value="Asia/Shanghai">Asia/Shanghai</option>
-              <option value="UTC">UTC</option>
-            </select></label
-          >
-          <label
-            >网络响应<select v-model="settings.network">
-              <option value="normal">正常</option>
-              <option value="slow">慢速 · 3 秒</option>
-              <option value="offline">断网</option>
-            </select></label
-          >
-          <label
-            >滑块结果<select v-model="settings.captcha">
-              <option value="normal">正常</option>
-              <option value="fail">验证失败</option>
-              <option value="expired">已过期</option>
-            </select></label
-          >
-          <label
-            >邮箱验证码<select v-model="settings.code">
-              <option value="normal">正常有效</option>
-              <option value="expired">已过期</option>
-            </select></label
-          >
-          <label
-            >业务请求<select v-model="settings.auth">
-              <option value="normal">正常</option>
-              <option value="fail">拒绝请求</option>
-            </select></label
-          >
-          <p class="demo-note">设置仅作用于本页模拟。真实服务端状态不受影响。</p>
-          <NovaButton @click="Object.assign(settings, defaultSettings())">恢复正常</NovaButton>
-        </div>
-        <div v-else class="demo-stack">
-          <p>
-            原生 Vue 3 + TypeScript 组件库开发预览，布局与状态由 Vue
-            响应式组件实现，样式使用命名前缀隔离的 Tailwind 工具类。
-          </p>
-          <p>
-            所有业务能力通过接口适配器显式注入。此页面单独加载内存模拟适配器，不发邮件、不创建真实账户、不提供实际安全保护。
-          </p>
-          <p>
-            仅明暗模式与品牌色可保存在此浏览器；密码、验证码、资料、设备、消息与安全状态都不持久化。刷新或退出即重置。
-          </p>
-          <p>
-            真实账户接口、两站接入、npm
-            发布均未实施。滑块百分比不是安全证明，服务端须执行挑战校验、限流、会话与权限控制。
-          </p>
-        </div>
-        <template v-if="panel !== 'tools'" #footer
-          ><NovaButton variant="ghost" @click="panel = 'tools'">← 返回工具</NovaButton></template
-        >
-      </NovaDialog>
-    </template>
-    <template #securityFormTools="{ fill: fillSecurity }"
-      ><NovaButton variant="ghost" @click="fillSecurity(DEMO_ACCOUNT_VALUES)"
-        >填入示例</NovaButton
-      ></template
+  <div :class="layout === 'embedded' ? 'demo-embedded' : undefined">
+    <div v-if="layout === 'embedded'" class="demo-hostbar">
+      <strong>虚构宿主站点</strong>
+      <span>首页 · 商店 · 社区 · 账户设置</span>
+    </div>
+    <NovaAccount
+      ref="account"
+      class="nova-demo"
+      :class="signedIn ? 'demo-account' : 'demo-auth'"
+      :adapter="adapter"
+      :locale="locale"
+      :time-zone="timeZone"
+      :layout="layout"
+      :page="page"
+      storage-key="nova-appearance-v1"
+      :code-length="settings.codeLength"
+      :password-strength="strengthOn ? demoStrength : undefined"
+      @authenticated="signedIn = true"
+      @update:page="page = $event"
+      @page-change="onPageChange"
+      @logout="resetDemo"
     >
-    <template #footer><span v-if="signedIn">交互演示 · 请勿输入真实资料</span></template>
-  </NovaAccount>
+      <template #tools="theme">
+        <NovaButton variant="ghost" @click="openTools"
+          >体验工具 <span aria-hidden="true">↗</span></NovaButton
+        >
+        <NovaDialog
+          :open="toolsOpen"
+          :title="
+            panel === 'appearance'
+              ? '外观设置'
+              : panel === 'settings'
+                ? '演示设置'
+                : panel === 'host'
+                  ? '宿主集成演示'
+                  : panel === 'about'
+                    ? '关于这份组件库'
+                    : '体验工具'
+          "
+          @close="toolsOpen = false"
+        >
+          <div v-if="panel === 'tools'" class="demo-stack">
+            <NovaButton variant="primary" @click="fill">一键填入示例</NovaButton>
+            <NovaButton @click="preview">用户中心预览</NovaButton>
+            <NovaButton @click="panel = 'appearance'">外观设置</NovaButton>
+            <NovaButton @click="panel = 'settings'">演示设置</NovaButton>
+            <NovaButton @click="panel = 'host'">宿主集成演示</NovaButton>
+            <NovaButton @click="panel = 'about'">组件库与隐私说明</NovaButton>
+            <p class="demo-note">全部账户、设备与消息均为虚构。快捷预览不代表身份认证。</p>
+          </div>
+          <NovaAppearance
+            v-else-if="panel === 'appearance'"
+            :model-value="theme.appearance"
+            :storage-error="theme.storageError"
+            @update:model-value="theme.setAppearance"
+          />
+          <div v-else-if="panel === 'settings'" class="demo-stack">
+            <label
+              >界面语言<select v-model="locale">
+                <option value="zh-CN">简体中文</option>
+                <option value="en-US">English</option>
+              </select></label
+            >
+            <label
+              >显示时区<select v-model="timeZone">
+                <option value="Asia/Shanghai">Asia/Shanghai</option>
+                <option value="UTC">UTC</option>
+              </select></label
+            >
+            <label
+              >网络响应<select v-model="settings.network">
+                <option value="normal">正常</option>
+                <option value="slow">慢速 · 3 秒</option>
+                <option value="offline">断网</option>
+              </select></label
+            >
+            <label
+              >挑战方式<select v-model="settings.challenge">
+                <option value="slider">滑块（内置 NovaCaptcha）</option>
+                <option value="math">算术题（宿主 #captcha 插槽）</option>
+              </select></label
+            >
+            <label
+              >滑块结果<select v-model="settings.captcha">
+                <option value="normal">正常</option>
+                <option value="fail">验证失败</option>
+                <option value="expired">已过期</option>
+              </select></label
+            >
+            <label
+              >邮箱验证码<select v-model="settings.code">
+                <option value="normal">正常有效</option>
+                <option value="expired">已过期</option>
+              </select></label
+            >
+            <label
+              >业务请求<select v-model="settings.auth">
+                <option value="normal">正常</option>
+                <option value="fail">拒绝请求</option>
+              </select></label
+            >
+            <p class="demo-note">
+              设置仅作用于本页模拟。真实服务端状态不受影响。“滑块结果”的失败与过期同样作用于算术题挑战。
+            </p>
+            <NovaButton @click="Object.assign(settings, defaultSettings())">恢复正常</NovaButton>
+          </div>
+          <div v-else-if="panel === 'host'" class="demo-stack">
+            <label
+              >外壳布局 layout<select v-model="layout">
+                <option value="full">全屏（默认）</option>
+                <option value="embedded">嵌入宿主页面</option>
+              </select></label
+            >
+            <p class="demo-note">
+              嵌入模式保留 header/footer、高度随内容；组件主题独立于宿主页面配色。
+            </p>
+            <div role="group" aria-label="受控页面导航" class="demo-stack">
+              <p class="demo-note">
+                受控导航 v-model:page。当前页面：{{ pageLabels[page] }}。宿主赋值 page
+                属权威跳转，不经过组件内未保存守卫；组件内页签会先弹出确认。
+              </p>
+              <div class="demo-grid">
+                <button
+                  v-for="[key, label] in pages"
+                  :key="key"
+                  type="button"
+                  class="demo-chip"
+                  :class="{ 'demo-chip-on': page === key }"
+                  :disabled="!signedIn"
+                  @click="page = key"
+                >
+                  {{ label }}
+                </button>
+              </div>
+              <p v-if="pageLog.length" class="demo-note">pageChange：{{ pageLog.join(' · ') }}</p>
+              <p v-else-if="signedIn" class="demo-note">切换页签或点击上方按钮，观察事件记录。</p>
+              <p v-else class="demo-note">登录或使用“用户中心预览”后可用。</p>
+            </div>
+            <label
+              >验证码长度 codeLength<select v-model="settings.codeLength">
+                <option :value="6">6 位（默认）</option>
+                <option :value="4">4 位</option>
+                <option :value="null">不限制 maxlength</option>
+              </select></label
+            >
+            <p class="demo-note">
+              仅调整登录表单展示；演示码同步为对应长度（4 位时为 2468）。账户中心安全表单不受影响。
+            </p>
+            <label
+              ><input v-model="strengthOn" type="checkbox" /> 注入 passwordStrength
+              宿主强度评估</label
+            >
+            <p class="demo-note">
+              注册与重置“设置新密码”一步显示评分、标签与提示；只影响展示，不拦截提交。
+            </p>
+            <label
+              ><input v-model="customSecurity" type="checkbox" /> 安全页改用 #security 插槽（TOTP
+              形式演示）</label
+            >
+            <p class="demo-note">
+              开启后内置安全页被插槽替换：验证码 {{ DEMO_ACCOUNT_VALUES.code }}，当前密码
+              {{ DEMO_ACCOUNT_VALUES.currentPassword }}。
+            </p>
+            <label
+              ><input
+                type="checkbox"
+                :checked="storageFault"
+                @change="onStorageChange(theme, $event)"
+              />
+              禁用本地存储（演示 storageError）</label
+            >
+            <p v-if="storageNote" role="status" class="demo-note">{{ storageNote }}</p>
+            <p v-if="theme.storageError" role="alert" class="demo-note">{{ theme.storageError }}</p>
+          </div>
+          <div v-else class="demo-stack">
+            <p>
+              原生 Vue 3 + TypeScript 组件库开发预览，布局与状态由 Vue
+              响应式组件实现，样式使用命名前缀隔离的 Tailwind 工具类。
+            </p>
+            <p>
+              所有业务能力通过接口适配器显式注入。此页面单独加载内存模拟适配器，不发邮件、不创建真实账户、不提供实际安全保护。
+            </p>
+            <p>
+              仅明暗模式与品牌色可保存在此浏览器；密码、验证码、资料、设备、消息与安全状态都不持久化。刷新或退出即重置。
+            </p>
+            <p>
+              真实账户接口、两站接入、npm
+              发布均未实施。滑块百分比不是安全证明，服务端须执行挑战校验、限流、会话与权限控制。
+            </p>
+          </div>
+          <template v-if="panel !== 'tools'" #footer
+            ><NovaButton variant="ghost" @click="panel = 'tools'">← 返回工具</NovaButton></template
+          >
+        </NovaDialog>
+      </template>
+      <template #captcha="captcha">
+        <form
+          v-if="captcha.challenge.kind === 'custom'"
+          class="demo-stack"
+          :aria-busy="captcha.busy"
+          @submit.prevent="submitMath(captcha)"
+        >
+          <p class="na:m-0 na:text-sm na:text-[var(--na-muted)]">{{ captcha.challenge.label }}</p>
+          <NovaField
+            v-model="mathAnswer"
+            label="计算结果"
+            inputmode="numeric"
+            autocomplete="off"
+            placeholder="例如 56"
+            :disabled="captcha.busy"
+            :error="captcha.error"
+          />
+          <div class="demo-grid">
+            <NovaButton type="submit" variant="primary" :disabled="captcha.busy"
+              >提交答案</NovaButton
+            >
+            <NovaButton :disabled="captcha.busy" @click="captcha.retry">换一题</NovaButton>
+            <NovaButton variant="ghost" :disabled="captcha.busy" @click="captcha.cancel"
+              >取消</NovaButton
+            >
+          </div>
+        </form>
+        <NovaCaptcha
+          v-else
+          :challenge="captcha.challenge"
+          :busy="captcha.busy"
+          :error="captcha.error"
+          simulated
+          @submit="captcha.submit"
+          @retry="captcha.retry"
+        />
+      </template>
+      <template v-if="customSecurity" #security="{ snapshot, adapter: accountAdapter, refresh }">
+        <div class="demo-stack">
+          <h2 class="na:m-0 na:text-base na:font-semibold">宿主二次认证（TOTP 形式演示）</h2>
+          <p class="demo-note">
+            本区块由 #security
+            插槽渲染，替换内置安全页。真实接入请在此实现验证器绑定、恢复码等服务端流程。
+          </p>
+          <p class="na:m-0 na:text-sm">
+            当前状态：<strong>{{
+              snapshot.security.twoStepEnabled ? '已开启两步验证' : '未开启两步验证'
+            }}</strong>
+          </p>
+          <form
+            class="demo-stack"
+            :aria-busy="totp.busy"
+            @submit.prevent="submitTotp(accountAdapter, snapshot, refresh)"
+          >
+            <NovaField
+              v-model="totp.password"
+              label="当前密码"
+              type="password"
+              autocomplete="current-password"
+              :disabled="totp.busy"
+            />
+            <NovaField
+              v-model="totp.code"
+              label="验证器验证码"
+              inputmode="numeric"
+              autocomplete="one-time-code"
+              :maxlength="6"
+              :disabled="totp.busy"
+              :error="totp.error"
+            />
+            <NovaButton type="submit" variant="primary" :disabled="totp.busy">{{
+              totp.busy
+                ? '处理中…'
+                : snapshot.security.twoStepEnabled
+                  ? '关闭两步验证'
+                  : '开启两步验证'
+            }}</NovaButton>
+          </form>
+          <p class="demo-note">
+            演示验证器固定显示 {{ DEMO_ACCOUNT_VALUES.code }}；真实验证器每 30
+            秒轮换，且服务端必须自行校验。
+          </p>
+        </div>
+      </template>
+      <template #securityFormTools="{ fill: fillSecurity }"
+        ><NovaButton variant="ghost" @click="fillSecurity(DEMO_ACCOUNT_VALUES)"
+          >填入示例</NovaButton
+        ></template
+      >
+      <template #footer><span v-if="signedIn">交互演示 · 请勿输入真实资料</span></template>
+    </NovaAccount>
+    <p v-if="layout === 'embedded'" class="demo-hostbody">
+      以上是 layout="embedded" 的 NovaAccount：保留 header 与
+      footer，高度由内容决定。宿主页面的其余内容会继续向下排布。
+    </p>
+  </div>
 </template>

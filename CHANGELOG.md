@@ -11,6 +11,7 @@
 - `page` / `update:page`, `initialPage`, and `layout="embedded"` for host routing and composition.
 - Textarea / affix slots / `maxlength` in `NovaField`, configurable auth code length, and optional host password-strength presentation.
 - Typed `NOVA_ERROR_CODES` / `NovaErrorCode` and `useAccount().requestResult()` for success, busy, cancellation and error outcomes.
+- Standalone demo coverage for the host integration surface: a "宿主集成演示" tools panel with embedded/full layout switch, controlled `page` jumps with a `pageChange` log, a TOTP-style `#security` slot demo, host `passwordStrength`, `codeLength` with a matching demo code, and a localStorage fault that surfaces `storageError`; the mock auth adapter can also serve a math challenge through the `#captcha` slot.
 
 ### Changed
 
