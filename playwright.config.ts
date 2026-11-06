@@ -17,7 +17,14 @@ export default defineConfig({
     timezoneId: 'Asia/Shanghai',
   },
   projects: [
-    { name: 'chromium', use: { ...devices['Desktop Chrome'] } },
+    // CHANNEL=chrome runs the chromium project against system-installed Chrome.
+    {
+      name: 'chromium',
+      use: {
+        ...devices['Desktop Chrome'],
+        ...(process.env.CHANNEL ? { channel: process.env.CHANNEL } : {}),
+      },
+    },
     { name: 'firefox', use: { ...devices['Desktop Firefox'] } },
     { name: 'webkit', use: { ...devices['Desktop Safari'] } },
   ],
