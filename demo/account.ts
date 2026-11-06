@@ -6,6 +6,7 @@ import type {
   MutationContext,
   RequestContext,
 } from '../src/types'
+import type { DemoSettings } from './auth'
 
 export const DEMO_ACCOUNT_VALUES = {
   currentPassword: 'NovaDemo2026!',
@@ -18,6 +19,7 @@ export const DEMO_ACCOUNT_VALUES = {
 interface DemoAccountOptions {
   wait?: (signal: AbortSignal) => Promise<void>
   now?: () => number
+  settings?: () => DemoSettings
 }
 const clone = <T>(value: T): T => structuredClone(value)
 function fail(code: string, message: string): never {
@@ -154,6 +156,7 @@ export function createInitialAccount(time: number): AccountSnapshot {
 export function createDemoAccountAdapter({
   wait = () => new Promise((resolve) => setTimeout(resolve, 350)),
   now = Date.now,
+  settings,
 }: DemoAccountOptions = {}): AccountAdapter {
   let state = createInitialAccount(now())
   let issueCounter = 0
@@ -166,8 +169,31 @@ export function createDemoAccountAdapter({
   }
   const pause = async (context: RequestContext) => {
     assertActive(context)
+    applyExternalEditIfArmed()
     await wait(context.signal)
     assertActive(context)
+  }
+  /** One-shot external edit per arming; the next host mutation then reports a revision conflict. */
+  let conflictConsumed = true
+  function applyExternalEditIfArmed() {
+    if (settings?.().conflict !== 'dirty') {
+      conflictConsumed = false
+      return
+    }
+    if (conflictConsumed) return
+    conflictConsumed = true
+    const next = snapshot()
+    next.revision = String(Number(state.revision) + 1)
+    next.profile = { ...next.profile, nickname: 'Nova（另一设备）' }
+    next.activity.unshift({
+      id: `activity-external-${next.revision}`,
+      category: 'account',
+      title: '另一台设备修改了资料（模拟并发）',
+      description: '外部修改仅存在于本页模拟状态；重新加载快照或刷新页面后可见。',
+      at: new Date(now()).toISOString(),
+    })
+    next.activity = next.activity.slice(0, 24)
+    state = next
   }
   function commit(
     context: MutationContext,

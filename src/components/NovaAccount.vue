@@ -62,6 +62,8 @@ const emit = defineEmits<{
 defineSlots<{
   brand?(): unknown
   footer?(): unknown
+  /** Replaces the auth card footer (default: simulated disclosure) with host content such as SSO buttons. */
+  authFooter?(): unknown
   tools?(props: {
     appearance: Appearance
     setAppearance: (value: Appearance, persist?: boolean) => void
@@ -228,6 +230,7 @@ defineExpose({
             @authenticated="authenticated"
             ><template v-if="$slots.captcha" #captcha="slotProps"
               ><slot name="captcha" v-bind="slotProps" /></template
+            ><template v-if="$slots.authFooter" #footer><slot name="authFooter" /></template
           ></NovaAuthForm>
         </div>
       </main>

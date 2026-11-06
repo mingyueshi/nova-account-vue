@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { createDemoAuthAdapter, DEMO_EMAIL, DEMO_PASSWORD, DEMO_CODE } from '../demo/auth'
+import {
+  createDemoAuthAdapter,
+  defaultSettings,
+  DEMO_EMAIL,
+  DEMO_PASSWORD,
+  DEMO_CODE,
+} from '../demo/auth'
 import type { CaptchaPurpose, RequestContext } from '../src/types'
 const context = (): RequestContext => ({ signal: new AbortController().signal, requestId: 'test' })
 const options = { delay: async () => {} }
@@ -99,5 +105,31 @@ describe('standalone mock auth boundaries', () => {
     await expect(
       adapter.sendCode({ email: DEMO_EMAIL, purpose: 'register', proof: token.token }, context()),
     ).rejects.toMatchObject({ code: 'PROOF_EXPIRED' })
+  })
+  it('throttles further sends after the first success when rate limiting is on', async () => {
+    let time = 1000
+    const adapter = createDemoAuthAdapter({
+      ...options,
+      now: () => time,
+      settings: () => ({ ...defaultSettings(), rate: 'limited' }),
+    })
+    const first = await adapter.sendCode(
+      { email: DEMO_EMAIL, purpose: 'register', proof: (await proof(adapter)).token },
+      context(),
+    )
+    expect(first.demoCode).toBe(DEMO_CODE)
+    time += 5_000
+    await expect(
+      adapter.sendCode(
+        { email: DEMO_EMAIL, purpose: 'register', proof: (await proof(adapter)).token },
+        context(),
+      ),
+    ).rejects.toMatchObject({ code: 'RATE_LIMITED' })
+    time += 30_000
+    const retry = await adapter.sendCode(
+      { email: DEMO_EMAIL, purpose: 'register', proof: (await proof(adapter)).token },
+      context(),
+    )
+    expect(retry.demoCode).toBe(DEMO_CODE)
   })
 })

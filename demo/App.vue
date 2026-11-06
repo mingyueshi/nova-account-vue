@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { reactive, ref, shallowRef } from 'vue'
+import { computed, reactive, ref, shallowRef } from 'vue'
 import {
   NovaAccount,
   NovaAppearance,
@@ -53,12 +53,19 @@ const totp = reactive({ password: '', code: '', busy: false, error: '' })
 const mathAnswer = ref('')
 const storageFault = ref(false)
 const storageNote = ref('')
+const sessionArmed = ref(false)
+const sessionNote = ref('')
+const flowNote = ref('')
+const oauthOn = ref(false)
+const deleteOpen = ref(false)
 const account = ref<InstanceType<typeof NovaAccount>>()
+const conflictArmed = computed(() => settings.conflict === 'dirty')
 function createAdapter(): NovaAdapter {
   return {
     simulated: true,
     auth: createDemoAuthAdapter({ settings: () => settings }),
     account: createDemoAccountAdapter({
+      settings: () => settings,
       wait: async (signal) => {
         const config = { ...settings }
         await new Promise((resolve) => setTimeout(resolve, config.network === 'slow' ? 3000 : 350))
@@ -66,6 +73,11 @@ function createAdapter(): NovaAdapter {
         if (config.network === 'offline')
           throw new NovaError('NETWORK', '模拟网络不可用，请在体验工具恢复正常后重试。')
         if (config.auth === 'fail') throw new NovaError('REJECTED', '模拟请求被拒绝，状态未改变。')
+        if (sessionArmed.value) {
+          sessionArmed.value = false
+          scheduleSessionExpiredReturn()
+          throw new NovaError('SESSION_EXPIRED', '登录状态已过期（模拟 401），请重新登录。')
+        }
       },
     }),
   }
@@ -92,7 +104,47 @@ function resetDemo() {
   totp.password = ''
   totp.code = ''
   totp.error = ''
+  sessionArmed.value = false
+  deleteOpen.value = false
+  clearTimeout(sessionTimer)
+  sessionNote.value = ''
   adapter.value = createAdapter()
+}
+let sessionTimer: ReturnType<typeof setTimeout> | undefined
+let flowTimer: ReturnType<typeof setTimeout> | undefined
+/** Real hosts react to 401 by clearing the local session; the demo mirrors that pattern. */
+function scheduleSessionExpiredReturn() {
+  clearTimeout(sessionTimer)
+  sessionTimer = setTimeout(() => {
+    if (signedIn.value)
+      forceReturnToAuth('登录状态已过期（模拟 401），已清除本地会话并返回登录页。')
+  }, 1400)
+}
+function forceReturnToAuth(note: string) {
+  resetDemo()
+  sessionNote.value = note
+  sessionTimer = setTimeout(() => {
+    sessionNote.value = ''
+  }, 10_000)
+}
+function flashFlowNote(text: string) {
+  flowNote.value = text
+  clearTimeout(flowTimer)
+  flowTimer = setTimeout(() => {
+    flowNote.value = ''
+  }, 10_000)
+}
+function toggleSessionArmed() {
+  sessionArmed.value = !sessionArmed.value
+}
+function armConflict() {
+  settings.conflict = 'dirty'
+  flashFlowNote(
+    '已模拟另一台设备修改资料：下一次账户操作将返回 REVISION_CONFLICT。真实接入通常在此时重新加载快照；演示中刷新页面或重新登录即恢复。',
+  )
+}
+function confirmDelete() {
+  forceReturnToAuth('演示账户注销完成：这是内存模拟，刷新页面后账户会复原。')
 }
 function openTools() {
   panel.value = 'tools'
@@ -186,6 +238,8 @@ function onStorageChange(
 </script>
 <template>
   <div :class="layout === 'embedded' ? 'demo-embedded' : undefined">
+    <p v-if="sessionNote" role="status" class="demo-banner">{{ sessionNote }}</p>
+    <p v-if="flowNote" role="status" class="demo-banner">{{ flowNote }}</p>
     <div v-if="layout === 'embedded'" class="demo-hostbar">
       <strong>虚构宿主站点</strong>
       <span>首页 · 商店 · 社区 · 账户设置</span>
@@ -286,8 +340,14 @@ function onStorageChange(
                 <option value="fail">拒绝请求</option>
               </select></label
             >
+            <label
+              >发送限流<select v-model="settings.rate">
+                <option value="normal">正常</option>
+                <option value="limited">首次成功后限流 20 秒</option>
+              </select></label
+            >
             <p class="demo-note">
-              设置仅作用于本页模拟。真实服务端状态不受影响。“滑块结果”的失败与过期同样作用于算术题挑战。
+              设置仅作用于本页模拟。真实服务端状态不受影响。“滑块结果”的失败与过期同样作用于算术题挑战；限流在首次发送成功后生效，期间再发会返回带剩余秒数的提示。
             </p>
             <NovaButton @click="Object.assign(settings, defaultSettings())">恢复正常</NovaButton>
           </div>
@@ -358,6 +418,38 @@ function onStorageChange(
             >
             <p v-if="storageNote" role="status" class="demo-note">{{ storageNote }}</p>
             <p v-if="theme.storageError" role="alert" class="demo-note">{{ theme.storageError }}</p>
+            <div role="group" aria-label="流程场景" class="demo-stack">
+              <p class="demo-note">真实接入方需要处理的会话与并发场景（登录后可用）。</p>
+              <div class="demo-grid">
+                <button
+                  type="button"
+                  class="demo-chip"
+                  :class="{ 'demo-chip-on': sessionArmed }"
+                  :disabled="!signedIn"
+                  @click="toggleSessionArmed"
+                >
+                  {{ sessionArmed ? '取消过期标记' : '让会话过期' }}
+                </button>
+                <button
+                  type="button"
+                  class="demo-chip"
+                  :class="{ 'demo-chip-on': conflictArmed }"
+                  :disabled="!signedIn"
+                  @click="armConflict"
+                >
+                  模拟另一设备修改
+                </button>
+              </div>
+              <p class="demo-note">
+                会话过期：下一次账户请求返回 401，随后自动清除本地会话并返回登录页。
+                外部修改：下一次账户操作返回 REVISION_CONFLICT；演示中刷新页面或重新登录即恢复。
+              </p>
+            </div>
+            <label
+              ><input v-model="oauthOn" type="checkbox" /> 登录卡片显示第三方登录占位（#authFooter
+              插槽）</label
+            >
+            <p class="demo-note">占位按钮仅展示、不发起任何请求；真实跳转与回调由宿主实现。</p>
           </div>
           <div v-else class="demo-stack">
             <p>
@@ -417,6 +509,16 @@ function onStorageChange(
           @retry="captcha.retry"
         />
       </template>
+      <template v-if="oauthOn" #authFooter>
+        <div role="group" aria-label="第三方登录占位" class="demo-stack">
+          <div class="demo-grid demo-oauth">
+            <NovaButton type="button" disabled>GitHub</NovaButton>
+            <NovaButton type="button" disabled>Google</NovaButton>
+            <NovaButton type="button" disabled>微软账户</NovaButton>
+          </div>
+          <p class="demo-note">仅演示占位（宿主 #authFooter 插槽），未接入任何第三方服务。</p>
+        </div>
+      </template>
       <template v-if="customSecurity" #security="{ snapshot, adapter: accountAdapter, refresh }">
         <div class="demo-stack">
           <h2 class="na:m-0 na:text-base na:font-semibold">宿主二次认证（TOTP 形式演示）</h2>
@@ -462,7 +564,24 @@ function onStorageChange(
             演示验证器固定显示 {{ DEMO_ACCOUNT_VALUES.code }}；真实验证器每 30
             秒轮换，且服务端必须自行校验。
           </p>
+          <div role="group" aria-label="危险区" class="demo-stack demo-danger">
+            <p class="demo-note">
+              <strong>危险区（演示）</strong>：注销当前演示账户，展示宿主实现的二次确认流程。
+            </p>
+            <NovaButton @click="deleteOpen = true">注销演示账户…</NovaButton>
+          </div>
         </div>
+        <NovaDialog :open="deleteOpen" title="注销演示账户？" @close="deleteOpen = false">
+          <p>
+            这是内存模拟注销：确认后会清除本页演示状态并返回登录页，刷新后账户复原。真实接入需要在服务端执行账户注销、冷静期与数据删除流程。
+          </p>
+          <template #footer>
+            <div class="demo-grid">
+              <NovaButton @click="deleteOpen = false">取消</NovaButton>
+              <NovaButton variant="primary" @click="confirmDelete">确认注销</NovaButton>
+            </div>
+          </template>
+        </NovaDialog>
       </template>
       <template #securityFormTools="{ fill: fillSecurity }"
         ><NovaButton variant="ghost" @click="fillSecurity(DEMO_ACCOUNT_VALUES)"

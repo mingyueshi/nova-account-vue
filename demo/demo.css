@@ -95,3 +95,26 @@ body,
   border-color: var(--na-brand);
   color: var(--na-brand);
 }
+/* Demo-level status banners and slot showcase chrome. The banner sits on the
+   host page background, outside the themed component root. */
+.demo-banner {
+  margin: 0;
+  padding: 10px 14px;
+  border: 1px solid #e0c06a;
+  border-radius: 10px;
+  background: #fff8e6;
+  color: #6b5518;
+  font-size: 13px;
+}
+.demo-oauth {
+  display: flex;
+  flex-wrap: wrap;
+}
+.demo-oauth > * {
+  flex: 1 1 100px;
+}
+.demo-danger {
+  padding: 12px;
+  border: 1px dashed #d9a0a0;
+  border-radius: 12px;
+}

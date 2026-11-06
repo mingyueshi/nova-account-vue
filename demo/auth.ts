@@ -12,6 +12,10 @@ export interface DemoSettings {
   challenge: 'slider' | 'math'
   code: 'normal' | 'expired'
   auth: 'normal' | 'fail'
+  /** `limited` rejects further sends for a window to demonstrate `retryAfter`-style throttling. */
+  rate: 'normal' | 'limited'
+  /** `dirty` applies one simulated external edit so the next mutation reports a revision conflict. */
+  conflict: 'normal' | 'dirty'
   /** Presentation limit mirrored by the auth form `codeLength` prop. */
   codeLength: 4 | 6 | null
 }
@@ -21,6 +25,8 @@ export const defaultSettings = (): DemoSettings => ({
   challenge: 'slider',
   code: 'normal',
   auth: 'normal',
+  rate: 'normal',
+  conflict: 'normal',
   codeLength: 6,
 })
 /** Demo code follows the presented code length; `null` keeps the full six digits. */
@@ -63,6 +69,7 @@ export function createDemoAuthAdapter(
     resendAt: number
     resetToken?: string
   } | null = null
+  let rateUntil = 0
   function email(value: string) {
     if (value.trim().toLowerCase() !== DEMO_EMAIL)
       fail('DEMO_ONLY', `请使用示例邮箱 ${DEMO_EMAIL}，勿填写真实资料。`)
@@ -159,6 +166,14 @@ export function createDemoAuthAdapter(
       const address = email(input.email)
       const config = await wait(context, true)
       checkProof(input.proof, address, input.purpose)
+      if (config.rate === 'limited') {
+        if (now() < rateUntil)
+          fail(
+            'RATE_LIMITED',
+            `发送过于频繁（模拟限流），请约 ${Math.max(1, Math.ceil((rateUntil - now()) / 1000))} 秒后再试。`,
+          )
+        rateUntil = now() + 20_000
+      }
       if (delivery && now() < delivery.resendAt) fail('COOLDOWN', '请稍后再获取验证码。')
       proof = null
       delivery = {
