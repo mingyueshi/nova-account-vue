@@ -42,6 +42,14 @@ async function preview(page: Page, readyLabel = '编辑资料') {
   await page.getByRole('button', { name: '用户中心预览', exact: true }).click()
   await expect(page.getByRole('button', { name: readyLabel, exact: true })).toBeVisible()
 }
+async function hostPanel(page: Page) {
+  await page.getByRole('button', { name: '体验工具' }).click()
+  await page
+    .getByRole('dialog', { name: '体验工具', exact: true })
+    .getByRole('button', { name: '宿主集成演示', exact: true })
+    .click()
+  return page.getByRole('dialog', { name: '宿主集成演示', exact: true })
+}
 
 const runtimeErrors = new WeakMap<Page, string[]>()
 test.beforeEach(async ({ page }) => {
@@ -335,4 +343,155 @@ test('axe: auth, error, register, challenge, account pages, and eight appearance
       })
     }
   }
+})
+
+test('host panel: embedded layout switch and controlled page jumps log pageChange', async ({
+  page,
+}) => {
+  const host = await hostPanel(page)
+  await host.getByRole('combobox', { name: '外壳布局 layout' }).selectOption('embedded')
+  await expect(page.getByText('虚构宿主站点')).toBeVisible()
+  await expect(page.locator('[data-layout="embedded"]')).toBeVisible()
+  await host.getByRole('button', { name: '关闭对话框' }).click()
+  await page.getByRole('button', { name: '体验工具' }).click()
+  await page
+    .getByRole('dialog', { name: '体验工具', exact: true })
+    .getByRole('button', { name: '用户中心预览', exact: true })
+    .click()
+  await expect(page.getByRole('heading', { name: '账户概览', exact: true })).toBeVisible()
+  const signedInHost = await hostPanel(page)
+  await signedInHost.getByRole('button', { name: '安全设置', exact: true }).click()
+  await expect(page.getByRole('heading', { name: '账号安全', exact: true })).toBeVisible()
+  await expect(signedInHost.getByText('当前页面：安全设置')).toBeVisible()
+  await expect(signedInHost.getByText(/pageChange：/)).toContainText('安全设置')
+  await signedInHost.getByRole('combobox', { name: '外壳布局 layout' }).selectOption('full')
+  await expect(page.getByText('虚构宿主站点')).not.toBeVisible()
+})
+
+test('session expiry: next account request reports 401 and returns to the auth page', async ({
+  page,
+}) => {
+  await preview(page)
+  const host = await hostPanel(page)
+  await host.getByRole('button', { name: '让会话过期' }).click()
+  await host.getByRole('button', { name: '消息中心', exact: true }).click()
+  await host.getByRole('button', { name: '关闭对话框' }).click()
+  await page.getByRole('button', { name: '全部标为已读', exact: true }).click()
+  await expect(
+    page.getByText('登录状态已过期（模拟 401），已清除本地会话并返回登录页。'),
+  ).toBeVisible()
+  await expect(page.getByRole('heading', { name: '欢迎回来', exact: true })).toBeVisible()
+})
+
+test('external edit: the next account mutation reports a revision conflict', async ({ page }) => {
+  await preview(page)
+  const host = await hostPanel(page)
+  await host.getByRole('button', { name: '模拟另一设备修改' }).click()
+  await host.getByRole('button', { name: '关闭对话框' }).click()
+  await page.locator('[data-page="profile"]').click()
+  await page.getByLabel('昵称', { exact: true }).fill('Conflict draft')
+  await page.getByRole('button', { name: '保存资料', exact: true }).click()
+  // The rejection surfaces both as the section alert and the adapter error line.
+  await expect(page.getByText('资料已发生变化，请重新加载后再试。').first()).toBeVisible()
+})
+
+test('math challenge through the #captcha slot: error names the answer, retry and success', async ({
+  page,
+}) => {
+  const settingsDialog = await settings(page)
+  await settingsDialog.getByRole('combobox', { name: '挑战方式', exact: true }).selectOption('math')
+  await settingsDialog.getByRole('button', { name: '关闭对话框', exact: true }).click()
+  await fillLogin(page)
+  await page.getByRole('button', { name: '登录', exact: true }).click()
+  const dialog = page.getByRole('dialog', { name: '安全验证', exact: true })
+  const question = dialog.getByText(/请计算/)
+  await expect(question).toBeVisible()
+  const [, left, right] = (await question.textContent())!.match(/请计算 (\d+) × (\d+)/)!
+  await page.getByLabel('计算结果', { exact: true }).fill('1')
+  await dialog.getByRole('button', { name: '提交答案', exact: true }).click()
+  await expect(dialog.getByRole('alert')).toContainText(`正确答案 ${Number(left) * Number(right)}`)
+  await dialog.getByRole('button', { name: '换一题', exact: true }).click()
+  await expect(question).toBeVisible()
+  const [, nextLeft, nextRight] = (await question.textContent())!.match(/请计算 (\d+) × (\d+)/)!
+  await page
+    .getByLabel('计算结果', { exact: true })
+    .fill(String(Number(nextLeft) * Number(nextRight)))
+  await dialog.getByRole('button', { name: '提交答案', exact: true }).click()
+  await expect(page.getByRole('heading', { name: '账户概览', exact: true })).toBeVisible()
+})
+
+test('TOTP security slot enables two-step; the danger zone returns to the auth page', async ({
+  page,
+}) => {
+  await preview(page)
+  const host = await hostPanel(page)
+  await host.getByRole('checkbox', { name: /#security 插槽/ }).check()
+  await host.getByRole('button', { name: '关闭对话框' }).click()
+  await page.locator('[data-page="security"]').click()
+  await expect(page.getByRole('heading', { name: '宿主二次认证（TOTP 形式演示）' })).toBeVisible()
+  await page.getByLabel('当前密码', { exact: true }).fill('NovaDemo2026!')
+  await page.getByLabel('验证器验证码', { exact: true }).fill('246810')
+  await page.getByRole('button', { name: '开启两步验证', exact: true }).click()
+  await expect(page.getByText('已开启两步验证')).toBeVisible()
+  await page.getByRole('button', { name: '注销演示账户…', exact: true }).click()
+  const confirm = page.getByRole('dialog', { name: '注销演示账户？', exact: true })
+  await confirm.getByRole('button', { name: '确认注销', exact: true }).click()
+  await expect(
+    page.getByText('演示账户注销完成：这是内存模拟，刷新页面后账户会复原。'),
+  ).toBeVisible()
+  await expect(page.getByRole('heading', { name: '欢迎回来', exact: true })).toBeVisible()
+})
+
+test('codeLength and passwordStrength props shape the auth form', async ({ page }) => {
+  const host = await hostPanel(page)
+  await host.getByRole('combobox', { name: '验证码长度 codeLength' }).selectOption('4')
+  await host.getByRole('checkbox', { name: /passwordStrength/ }).check()
+  await host.getByRole('button', { name: '关闭对话框' }).click()
+  await page.getByRole('button', { name: '注册', exact: true }).click()
+  await page.getByLabel('邮箱', { exact: true }).fill('demo@nova.example')
+  await page.getByLabel('密码', { exact: true }).fill('NovaDemo2026!')
+  await expect(page.getByText(/密码强度/)).toBeVisible()
+  await expect(page.locator('meter')).toHaveAttribute('value', '4')
+  await page.getByRole('button', { name: '获取验证码', exact: true }).click()
+  await verify(page)
+  await expect(page.getByText('演示码 2468 · 没有发送真实邮件', { exact: true })).toBeVisible()
+  await expect(page.getByLabel('验证码', { exact: true })).toHaveAttribute('maxlength', '4')
+})
+
+test('rate limiting rejects the second send with remaining seconds', async ({ page }) => {
+  const settingsDialog = await settings(page)
+  await settingsDialog
+    .getByRole('combobox', { name: '发送限流', exact: true })
+    .selectOption('limited')
+  await settingsDialog.getByRole('button', { name: '关闭对话框', exact: true }).click()
+  await page.getByRole('tab', { name: '验证码登录', exact: true }).click()
+  await page.getByLabel('邮箱', { exact: true }).fill('demo@nova.example')
+  await page.getByRole('button', { name: '获取验证码', exact: true }).click()
+  await verify(page)
+  await expect(page.getByText('演示码 246810 · 没有发送真实邮件', { exact: true })).toBeVisible()
+  await page.getByRole('button', { name: '注册', exact: true }).click()
+  await page.getByLabel('邮箱', { exact: true }).fill('demo@nova.example')
+  await page.getByRole('button', { name: '获取验证码', exact: true }).click()
+  // A rejected send keeps the challenge dialog open with the throttle error.
+  const limitedDialog = page.getByRole('dialog', { name: '安全验证', exact: true })
+  const slider = limitedDialog.getByRole('slider')
+  await expect(slider).toBeEnabled()
+  await slider.press('End')
+  await slider.press('Enter')
+  await expect(page.getByText(/发送过于频繁（模拟限流），请约 \d+ 秒后再试/)).toBeVisible()
+})
+
+test('storage fault surfaces storageError; OAuth placeholders render through #authFooter', async ({
+  page,
+}) => {
+  const host = await hostPanel(page)
+  const storageToggle = host.getByRole('checkbox', { name: '禁用本地存储（演示 storageError）' })
+  await storageToggle.check()
+  await expect(host.getByRole('alert').filter({ hasText: '外观偏好无法保存' })).toBeVisible()
+  await storageToggle.uncheck()
+  await host.getByRole('checkbox', { name: /#authFooter/ }).check()
+  await host.getByRole('button', { name: '关闭对话框' }).click()
+  await expect(page.getByRole('group', { name: '第三方登录占位' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'GitHub' })).toBeDisabled()
+  await expect(page.getByRole('button', { name: 'Google' })).toBeDisabled()
 })
