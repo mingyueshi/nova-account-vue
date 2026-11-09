@@ -165,4 +165,88 @@ describe('authentication components', () => {
     expect(wrapper.find('input[autocomplete="one-time-code"]').exists()).toBe(true)
     expect(service.challenge).not.toHaveBeenCalled()
   })
+
+  it('uses an allowed initial mode and never switches to a disabled flow', async () => {
+    const wrapper = mount(NovaAuthForm, {
+      props: { adapter: adapter(), modes: ['code', 'register'] },
+    })
+    wrappers.push(wrapper)
+    expect(wrapper.find('input[autocomplete="one-time-code"]').exists()).toBe(true)
+    expect(wrapper.find('input[autocomplete="current-password"]').exists()).toBe(false)
+    const labelId = wrapper.get('form').attributes('aria-labelledby')
+    expect(wrapper.find(`[id="${labelId}"]`).exists()).toBe(true)
+    wrapper.vm.setMode('password')
+    await flushPromises()
+    expect(wrapper.emitted('mode-change')).toBeUndefined()
+    wrapper.vm.setMode('register')
+    await flushPromises()
+    await wrapper
+      .findAll('button')
+      .find((button) => button.text() === '← 返回登录')!
+      .trigger('click')
+    expect(wrapper.find('input[autocomplete="one-time-code"]').exists()).toBe(true)
+    expect(wrapper.find('input[autocomplete="current-password"]').exists()).toBe(false)
+  })
+
+  it('removes disabled active flows and cancels pending results when modes change', async () => {
+    const service = adapter()
+    let resolve!: (value: Awaited<ReturnType<AuthAdapter['challenge']>>) => void
+    service.challenge = vi.fn<AuthAdapter['challenge']>(
+      () =>
+        new Promise((done) => {
+          resolve = done
+        }),
+    )
+    const wrapper = mount(NovaAuthForm, { props: { adapter: service } })
+    wrappers.push(wrapper)
+    wrapper.vm.fill({ email: 'person@example.test', password: 'secret' })
+    void wrapper.get('form').trigger('submit')
+    await flushPromises()
+    await wrapper.setProps({ modes: ['code'] })
+    expect(vi.mocked(service.challenge).mock.calls[0]![1].signal.aborted).toBe(true)
+    resolve({ id: 'late', kind: 'slider', expiresAt: Date.now() + 100_000 })
+    await flushPromises()
+    expect(wrapper.find('input[type="range"]').exists()).toBe(false)
+    expect(wrapper.find('input[autocomplete="one-time-code"]').exists()).toBe(true)
+    await wrapper.setProps({ modes: [] })
+    expect(wrapper.find('form').exists()).toBe(false)
+    wrapper.vm.setMode('password')
+    await flushPromises()
+    expect(wrapper.find('form').exists()).toBe(false)
+    expect(service.login).not.toHaveBeenCalled()
+  })
+
+  it('uses absolute Home and End tab navigation', async () => {
+    const wrapper = mount(NovaAuthForm, { props: { adapter: adapter() } })
+    wrappers.push(wrapper)
+    const tabs = wrapper.findAll('[role="tab"]')
+    await tabs[0]!.trigger('keydown', { key: 'Home' })
+    expect(tabs[0]!.attributes('aria-selected')).toBe('true')
+    await tabs[0]!.trigger('keydown', { key: 'End' })
+    await tabs[1]!.trigger('keydown', { key: 'End' })
+    expect(tabs[1]!.attributes('aria-selected')).toBe('true')
+    await tabs[1]!.trigger('keydown', { key: 'Home' })
+    expect(tabs[0]!.attributes('aria-selected')).toBe('true')
+  })
+
+  it('updates identifier validation when the host changes its prop', async () => {
+    const service = adapter()
+    const wrapper = mount(NovaAuthForm, { props: { adapter: service, modes: ['password'] } })
+    wrappers.push(wrapper)
+    await wrapper.setProps({ identifier: 'username' })
+    wrapper.vm.fill({ email: 'AdminUser', password: 'secret' })
+    await wrapper.get('form').trigger('submit')
+    await flushPromises()
+    expect(service.challenge).toHaveBeenCalledWith(
+      expect.objectContaining({ email: 'AdminUser' }),
+      expect.anything(),
+    )
+    await wrapper.setProps({ identifier: 'email' })
+    expect(wrapper.find('input[type="range"]').exists()).toBe(false)
+    wrapper.vm.fill({ password: 'secret' })
+    await wrapper.get('form').trigger('submit')
+    await flushPromises()
+    expect(wrapper.get('input[type="email"]').attributes('aria-invalid')).toBe('true')
+    expect(service.challenge).toHaveBeenCalledTimes(1)
+  })
 })

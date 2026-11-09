@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount, type VueWrapper } from '@vue/test-utils'
 import NovaAccountCenter from '../src/components/NovaAccountCenter.vue'
 import {
@@ -7,7 +7,7 @@ import {
   createInitialAccount,
   DEMO_ACCOUNT_VALUES,
 } from '../demo/account'
-import type { AccountAdapter, CodeDelivery } from '../src/types'
+import type { AccountAdapter, AccountPage, CodeDelivery } from '../src/types'
 
 const wrappers: VueWrapper[] = []
 afterEach(() => {
@@ -184,5 +184,157 @@ describe('navigation during initial load', () => {
     expect(wrapper.get('h1').text()).toBe('登录设备')
     expect(wrapper.findAll('main article')).toHaveLength(3)
     expect(wrapper.get('main').text()).not.toContain('正在加载账户')
+  })
+})
+
+describe('restricted account pages', () => {
+  async function restricted(props: {
+    pages: AccountPage[]
+    page?: AccountPage
+    initialPage?: AccountPage
+  }) {
+    const wrapper = mount(NovaAccountCenter, {
+      props: {
+        adapter: createDemoAccountAdapter({ wait: () => Promise.resolve() }),
+        simulated: true,
+        ...props,
+      },
+      attachTo: document.body,
+    })
+    wrappers.push(wrapper)
+    await flushPromises()
+    return wrapper
+  }
+  it('excludes unavailable overview shortcuts as well as navigation tabs', async () => {
+    const wrapper = await restricted({ pages: ['overview', 'security'] })
+    expect(wrapper.findAll('[data-page]').map((item) => item.attributes('data-page'))).toEqual([
+      'overview',
+      'security',
+    ])
+    expect(wrapper.findAll('main button').map((item) => item.text())).toEqual([
+      expect.stringContaining('账号安全'),
+    ])
+    await wrapper.get('main button').trigger('click')
+    expect(wrapper.get('h1').text()).toBe('账号安全')
+  })
+  it('keeps the allowed edit-profile shortcut working', async () => {
+    const wrapper = await restricted({ pages: ['overview', 'profile'] })
+    await button(wrapper, '编辑资料').trigger('click')
+    expect(wrapper.get('h1').text()).toBe('个人资料')
+  })
+  it('rejects a queued destination that the host has since removed', async () => {
+    const wrapper = await restricted({ pages: ['profile', 'security'] })
+    await wrapper.get('input[autocomplete="nickname"]').setValue('Unsaved')
+    await wrapper.get('[data-page="security"]').trigger('click')
+    expect(wrapper.find('dialog[open]').exists()).toBe(true)
+    await wrapper.setProps({ pages: ['profile'] })
+    await button(wrapper, '放弃并离开').trigger('click')
+    expect(wrapper.get('h1').text()).toBe('个人资料')
+    expect(wrapper.emitted('update:page')).toBeUndefined()
+  })
+  it('starts on an available page and honors only allowed initial pages', async () => {
+    const wrapper = await restricted({ pages: ['profile', 'security'], initialPage: 'messages' })
+    expect(wrapper.get('h1').text()).toBe('个人资料')
+    expect(wrapper.emitted('update:page')).toBeUndefined()
+    const selected = await restricted({ pages: ['profile', 'security'], initialPage: 'security' })
+    expect(selected.get('h1').text()).toBe('账号安全')
+  })
+  it('reconciles a removed page and does not revive it when the list expands', async () => {
+    const wrapper = await restricted({ pages: ['profile', 'security'] })
+    await wrapper.get('input[autocomplete="nickname"]').setValue('Discarded draft')
+    await wrapper.setProps({ pages: ['security'] })
+    expect(wrapper.get('h1').text()).toBe('账号安全')
+    expect(wrapper.emitted('update:page')).toBeUndefined()
+    await wrapper.setProps({ pages: ['profile', 'security'] })
+    expect(wrapper.get('h1').text()).toBe('账号安全')
+    await wrapper.get('[data-page="profile"]').trigger('click')
+    expect((wrapper.get('input[autocomplete="nickname"]').element as HTMLInputElement).value).toBe(
+      'Nova',
+    )
+  })
+  it('falls back for an unavailable controlled page without echoing updates', async () => {
+    const wrapper = await restricted({ pages: ['profile', 'security'], page: 'messages' })
+    expect(wrapper.get('h1').text()).toBe('个人资料')
+    expect(wrapper.emitted('update:page')).toBeUndefined()
+    await wrapper.get('[data-page="security"]').trigger('click')
+    expect(wrapper.emitted('update:page')).toEqual([['security']])
+    expect(wrapper.get('h1').text()).toBe('个人资料')
+    await wrapper.setProps({ page: 'security' })
+    expect(wrapper.get('h1').text()).toBe('账号安全')
+    await wrapper.setProps({ pages: ['profile'] })
+    expect(wrapper.get('h1').text()).toBe('个人资料')
+    expect(wrapper.emitted('update:page')).toEqual([['security']])
+  })
+  it('resets an exchanged adapter onto an allowed internal page', async () => {
+    const wrapper = await restricted({ pages: ['profile', 'security'], initialPage: 'messages' })
+    await wrapper.setProps({ adapter: createDemoAccountAdapter({ wait: () => Promise.resolve() }) })
+    await flushPromises()
+    expect(wrapper.get('h1').text()).toBe('个人资料')
+    await wrapper.setProps({ pages: ['profile', 'security', 'messages'] })
+    expect(wrapper.get('h1').text()).toBe('个人资料')
+  })
+  it('renders no excluded page or controls for an empty page list', async () => {
+    const wrapper = await restricted({ pages: [], page: 'security' })
+    expect(wrapper.findAll('[data-page]')).toHaveLength(0)
+    expect(wrapper.find('h1').exists()).toBe(false)
+    expect(wrapper.findAll('main button, main form, main section')).toHaveLength(0)
+    expect(wrapper.emitted('update:page')).toBeUndefined()
+    await wrapper.setProps({ pages: ['security'] })
+    expect(wrapper.get('h1').text()).toBe('账号安全')
+    await wrapper.setProps({ pages: [] })
+    expect(wrapper.findAll('main button, main form, main section')).toHaveLength(0)
+  })
+})
+
+describe('two-step availability', () => {
+  it('shows two-step by default for direct account-center consumers', async () => {
+    const wrapper = await create()
+    await wrapper.get('[data-page="security"]').trigger('click')
+    expect(button(wrapper, '开启').exists()).toBe(true)
+  })
+  it('closes a removed two-step dialog and prevents its stale form from submitting', async () => {
+    const base = createDemoAccountAdapter({ wait: () => Promise.resolve() })
+    const setTwoStep = vi.fn(base.setTwoStep)
+    const wrapper = await create(true, { ...base, setTwoStep })
+    await wrapper.setProps({ twoStep: true })
+    await wrapper.get('[data-page="security"]').trigger('click')
+    await button(wrapper, '开启').trigger('click')
+    const form = wrapper.get('dialog[open] form')
+    wrapper.vm.fillSecurity(DEMO_ACCOUNT_VALUES)
+    await wrapper.setProps({ twoStep: false })
+    expect(wrapper.find('dialog[open]').exists()).toBe(false)
+    await form.trigger('submit')
+    expect(setTwoStep).not.toHaveBeenCalled()
+    await wrapper.setProps({ twoStep: true })
+    await button(wrapper, '开启').trigger('click')
+    expect(
+      (wrapper.get('dialog[open] input[type="password"]').element as HTMLInputElement).value,
+    ).toBe('')
+  })
+  it('cancels a pending two-step operation when its UI is removed', async () => {
+    const base = createDemoAccountAdapter({ wait: () => Promise.resolve() })
+    let signal!: AbortSignal
+    let resolve!: (value: ReturnType<typeof createInitialAccount>) => void
+    const setTwoStep: AccountAdapter['setTwoStep'] = (_input, context) => {
+      signal = context.signal
+      return new Promise((done) => {
+        resolve = done
+      })
+    }
+    const wrapper = await create(true, { ...base, setTwoStep })
+    await wrapper.setProps({ twoStep: true })
+    await wrapper.get('[data-page="security"]').trigger('click')
+    await button(wrapper, '开启').trigger('click')
+    wrapper.vm.fillSecurity(DEMO_ACCOUNT_VALUES)
+    await wrapper.get('dialog[open] form').trigger('submit')
+    await wrapper.setProps({ twoStep: false })
+    expect(signal.aborted).toBe(true)
+    const stale = createInitialAccount(Date.now())
+    stale.security.twoStepEnabled = true
+    resolve(stale)
+    await flushPromises()
+    await wrapper.setProps({ twoStep: true })
+    expect(button(wrapper, '开启').exists()).toBe(true)
+    expect(wrapper.find('dialog[open]').exists()).toBe(false)
   })
 })

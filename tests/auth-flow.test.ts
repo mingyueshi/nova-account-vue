@@ -409,4 +409,15 @@ describe('countdowns and page visibility', () => {
       hidden.mockRestore()
     }
   })
+
+  it('preserves username case throughout the password challenge and login', async () => {
+    const adapter = createAdapter()
+    const flow = setup(adapter, { identifier: 'username' })
+    flow.fill({ email: '  AdminUser  ' })
+    await flow.submit()
+    await flow.verifyChallenge({ value: 100 })
+    for (const method of [adapter.challenge, adapter.verifyCaptcha, adapter.login]) {
+      expect(method.mock.calls[0]?.[0]).toMatchObject({ email: 'AdminUser' })
+    }
+  })
 })

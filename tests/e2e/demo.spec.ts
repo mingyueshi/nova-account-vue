@@ -498,7 +498,7 @@ test('storage fault surfaces storageError; OAuth placeholders render through #au
 
 test('multi-instance view renders two independently themed auth roots', async ({ page }) => {
   const host = await hostPanel(page)
-  // Toggling replaces the main view and unmounts the dialog, so verify via a raw click.
+  // Toggling hides the main view and closes the dialog, so verify via a raw click.
   await host
     .getByRole('checkbox', { name: /多实例主题隔离/ })
     .evaluate((el) => (el as HTMLElement).click())
@@ -527,6 +527,35 @@ test('viewport preview opens the demo in a real narrow window', async ({ page })
   const popupPromise = page.waitForEvent('popup')
   await host.getByRole('button', { name: '打开预览窗口' }).click()
   const popup = await popupPromise
-  expect(popup.viewportSize()?.width).toBe(390)
+  expect(popup.viewportSize()).toEqual({ width: 390, height: 844 })
+  await popup.close()
+})
+
+test('multi-instance preview preserves the primary session, draft and controlled page', async ({
+  page,
+}) => {
+  await preview(page)
+  await page.locator('[data-page="profile"]').click()
+  await page.getByLabel('昵称', { exact: true }).fill('Unsaved primary draft')
+  const host = await hostPanel(page)
+  await host
+    .getByRole('checkbox', { name: /多实例主题隔离/ })
+    .evaluate((el) => (el as HTMLElement).click())
+  await expect(page.getByRole('heading', { name: '实例 A · 深色 / 暖琥珀' })).toBeVisible()
+  await page.getByRole('button', { name: '返回单实例演示' }).click()
+  await expect(page.getByRole('heading', { name: '个人资料', exact: true })).toBeVisible()
+  await expect(page.getByLabel('昵称', { exact: true })).toHaveValue('Unsaved primary draft')
+  await expect(page.getByRole('dialog')).not.toBeVisible()
+  await page.getByRole('button', { name: '保存资料', exact: true }).click()
+  await expect(page.getByRole('status').filter({ hasText: '演示资料已保存' })).toBeVisible()
+})
+
+test('small viewport preview uses the advertised 320 by 568 dimensions', async ({ page }) => {
+  const host = await hostPanel(page)
+  await host.getByRole('combobox', { name: '手机视口预览' }).selectOption('320')
+  const popupPromise = page.waitForEvent('popup')
+  await host.getByRole('button', { name: '打开预览窗口' }).click()
+  const popup = await popupPromise
+  expect(popup.viewportSize()).toEqual({ width: 320, height: 568 })
   await popup.close()
 })

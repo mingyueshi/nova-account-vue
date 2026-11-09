@@ -24,6 +24,12 @@
 
 ### Fixed
 
+- Host `modes` now selects and preserves only allowed auth flows, cancels removed in-flight flows, handles code-only return navigation and an empty mode list, and retains a valid form accessible name with one login mode.
+- Username identifiers preserve case across adapter calls; changing identifier semantics updates validation and cancels stale verification state. Auth tabs use absolute Home/End navigation.
+- Account `pages` restrictions apply to overview shortcuts and selected pages as well as the sidebar, with safe initial/reactive fallback and no controlled-page update echo.
+- Standalone account centers retain the intended enabled-by-default two-step control; disabling it closes/cancels its dialog and ignores late results.
+- Switching the demo into multi-instance view preserves the primary session, page, and unsaved draft. The small popup preview requests its advertised 320×568 dimensions.
+
 - Message action names now include their visible content, preserving read state and satisfying the axe label-in-name check.
 - Navigating before the first account snapshot finishes loading no longer cancels the shared load and leaves an empty page.
 - Existing built-in field validation errors follow locale and message override changes without resubmission or clearing input.

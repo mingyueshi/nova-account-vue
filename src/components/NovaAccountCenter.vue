@@ -14,16 +14,19 @@ import NovaField from './NovaField.vue'
 import NovaDialog from './NovaDialog.vue'
 
 const { t, formatTime } = useNovaLocale()
-const props = defineProps<{
-  adapter: AccountAdapter
-  simulated?: boolean
-  page?: AccountPage
-  initialPage?: AccountPage
-  /** Visible account pages; defaults to all seven. */
-  pages?: AccountPage[]
-  /** Hide the two-step row when the host has no step-up implementation. */
-  twoStep?: boolean
-}>()
+const props = withDefaults(
+  defineProps<{
+    adapter: AccountAdapter
+    simulated?: boolean
+    page?: AccountPage
+    initialPage?: AccountPage
+    /** Visible account pages; defaults to all seven. */
+    pages?: AccountPage[]
+    /** Hide the two-step row when the host has no step-up implementation. */
+    twoStep?: boolean
+  }>(),
+  { twoStep: true },
+)
 const emit = defineEmits<{
   logout: []
   pageChange: [page: AccountPage]
@@ -48,8 +51,7 @@ defineSlots<{
 const { snapshot, busy, error, notice, unread, request, load, mutate, cancel, clear } = useAccount(
   () => props.adapter,
 )
-const internalPage = ref<AccountPage>(props.initialPage ?? 'overview')
-const page = computed(() => props.page ?? internalPage.value)
+const internalPage = ref<AccountPage | undefined>(props.initialPage ?? 'overview')
 const heading = ref<HTMLElement>()
 const queued = ref<AccountPage | 'logout' | null>(null)
 const profile = reactive<Omit<Profile, 'id'>>({ nickname: '', bio: '', avatar: 'iris' })
@@ -104,9 +106,25 @@ const tabs = computed<{ id: AccountPage; label: string; symbol: string; descript
     },
   ],
 )
-const currentTab = computed(() => tabs.value.find((tab) => tab.id === page.value)!)
 const visibleTabs = computed(() =>
   props.pages ? tabs.value.filter((tab) => props.pages!.includes(tab.id)) : tabs.value,
+)
+function isPageAvailable(target: AccountPage | undefined) {
+  return visibleTabs.value.some((tab) => tab.id === target)
+}
+const page = computed(() => {
+  const requested = props.page ?? internalPage.value
+  return isPageAvailable(requested) ? requested : visibleTabs.value[0]?.id
+})
+const currentTab = computed(() => visibleTabs.value.find((tab) => tab.id === page.value))
+// Normalize only internal state. Controlled pages never echo updates to their host.
+watch(
+  visibleTabs,
+  () => {
+    if (props.page === undefined && !isPageAvailable(internalPage.value))
+      internalPage.value = visibleTabs.value[0]?.id
+  },
+  { immediate: true, flush: 'sync' },
 )
 const showTwoStep = computed(() => props.twoStep !== false)
 const avatarOptions = computed<{ id: Profile['avatar']; label: string; color: string }[]>(() => [
@@ -175,6 +193,7 @@ onMounted(() => {
 onUnmounted(() => window.removeEventListener('beforeunload', beforeUnload))
 
 function requestNavigation(target: AccountPage | 'logout') {
+  if (target !== 'logout' && !isPageAvailable(target)) return
   if (target === page.value) return
   if (dirty.value) {
     queued.value = target
@@ -183,6 +202,7 @@ function requestNavigation(target: AccountPage | 'logout') {
   navigate(target)
 }
 function navigate(target: AccountPage | 'logout') {
+  if (target !== 'logout' && !isPageAvailable(target)) return
   if (target === 'logout') {
     cancel()
     closeModal()
@@ -311,6 +331,13 @@ function closeModal() {
   selectedMessageId.value = ''
   clearSecurity()
 }
+watch(
+  showTwoStep,
+  (available) => {
+    if (!available && modal.value === 'twoStep') closeModal()
+  },
+  { flush: 'sync' },
+)
 function openModal(kind: Modal, targetDevice = '') {
   modalEpoch++
   cancel()
@@ -364,7 +391,7 @@ async function submitSecurity() {
       (context) => props.adapter.changeEmail({ email: input.email, code: input.code }, context),
       t('security.emailDone'),
     )
-  else if (action === 'twoStep' && snapshot.value) {
+  else if (action === 'twoStep' && showTwoStep.value && snapshot.value) {
     const enabled = !snapshot.value.security.twoStepEnabled
     result = await mutate(
       (context) =>
@@ -393,7 +420,7 @@ watch(page, (target) => {
   queued.value = null
   notice.value = ''
   syncDrafts()
-  emit('pageChange', target)
+  if (target) emit('pageChange', target)
   void nextTick(() => heading.value?.focus({ preventScroll: true }))
 })
 watch(
@@ -402,7 +429,8 @@ watch(
     closeModal()
     clear()
     queued.value = null
-    internalPage.value = props.initialPage ?? 'overview'
+    const initial = props.initialPage ?? 'overview'
+    internalPage.value = isPageAvailable(initial) ? initial : visibleTabs.value[0]?.id
     void refresh()
   },
 )
@@ -481,7 +509,10 @@ defineExpose({ refresh, fillSecurity })
       :aria-busy="busy"
     >
       <div class="na:mx-auto na:w-full na:max-w-6xl">
-        <header class="na:mb-7 na:flex na:flex-wrap na:items-start na:justify-between na:gap-4">
+        <header
+          v-if="currentTab"
+          class="na:mb-7 na:flex na:flex-wrap na:items-start na:justify-between na:gap-4"
+        >
           <div>
             <h1
               ref="heading"
@@ -530,13 +561,16 @@ defineExpose({ refresh, fillSecurity })
                   {{ snapshot.profile.bio || t('account.emptyBio') }}
                 </p>
               </div>
-              <NovaButton variant="secondary" @click="requestNavigation('profile')">{{
-                t('account.editProfile')
-              }}</NovaButton>
+              <NovaButton
+                v-if="isPageAvailable('profile')"
+                variant="secondary"
+                @click="requestNavigation('profile')"
+                >{{ t('account.editProfile') }}</NovaButton
+              >
             </div>
             <div class="na:grid na:grid-cols-1 na:gap-4 na:sm:grid-cols-2 na:xl:grid-cols-4">
               <button
-                v-for="tab in tabs.filter((item) =>
+                v-for="tab in visibleTabs.filter((item) =>
                   ['profile', 'security', 'devices', 'notifications'].includes(item.id),
                 )"
                 :key="tab.id"

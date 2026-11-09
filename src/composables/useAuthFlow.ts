@@ -1,5 +1,6 @@
 import { useNovaLocale } from '../locale'
-import { computed, onMounted, onScopeDispose, reactive, ref, shallowRef, watch } from 'vue'
+import { computed, onMounted, onScopeDispose, reactive, ref, shallowRef, toValue, watch } from 'vue'
+import type { MaybeRefOrGetter } from 'vue'
 import { NovaError, NOVA_ERROR_CODES } from '../types'
 import type {
   AuthAdapter,
@@ -17,7 +18,7 @@ export interface AuthFlowOptions {
   onAuthenticated?: (result: AuthResult) => void
   onReset?: () => void
   /** Which identifier the account field collects; the adapter receives it in `email`. */
-  identifier?: 'email' | 'username'
+  identifier?: MaybeRefOrGetter<'email' | 'username'>
   now?: () => number
 }
 
@@ -78,7 +79,10 @@ export function useAuthFlow(
     Math.max(0, Math.ceil((resendAt.value - clock.value) / 1000)),
   )
   const codeExpired = computed(() => !!delivery.value && delivery.value.expiresAt <= clock.value)
-  const normalizedEmail = computed(() => fields.email.trim().toLowerCase())
+  const identifier = computed(() => toValue(options.identifier) ?? 'email')
+  const normalizedEmail = computed(() =>
+    identifier.value === 'username' ? fields.email.trim() : fields.email.trim().toLowerCase(),
+  )
   const purpose = computed<CaptchaPurpose>(
     () =>
       (
@@ -177,6 +181,14 @@ export function useAuthFlow(
     { flush: 'sync' },
   )
   watch(
+    identifier,
+    () => {
+      invalidate()
+      clearCredentials()
+    },
+    { flush: 'sync' },
+  )
+  watch(
     getAdapter,
     () => {
       invalidate()
@@ -193,7 +205,7 @@ export function useAuthFlow(
     return valid
   }
   function validateIdentifier() {
-    if ((options.identifier ?? 'email') === 'email') return validateEmail()
+    if (identifier.value === 'email') return validateEmail()
     const value = fields.email.trim()
     const valid = value.length > 0 && value.length <= 150 && !/\s/.test(value)
     fieldMessages.email = valid ? '' : () => t('flow.accountInvalid')

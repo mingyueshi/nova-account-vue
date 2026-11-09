@@ -47,7 +47,7 @@ defineSlots<{
 const flow = useAuthFlow(() => props.adapter, {
   onAuthenticated: (result) => emit('authenticated', result),
   onReset: () => emit('reset'),
-  identifier: props.identifier,
+  identifier: () => props.identifier,
 })
 const {
   mode,
@@ -72,6 +72,20 @@ const showPassword = ref(false)
 const isLogin = computed(() => mode.value === 'password' || mode.value === 'code')
 const loginTabs = computed(() =>
   (['password', 'code'] as const).filter((tab) => props.modes.includes(tab)),
+)
+const activeMode = computed(() => props.modes.includes(mode.value))
+const loginMode = computed(() => loginTabs.value[0])
+// A host may remove a flow while its request or challenge is still in flight.
+// Keep the flow on an allowed mode, and leave an empty list with no built-in form.
+watch(
+  [() => [...props.modes], mode],
+  () => {
+    if (activeMode.value) return
+    flow.cancel()
+    mode.value = props.modes[0] ?? 'password'
+    flow.fill({ password: '', confirmPassword: '', code: '' })
+  },
+  { immediate: true, flush: 'sync' },
 )
 const canRegister = computed(() => props.modes.includes('register'))
 const canReset = computed(() => props.modes.includes('reset'))
@@ -125,6 +139,7 @@ watch(
   { flush: 'post' },
 )
 function setMode(value: AuthMode) {
+  if (!props.modes.includes(value) || mode.value === value) return
   mode.value = value
   showPassword.value = false
   emit('mode-change', value)
@@ -140,14 +155,12 @@ async function tabKey(event: KeyboardEvent) {
   const tabs = loginTabs.value
   if (tabs.length < 2) return
   const index = tabs.indexOf(mode.value as (typeof tabs)[number])
-  const backward = event.key === 'ArrowLeft' || event.key === 'Home'
-  const next = backward
-    ? index <= 0
-      ? tabs.length - 1
-      : index - 1
-    : index < 0 || index >= tabs.length - 1
+  const next =
+    event.key === 'Home'
       ? 0
-      : index + 1
+      : event.key === 'End'
+        ? tabs.length - 1
+        : (index + (event.key === 'ArrowLeft' ? -1 : 1) + tabs.length) % tabs.length
   setMode(tabs[next]!)
   await nextTick()
   form.value?.parentElement
@@ -155,6 +168,7 @@ async function tabKey(event: KeyboardEvent) {
     ?.focus()
 }
 async function submit() {
+  if (!activeMode.value) return
   await flow.submit()
   await nextTick()
   const invalid = form.value?.querySelector<HTMLElement>('[aria-invalid="true"]')
@@ -162,6 +176,7 @@ async function submit() {
   else if (error.value) errorSummary.value?.focus({ preventScroll: true })
 }
 async function requestCode() {
+  if (!activeMode.value) return
   await flow.requestCode()
   await nextTick()
   form.value?.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus()
@@ -171,9 +186,13 @@ defineExpose({ fill: flow.fill, cancel: flow.cancel, setMode })
 
 <template>
   <section class="na:mx-auto na:w-full na:max-w-[352px] na:py-8" :aria-labelledby="`${id}-title`">
-    <NovaButton v-if="!isLogin" variant="ghost" class="na:mb-6" @click="switchView('password')">{{
-      t('auth.back')
-    }}</NovaButton>
+    <NovaButton
+      v-if="!isLogin && loginMode"
+      variant="ghost"
+      class="na:mb-6"
+      @click="switchView(loginMode)"
+      >{{ t('auth.back') }}</NovaButton
+    >
     <header class="na:mb-8">
       <h1
         :id="`${id}-title`"
@@ -215,11 +234,12 @@ defineExpose({ fill: flow.fill, cancel: flow.cancel, setMode })
       </button>
     </div>
     <form
+      v-if="activeMode"
       :id="`${id}-form`"
       ref="form"
       novalidate
       class="na:grid na:gap-5"
-      :aria-labelledby="isLogin ? `${id}-${mode}-tab` : `${id}-title`"
+      :aria-labelledby="isLogin && loginTabs.length > 1 ? `${id}-${mode}-tab` : `${id}-title`"
       :aria-busy="busy"
       @submit.prevent="submit"
     >
@@ -384,14 +404,14 @@ defineExpose({ fill: flow.fill, cancel: flow.cancel, setMode })
       </button>
     </p>
     <p
-      v-else-if="mode === 'register'"
+      v-else-if="mode === 'register' && loginMode"
       class="na:mt-7 na:text-center na:text-sm na:text-[var(--na-muted)]"
     >
       {{ t('auth.haveAccount')
       }}<button
         type="button"
         class="na:border-0 na:bg-transparent na:p-0 na:text-[var(--na-brand)]"
-        @click="switchView('password')"
+        @click="switchView(loginMode!)"
       >
         {{ t('auth.login') }}
       </button>

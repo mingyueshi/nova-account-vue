@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, reactive, ref, shallowRef } from 'vue'
+import { computed, reactive, ref, shallowRef, watch } from 'vue'
 import {
   NovaAccount,
   NovaAppearance,
@@ -64,6 +64,9 @@ const deleteOpen = ref(false)
 const account = ref<InstanceType<typeof NovaAccount>>()
 const conflictArmed = computed(() => settings.conflict === 'dirty')
 const multiInstance = ref(false)
+watch(multiInstance, (visible) => {
+  if (visible) toolsOpen.value = false
+})
 const viewportWidth = ref<'off' | '390' | '320'>('off')
 const instances = reactive<
   {
@@ -182,7 +185,12 @@ function openTools() {
 /** The preview window has a real narrow viewport, so media queries respond to it. */
 function openViewportPreview() {
   if (viewportWidth.value === 'off') return
-  window.open(location.href, 'nova-viewport-preview', `width=${viewportWidth.value},height=844`)
+  const height = viewportWidth.value === '320' ? 568 : 844
+  window.open(
+    location.href,
+    'nova-viewport-preview',
+    `width=${viewportWidth.value},height=${height}`,
+  )
 }
 function onPageChange(value: AccountPage) {
   const time = new Date().toLocaleTimeString('zh-CN', { hour12: false })
@@ -304,7 +312,7 @@ function onStorageChange(
         </NovaTheme>
       </section>
     </div>
-    <template v-else>
+    <div v-show="!multiInstance" class="demo-single">
       <div v-if="layout === 'embedded'" class="demo-hostbar">
         <strong>虚构宿主站点</strong>
         <span>首页 · 商店 · 社区 · 账户设置</span>
@@ -686,6 +694,6 @@ function onStorageChange(
         以上是 layout="embedded" 的 NovaAccount：保留 header 与
         footer，高度由内容决定。宿主页面的其余内容会继续向下排布。
       </p>
-    </template>
+    </div>
   </div>
 </template>

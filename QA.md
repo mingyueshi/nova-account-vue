@@ -1,5 +1,41 @@
 # Nova Account Vue 开发版验证
 
+## 2026-11-09 云端增量审查
+
+基线 `6975baa`（2026-11-07），独立克隆最新 `main`，未改动用户本地工作区。本轮修复宿主 `identifier` / `modes` / `pages` / `twoStep` 的边界，以及 demo 切换多实例丢失主会话和 320px 预览高度不符的问题；未发布 npm 包或部署站点。
+
+- Node 24.22.1 与最低 Node 22.12.0：完整 `npm run check` 均通过，包括 lint、format、typecheck、覆盖率、库与 demo 构建、体积预算。单元/组件/SSR 共 122 项（13 个文件），含本轮 19 项新增回归。
+- 覆盖率：statements 91.55%、branches 84.69%、functions 78.85%、lines 93.20%；流程层额外门槛也通过。实际 gzip：JS 27,366 / 32,768 bytes，CSS 4,013 / 6,144 bytes。
+- `npm run verify:package`：通过实际 tarball 的独立 ESM / CSS / Vue external / Node SSR / strict TypeScript 消费者验证。
+- `npm run verify:nuxt`：Nuxt 3 / 4 锁文件消费者的 typecheck、build、SSR route / CSS smoke 均通过。浏览器 hydration 不在此断言范围内。
+- 新增失败用例在修复前复现：禁用 auth 模式仍可进入、动态移除不取消旧请求、用户名被小写、identifier 校验不更新、Home/End 导航错误、账户 pages 约束遗漏、两步验证被隐藏后旧操作仍可提交。另以真实 demo 组件验证切换多实例保留主会话/页面/草稿、关闭工具弹窗、返回后仍可保存，以及两种弹窗尺寸参数。
+- 真实浏览器：**未完成**。固定 Playwright Chromium 下载返回无效 ZIP；尝试现有 Chromium 时，浏览器在启动阶段因 `process_singleton` socket `EPERM` 退出，未运行到页面断言。jsdom 测试不能替代浏览器布局、焦点、axe 或原生弹窗验证。
+
+### 本地补验
+
+在 Mac mini 或具备浏览器运行条件的 CI 上拉取本次修复提交，先核实工作区无未保存改动，再执行：
+
+```sh
+npm ci
+npm run check
+npx playwright install chromium firefox webkit
+npm run test:e2e
+```
+
+若先用已安装的 Chrome 快验：`CHANNEL=chrome npm run test:e2e -- --project=chromium`。单引擎通过不能算三引擎通过。
+
+人工重点：
+
+1. 账号大小写保留；仅验证码登录、禁用注册/重置、运行中切换 identifier/modes；单登录模式表单可访问名称和 Home/End 键。
+2. pages 仅含 profile/security 或为空时，不显示其他页面或概览快捷入口；受控页切换及草稿离开确认。
+3. 动态隐藏两步验证后旧弹窗关闭且迟到结果不回写。
+4. 登录后编辑未保存资料，切换到多实例再返回：会话、页面、输入均保留，工具弹窗没有残留原生 modal/inert 状态。
+5. 320×568、390×844 新窗口的实际视口、单/多实例窄屏溢出、键盘焦点；多实例极窄布局和出入时焦点仍需人工评估。
+
+真实后端认证、邮件/CSRF、真实挑战、目标宿主 hydration、真机键盘和屏幕阅读器仍按上线清单独立验收。取消客户端请求不证明服务端回滚。远端 CI 结论以本次提交 SHA 的运行记录为准，不引用旧版本通过作为本轮结论。
+
+以下为 2026-10-30 的历史验证记录，不能代替当前提交的结果。
+
 验证日期：2026-10-30。本机 macOS / Node 24.21.0 / npm 11.19.0，同时实际运行最低 Node 22.12.0 的完整检查。Playwright 固定 1.64.1；Linux 三引擎合计 **42 条浏览器测试通过**，macOS Chromium / WebKit 另有 **28 条通过**。
 
 本文区分本地工作区验证与已提交版本的远端结果。GitHub Actions 已运行过 `f9b7f1b`，详情见下文；本轮修复的远端验收以对应提交的 Actions 结果为准，不能据本地通过声称远端已验收这些修改。本轮未执行 npm 发布、公开演示部署、真实账户/邮件操作或 Hen / CSGO 接入。

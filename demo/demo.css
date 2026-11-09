@@ -168,3 +168,9 @@ body,
   background: var(--na-surface);
   color: var(--na-ink);
 }
+
+/* Keep the primary session mounted while showing the independent theme demo. */
+.demo-embedded > .demo-single {
+  display: grid;
+  gap: 16px;
+}

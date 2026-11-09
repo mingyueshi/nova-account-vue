@@ -61,3 +61,14 @@ Provide real adapters and runtime response validation. Replace `captcha` and `se
 The host must handle authorization, CSRF, password policy and storage, rate limiting, email delivery, session revocation, revision conflicts and unknown outcomes. Aborting a request only suppresses stale UI updates; it does not undo server work. Request IDs are correlation IDs, not durable idempotency keys. Only appearance settings may optionally use localStorage; credentials and account data are never persisted by the library.
 
 See [contracts](docs/contracts.md), [fetch adapter skeleton](docs/adapter.md), [production checklist](docs/production-checklist.md), [Nuxt integration](docs/nuxt.md), [changelog](CHANGELOG.md) and [QA evidence](QA.md). Visual screenshot artifacts and axe scans do not constitute screen-reader, real-device or production-backend acceptance.
+
+### Host feature selection
+
+`NovaAccount` forwards `identifier`, `modes`, `pages`, and `twoStep` to its standalone components:
+
+- `identifier="username"` trims the account name without changing case and keeps the adapter wire field named `email`. Email mode retains lowercase normalization. Runtime identifier changes cancel the old flow and clear credentials. `useAuthFlow` accepts a ref or getter as well as a literal identifier.
+- `modes` limits the password, code, register, and reset flows. If password is unavailable initially, the first supplied mode is selected. Removing the active flow cancels it and selects the first remaining mode. Back-to-login uses an available login flow; exposed `setMode` rejects disabled flows. An empty list hides the built-in form while keeping the footer slot.
+- `pages` limits sidebar entries, overview shortcuts, and rendered pages. Invalid initial/current pages fall back to the first visible page in the component's canonical navigation order. An empty list renders no account page. Controlled fallback does not emit `update:page`; `pageChange` reports actual displayed page changes. Runtime removal is an authoritative host navigation, so hosts should confirm before removing an edited page if drafts must be retained.
+- `twoStep` defaults to `true`. Setting it to `false` removes the built-in action and cancels/closes its current dialog.
+
+These are presentation options, not server authorization. Aborting an operation does not prove server rollback.

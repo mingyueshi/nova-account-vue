@@ -103,6 +103,15 @@ const messages: Partial<NovaMessages> = { 'auth.welcome': '登录你的账户' }
 
 `page` + `update:page` 支持受控导航，`initialPage` 仅设置非受控初始页，`pageChange` 反映实际页签变化。内部导航先执行 dirty guard；外部 page 更新视为宿主权威跳转，路由卸载、后退等仍需宿主自己的离开确认。
 
+宿主裁剪功能可直接传给 `NovaAccount`，或传给对应的独立组件：
+
+- `identifier="username"` 将账号作为文本收集，去掉首尾空白但保留大小写，仍通过 adapter 的 `email` 字段传递；邮箱模式保留原有小写规范化。`identifier` 动态变化会取消旧验证流程并清除密码、验证码；`useAuthFlow` 也支持 ref/getter 配置。
+- `modes` 限制可用的 `password` / `code` / `register` / `reset` 流程。默认密码登录若不可用则选择数组首项；当前流程被移除时取消旧请求并回退。返回登录使用第一个可用登录方式，`setMode` 不接受禁用项。`modes=[]` 不显示内置表单，仍可使用宿主 footer / SSO 插槽。
+- `pages` 同时限制侧栏、概览快捷入口和显示页面。当前页或 `initialPage` 不可用时，按组件固有导航顺序选择第一个可见页；`pages=[]` 不显示账户页面。受控 `page` 不会因回退产生 `update:page` 回声，宿主可依据 `pageChange` 同步实际显示页。动态裁剪页面视为宿主权威切换，需保留草稿时先在宿主确认。
+- `twoStep` 默认 `true`；设为 `false` 隐藏内置两步验证操作，并关闭及取消已打开的对应操作。
+
+这些配置只控制展示和流程，不构成服务端授权；已发出的请求被取消不代表服务器回滚。
+
 验证码默认限制 6 个字符，可用 `codeLength` 调整，传 `null` 可取消展示限制。`passwordStrength(password)` 可选返回 `{score:0..4,label,hint?}`，仅展示宿主评估，不影响提交。`NovaField` 支持 `as="textarea"`、`maxlength` 与 prefix/suffix 插槽；原生 maxlength 按 UTF-16 code units 计数，服务端独立执行实际长度和密码策略。
 
 `useAccount().requestResult(operation)` 返回 `success` / `busy` / `cancelled` / `error` 可区分结果。原有 `request` / `load` / `mutate` 保留 `T | undefined` 兼容行为，忙碌调用不会执行或自动排队。
