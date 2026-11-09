@@ -619,18 +619,22 @@ for (const scenario of [
     )
     // Assert element bounds as well as scrollWidth: hiding overflow must not make
     // clipped forms appear to pass. Both independently themed cards remain usable.
+    // Captcha dialogs stay mounted while closed, and their controls have no boxes.
+    await expect(page.locator('.demo-multi dialog[open]')).toHaveCount(0)
     const bounds = await page
       .locator('.demo-multi-cell, .demo-multi-card, .demo-multi input, .demo-multi button')
       .evaluateAll((elements) =>
-        elements.map((element) => {
-          const rect = element.getBoundingClientRect()
-          return {
-            left: rect.left,
-            right: rect.right,
-            width: rect.width,
-            fits: element.scrollWidth <= element.clientWidth + 1,
-          }
-        }),
+        elements
+          .filter((element) => !element.closest('dialog:not([open])'))
+          .map((element) => {
+            const rect = element.getBoundingClientRect()
+            return {
+              left: rect.left,
+              right: rect.right,
+              width: rect.width,
+              fits: element.scrollWidth <= element.clientWidth + 1,
+            }
+          }),
       )
     for (const bound of bounds) {
       expect(bound.width).toBeGreaterThan(0)
@@ -653,6 +657,8 @@ for (const scenario of [
     }
     for (let index = 0; index < 2; index++) {
       const input = cards.nth(index).getByLabel('邮箱', { exact: true })
+      await expect(input).toBeVisible()
+      await expect(cards.nth(index).getByLabel('密码', { exact: true })).toBeVisible()
       await input.fill(`instance-${index}@example.test`)
       await expect(input).toHaveValue(`instance-${index}@example.test`)
     }
