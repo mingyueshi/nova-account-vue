@@ -51,6 +51,36 @@ async function hostPanel(page: Page) {
   return page.getByRole('dialog', { name: '宿主集成演示', exact: true })
 }
 
+async function checkPreviewViewport(
+  popup: Page,
+  browserName: string,
+  size: { width: number; height: number },
+) {
+  // Playwright Firefox applies Browser.setDefaultViewport to every page and does
+  // not derive popup emulation from window.open features, unlike Chromium/WebKit.
+  // Exact requested features are covered separately by demo.component.test.ts.
+  // Explicitly emulate Firefox's narrow viewport rather than claiming its native
+  // popup sizing passed. Chromium/WebKit must derive their emulated size from
+  // the requested features; none of these checks verifies a native window manager.
+  await expect(popup.getByRole('heading', { name: '欢迎回来', exact: true })).toBeVisible()
+  if (browserName === 'firefox') {
+    await test.info().attach('firefox-popup-before-explicit-emulation', {
+      body: JSON.stringify(
+        await popup.evaluate(() => ({ width: innerWidth, height: innerHeight })),
+      ),
+      contentType: 'application/json',
+    })
+    await popup.setViewportSize(size)
+  }
+  expect(popup.viewportSize()).toEqual(size)
+  await expect
+    .poll(() => popup.evaluate(() => ({ width: innerWidth, height: innerHeight })))
+    .toEqual(size)
+  expect(await popup.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(
+    true,
+  )
+}
+
 const runtimeErrors = new WeakMap<Page, string[]>()
 test.beforeEach(async ({ page }) => {
   const errors: string[] = []
@@ -521,13 +551,16 @@ test('multi-instance view renders two independently themed auth roots', async ({
   await expect(page.getByRole('heading', { name: '欢迎回来', exact: true })).toBeVisible()
 })
 
-test('viewport preview opens the demo in a real narrow window', async ({ page }) => {
+test('viewport preview opens the demo with responsive narrow content', async ({
+  page,
+  browserName,
+}) => {
   const host = await hostPanel(page)
   await host.getByRole('combobox', { name: '手机视口预览' }).selectOption('390')
   const popupPromise = page.waitForEvent('popup')
   await host.getByRole('button', { name: '打开预览窗口' }).click()
   const popup = await popupPromise
-  expect(popup.viewportSize()).toEqual({ width: 390, height: 844 })
+  await checkPreviewViewport(popup, browserName, { width: 390, height: 844 })
   await popup.close()
 })
 
@@ -550,12 +583,15 @@ test('multi-instance preview preserves the primary session, draft and controlled
   await expect(page.getByRole('status').filter({ hasText: '演示资料已保存' })).toBeVisible()
 })
 
-test('small viewport preview uses the advertised 320 by 568 dimensions', async ({ page }) => {
+test('small viewport preview supports 320 by 568 responsive content', async ({
+  page,
+  browserName,
+}) => {
   const host = await hostPanel(page)
   await host.getByRole('combobox', { name: '手机视口预览' }).selectOption('320')
   const popupPromise = page.waitForEvent('popup')
   await host.getByRole('button', { name: '打开预览窗口' }).click()
   const popup = await popupPromise
-  expect(popup.viewportSize()).toEqual({ width: 320, height: 568 })
+  await checkPreviewViewport(popup, browserName, { width: 320, height: 568 })
   await popup.close()
 })

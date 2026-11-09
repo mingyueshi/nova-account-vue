@@ -542,7 +542,7 @@ function onStorageChange(
                   </select></label
                 >
                 <p class="demo-note">
-                  在真实窄视口窗口中打开本页，媒体查询（如移动导航）按该宽度响应；不模拟、不缩放。
+                  按所选尺寸请求新窗口，媒体查询按窗口的实际宽度响应。浏览器可能调整或忽略尺寸；精确验收请使用开发者工具的响应式视口。
                 </p>
                 <NovaButton :disabled="viewportWidth === 'off'" @click="openViewportPreview"
                   >打开预览窗口</NovaButton

@@ -146,7 +146,7 @@ const messages: Partial<NovaMessages> = { 'auth.welcome': '登录你的账户' }
 
 右上 **体验工具 → 一键填入示例**；不会默认在主界面堆放示例凭据。工具内可快捷预览、切换外观、选择慢速/断网/验证失败/验证码过期/业务拒绝。
 
-- **宿主集成演示**面板：全屏 / `layout="embedded"` 切换（附虚构宿主页面外壳）、`v-model:page` 受控跳转与 `pageChange` 事件记录、`codeLength` 调整（4 位时演示码同步为 `2468`）、宿主 `passwordStrength` 强度评估、`#security` 插槽的 TOTP 形式二次认证与危险区注销确认、`#authFooter` 第三方登录占位、禁用本地存储以触发 `storageError`、多实例主题隔离视图（两个独立 `NovaTheme` 根并排）、真实窄视口预览窗口（媒体查询按真实宽度响应）。
+- **宿主集成演示**面板：全屏 / `layout="embedded"` 切换（附虚构宿主页面外壳）、`v-model:page` 受控跳转与 `pageChange` 事件记录、`codeLength` 调整（4 位时演示码同步为 `2468`）、宿主 `passwordStrength` 强度评估、`#security` 插槽的 TOTP 形式二次认证与危险区注销确认、`#authFooter` 第三方登录占位、禁用本地存储以触发 `storageError`、多实例主题隔离视图（两个独立 `NovaTheme` 根并排）、独立视口预览窗口（请求所选尺寸，媒体查询按实际宽度响应；浏览器可能调整窗口大小）。
 - 常见错误路径：面板内可让会话过期（下一次账户请求返回 401，随后自动清除本地会话并返回登录页）、模拟另一台设备修改资料（下一次操作返回 `REVISION_CONFLICT`）；**演示设置**可开启发送限流，首次发送成功后 20 秒内再发会返回带剩余秒数的提示。
 - **演示设置**中可把挑战方式切换为算术题，走宿主 `#captcha` 插槽的出题、错误提示与换一题流程；“滑块结果”的失败与过期同样适用于算术题。
 - 合成邮箱 `demo@nova.example`，密码 `NovaDemo2026!`，验证码 `246810`。

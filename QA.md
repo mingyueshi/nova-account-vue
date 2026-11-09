@@ -9,7 +9,13 @@
 - `npm run verify:package`：通过实际 tarball 的独立 ESM / CSS / Vue external / Node SSR / strict TypeScript 消费者验证。
 - `npm run verify:nuxt`：Nuxt 3 / 4 锁文件消费者的 typecheck、build、SSR route / CSS smoke 均通过。浏览器 hydration 不在此断言范围内。
 - 新增失败用例在修复前复现：禁用 auth 模式仍可进入、动态移除不取消旧请求、用户名被小写、identifier 校验不更新、Home/End 导航错误、账户 pages 约束遗漏、两步验证被隐藏后旧操作仍可提交。另以真实 demo 组件验证切换多实例保留主会话/页面/草稿、关闭工具弹窗、返回后仍可保存，以及两种弹窗尺寸参数。
-- 真实浏览器：**未完成**。固定 Playwright Chromium 下载返回无效 ZIP；尝试现有 Chromium 时，浏览器在启动阶段因 `process_singleton` socket `EPERM` 退出，未运行到页面断言。jsdom 测试不能替代浏览器布局、焦点、axe 或原生弹窗验证。
+- 当前云端容器的真实浏览器验证：**未完成**。固定 Playwright Chromium 下载返回无效 ZIP；尝试现有 Chromium 时，浏览器在启动阶段因 `process_singleton` socket `EPERM` 退出，未运行到页面断言。jsdom 测试不能替代浏览器布局、焦点、axe 或原生弹窗验证。
+
+### 远端增量结果与 Firefox 测试差异
+
+修复提交 `6ce96ca` 的 [Library and browser checks](https://github.com/mingyueshi/nova-account-vue/actions/runs/42542244371) 中 Node 22 / 24、独立包消费者、Chromium / WebKit 各 26 条通过；[Nuxt tarball consumers](https://github.com/mingyueshi/nova-account-vue/actions/runs/42542244306) 的 Nuxt 3 / 4 均通过。Firefox 为 24/26，仅两个 popup 尺寸断言失败，不能将此运行称为三引擎通过。
+
+原因：Playwright Firefox 向整个 context 设置固定 viewport，未像 Chromium/WebKit 那样根据 `window.open` features 更新 popup 的模拟视口。后续回归保留 Chromium/WebKit 根据 features 自动模拟视口的尺寸断言（也不等同于原生窗口管理器行为）；Firefox 记录调整前的实际 DOM 视口，再明确调用 `setViewportSize` 验证 320×568 / 390×844 内容和无横向溢出，不将其算作原生 popup 自动调尺寸通过。请求给 `window.open` 的精确尺寸参数另由真实 demo 组件测试验证。宿主提示已说明浏览器可调整/忽略新窗口尺寸。后续提交的三引擎结论须查看其自身 Actions。
 
 ### 本地补验
 
