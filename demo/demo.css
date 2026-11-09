@@ -47,6 +47,7 @@ body,
    component root, so it uses fixed colors matching the host page background. */
 .demo-embedded {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 16px;
   max-width: 920px;
   margin: 0 auto;
@@ -175,5 +176,7 @@ body,
 /* Keep the primary session mounted while showing the independent theme demo. */
 .demo-embedded > .demo-single {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  min-width: 0;
   gap: 16px;
 }

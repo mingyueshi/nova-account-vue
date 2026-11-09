@@ -24,6 +24,8 @@
 
 ### Fixed
 
+- Embedded demo grid tracks shrink to the host width instead of inheriting signed-in content minimum widths; added 320px / 390px regressions for profile editing and all seven account pages after switching host layout.
+
 - Multi-instance demo grid columns can shrink below 320px inside narrow hosts; forms remain visible without clipping while wider screens retain side-by-side instances. Browser regressions cover 320px / 390px full layouts, 320px embedded layout, and an 820px two-column layout.
 
 - Host `modes` now selects and preserves only allowed auth flows, cancels removed in-flight flows, handles code-only return navigation and an empty mode list, and retains a valid form accessible name with one login mode.

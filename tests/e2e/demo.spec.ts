@@ -669,3 +669,65 @@ for (const scenario of [
     )
   })
 }
+
+for (const viewport of [
+  { width: 320, height: 568 },
+  { width: 390, height: 844 },
+]) {
+  test(`${viewport.width}px: signed-in embedded pages fit after changing host layout`, async ({
+    page,
+  }) => {
+    await page.setViewportSize(viewport)
+    await preview(page)
+    await page.locator('[data-page="profile"]').click()
+    const host = await hostPanel(page)
+    await host.getByRole('combobox', { name: '外壳布局 layout' }).selectOption('embedded')
+    await host.getByRole('button', { name: '关闭对话框' }).click()
+    const withinHost = async () => {
+      expect(
+        await page.evaluate(
+          () => document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1,
+        ),
+      ).toBe(true)
+      for (const selector of [
+        '.demo-single',
+        '.nova-demo',
+        '[data-layout="embedded"]',
+        '[data-nova-account-center]',
+        'main',
+      ]) {
+        const box = await page.locator(selector).evaluate((element) => ({
+          width: element.getBoundingClientRect().width,
+          left: element.getBoundingClientRect().left,
+          right: element.getBoundingClientRect().right,
+          scrollWidth: element.scrollWidth,
+          clientWidth: element.clientWidth,
+        }))
+        expect(box.width, selector).toBeGreaterThan(0)
+        expect(box.left, selector).toBeGreaterThanOrEqual(-1)
+        expect(box.right, selector).toBeLessThanOrEqual(viewport.width + 1)
+        expect(box.scrollWidth, selector).toBeLessThanOrEqual(box.clientWidth + 1)
+      }
+    }
+    await expect(page.getByRole('heading', { name: '个人资料', exact: true })).toBeVisible()
+    await withinHost()
+    await page.getByLabel('昵称', { exact: true }).fill('Embedded narrow profile')
+    await page.getByRole('button', { name: '保存资料', exact: true }).click()
+    await expect(page.getByRole('status').filter({ hasText: '演示资料已保存' })).toBeVisible()
+    for (const tab of [
+      'overview',
+      'security',
+      'devices',
+      'notifications',
+      'messages',
+      'appearance',
+      'profile',
+    ]) {
+      const target = page.locator(`[data-page="${tab}"]`)
+      await target.click()
+      await expect(target).toHaveAttribute('aria-current', 'page')
+      await withinHost()
+    }
+    await expect(page.getByLabel('昵称', { exact: true })).toHaveValue('Embedded narrow profile')
+  })
+}
