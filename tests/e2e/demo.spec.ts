@@ -595,3 +595,71 @@ test('small viewport preview supports 320 by 568 responsive content', async ({
   await checkPreviewViewport(popup, browserName, { width: 320, height: 568 })
   await popup.close()
 })
+
+for (const scenario of [
+  { width: 320, height: 568, layout: 'full' },
+  { width: 390, height: 844, layout: 'full' },
+  { width: 820, height: 700, layout: 'full' },
+  { width: 320, height: 568, layout: 'embedded' },
+] as const) {
+  test(`${scenario.width}px ${scenario.layout}: multi-instance cards and controls fit without clipping`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: scenario.width, height: scenario.height })
+    const host = await hostPanel(page)
+    await host.getByRole('combobox', { name: '外壳布局 layout' }).selectOption(scenario.layout)
+    await host
+      .getByRole('checkbox', { name: /多实例主题隔离/ })
+      .evaluate((element) => (element as HTMLElement).click())
+    const cards = page.locator('.demo-multi-cell')
+    await expect(cards).toHaveCount(2)
+    await expect(cards.first()).toBeVisible()
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(
+      true,
+    )
+    // Assert element bounds as well as scrollWidth: hiding overflow must not make
+    // clipped forms appear to pass. Both independently themed cards remain usable.
+    const bounds = await page
+      .locator('.demo-multi-cell, .demo-multi-card, .demo-multi input, .demo-multi button')
+      .evaluateAll((elements) =>
+        elements.map((element) => {
+          const rect = element.getBoundingClientRect()
+          return {
+            left: rect.left,
+            right: rect.right,
+            width: rect.width,
+            fits: element.scrollWidth <= element.clientWidth + 1,
+          }
+        }),
+      )
+    for (const bound of bounds) {
+      expect(bound.width).toBeGreaterThan(0)
+      expect(bound.left).toBeGreaterThanOrEqual(-1)
+      expect(bound.right).toBeLessThanOrEqual(scenario.width + 1)
+      expect(bound.fits).toBe(true)
+    }
+    const positions = await cards.evaluateAll((elements) =>
+      elements.map((element) => ({
+        left: element.getBoundingClientRect().left,
+        top: element.getBoundingClientRect().top,
+      })),
+    )
+    if (scenario.width === 820) {
+      expect(positions[1]!.left).toBeGreaterThan(positions[0]!.left)
+      expect(positions[1]!.top).toBeCloseTo(positions[0]!.top, 0)
+    } else {
+      expect(positions[1]!.left).toBeCloseTo(positions[0]!.left, 0)
+      expect(positions[1]!.top).toBeGreaterThan(positions[0]!.top)
+    }
+    for (let index = 0; index < 2; index++) {
+      const input = cards.nth(index).getByLabel('邮箱', { exact: true })
+      await input.fill(`instance-${index}@example.test`)
+      await expect(input).toHaveValue(`instance-${index}@example.test`)
+    }
+    await page.getByRole('button', { name: '返回单实例演示' }).click()
+    await expect(page.getByRole('heading', { name: '欢迎回来', exact: true })).toBeVisible()
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(
+      true,
+    )
+  })
+}

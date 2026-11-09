@@ -17,6 +17,12 @@
 
 原因：Playwright Firefox 向整个 context 设置固定 viewport，未像 Chromium/WebKit 那样根据 `window.open` features 更新 popup 的模拟视口。后续回归保留 Chromium/WebKit 根据 features 自动模拟视口的尺寸断言（也不等同于原生窗口管理器行为）；Firefox 记录调整前的实际 DOM 视口，再明确调用 `setViewportSize` 验证 320×568 / 390×844 内容和无横向溢出，不将其算作原生 popup 自动调尺寸通过。请求给 `window.open` 的精确尺寸参数另由真实 demo 组件测试验证。宿主提示已说明浏览器可调整/忽略新窗口尺寸。后续提交的三引擎结论须查看其自身 Actions。
 
+### 多实例窄屏回归
+
+Mac Chrome 对精确提交 `570969a` 的 320×568 复测发现：文档 `scrollWidth=336`，多实例卡片从 x=16 延伸到336，源于网格 `minmax(320px,1fr)` 的最小列宽没有扣除容器左右内边距。卡片内容自身没有额外溢出。
+
+修复将最小列宽限制为容器可用宽度，并允许 grid item 收缩；不使用 `overflow:hidden` 掩盖裁切。新增真实浏览器回归检查 320/390px 单列、820px 双列以及320px嵌入布局，逐项验证文档/卡片/输入/按钮边界、内容无横向溢出、两个表单可输入以及返回单实例。此补丁的最终三引擎结果以自身提交 Actions 为准。
+
 ### 本地补验
 
 在 Mac mini 或具备浏览器运行条件的 CI 上拉取本次修复提交，先核实工作区无未保存改动，再执行：

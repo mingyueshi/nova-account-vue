@@ -138,10 +138,13 @@ body,
 }
 .demo-multi {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr));
   align-items: start;
   gap: 16px;
   padding: 16px;
+}
+.demo-multi-cell {
+  min-width: 0;
 }
 .demo-multi-title {
   margin: 0 0 8px;
