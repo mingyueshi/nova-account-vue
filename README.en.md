@@ -1,6 +1,6 @@
 # Nova Account Vue
 
-[简体中文](README.md) · [MIT](LICENSE) · Development version `0.1.0-dev.1`
+[简体中文](README.md) · [MIT](LICENSE) · Development version `0.1.0-dev.2`
 
 Vue 3 + TypeScript account presentation components with injected business adapters and precompiled, scoped Tailwind CSS. Includes sign-in, registration, password reset, profiles, messages, devices, appearance and security presentation. The standalone demo uses synthetic in-memory data. This library does not provide a production authentication backend.
 
@@ -42,6 +42,37 @@ const page = ref<AccountPage>('messages')
   />
 </template>
 ```
+
+## Workspaces and icons
+
+The demo keeps business and component examples inside the account navigation. Wide content boxes use master/detail layouts for messages, tasks and orders, side-by-side editing and preview, and dedicated profile, notification and appearance workspaces. Container queries collapse these to one column when embedded or narrow.
+
+`NovaIcon` uses static imports from [Lucide Vue](https://lucide.dev/guide/vue). Pass a built-in `name` (listed by `NOVA_ICON_NAMES`) or a Vue icon component through `icon`. Defaults: `size=20`, `strokeWidth=2`, `color="currentColor"`. Decorative icons are hidden from assistive technology; `label` provides named image semantics. Unknown names render `fallback` (default ◇).
+
+```vue
+<script setup lang="ts">
+import { Camera } from '@lucide/vue'
+import { NovaIcon } from 'nova-account'
+</script>
+<template>
+  <NovaIcon name="security" :size="20" />
+  <NovaIcon :icon="Camera" label="Camera" />
+</template>
+```
+
+The integrated icon demo includes 55 searchable icons, size/stroke/color controls and component/SVG copying. No CDN is required. [Third-party notices](THIRD_PARTY_NOTICES.md) include the Lucide ISC and derived Feather MIT licenses.
+
+## Optional dynamic charts
+
+Import `NovaChart` and `NovaChartOption` from `nova-account/charts`. This separate entry uses Apache ECharts 6.1.0, matching the backend chart lab; the base account entry does not load the chart engine. Registered features: line, bar, pie/donut, tooltip, legend, range zoom and SVG rendering.
+
+```vue
+<NovaChart :option="option" label="Completed tasks" :height="320" :active="visible" />
+```
+
+Place charts inside `NovaTheme` to inherit the palette. The component observes container sizes and theme attributes, respects reduced motion, and disposes its instance and listeners on unmount. `active=false` suspends rendering. Provide `description` and a readable data table; `colorTokens` accepts semantic CSS variable names, `themeKey` refreshes custom host tokens, and `errorLabel` customizes the failure message. The host owns data loading, playback timers and pause behavior.
+
+The account demo includes live activity aggregation, task/order trends, date filters, line/bar switching, donut composition, explicit playback, zero/empty states and CSV export. The `overview` slot adds host content below the default account overview, with `{ snapshot, adapter, refresh, appearance }`; the standalone center exposes the same slot without `appearance`.
 
 ## Configuration
 

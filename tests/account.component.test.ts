@@ -12,6 +12,7 @@ import type { AccountAdapter, AccountPage, CodeDelivery } from '../src/types'
 const wrappers: VueWrapper[] = []
 afterEach(() => {
   wrappers.splice(0).forEach((wrapper) => wrapper.unmount())
+  vi.unstubAllGlobals()
 })
 async function create(
   simulated = true,
@@ -153,7 +154,7 @@ describe('NovaAccountCenter', () => {
     const wrapper = await create()
     await wrapper.get('[data-page="notifications"]').trigger('click')
     await wrapper.get('input[aria-label="邮件摘要"]').setValue(true)
-    await button(wrapper, '↗ 退出登录').trigger('click')
+    await button(wrapper, '退出登录').trigger('click')
     expect(wrapper.emitted('logout')).toBeUndefined()
     await button(wrapper, '放弃并离开').trigger('click')
     expect(wrapper.emitted('logout')).toHaveLength(1)
@@ -336,5 +337,54 @@ describe('two-step availability', () => {
     await wrapper.setProps({ twoStep: true })
     expect(button(wrapper, '开启').exists()).toBe(true)
     expect(wrapper.find('dialog[open]').exists()).toBe(false)
+  })
+})
+
+describe('adaptive account workspaces', () => {
+  it('moves an open message into the inline reader as content grows, then disconnects', async () => {
+    let resize!: (entries: { contentRect: { width: number } }[]) => void
+    const disconnect = vi.fn()
+    vi.stubGlobal(
+      'ResizeObserver',
+      class {
+        constructor(callback: typeof resize) {
+          resize = callback
+        }
+        observe = vi.fn()
+        disconnect = disconnect
+      },
+    )
+    const wrapper = await create()
+    await wrapper.get('[data-page="messages"]').trigger('click')
+    await wrapper.get('.nova-message-list article button').trigger('click')
+    await flushPromises()
+    const title = wrapper.get('.nova-message-list h2').text()
+    expect(wrapper.find('dialog[open]').exists()).toBe(true)
+    resize([{ contentRect: { width: 1200 } }])
+    await flushPromises()
+    expect(wrapper.find('dialog[open]').exists()).toBe(false)
+    expect(wrapper.get('.nova-message-reader h2').text()).toBe(title)
+    expect(wrapper.get('.nova-message-list article').attributes('data-message-read')).toBe('true')
+    resize([{ contentRect: { width: 600 } }])
+    await flushPromises()
+    expect(wrapper.find('.nova-message-reader').exists()).toBe(false)
+    await wrapper.get('.nova-message-list article button').trigger('click')
+    expect(wrapper.find('dialog[open]').exists()).toBe(true)
+    wrapper.unmount()
+    wrappers.splice(wrappers.indexOf(wrapper), 1)
+    expect(disconnect).toHaveBeenCalledOnce()
+  })
+  it('previews unsaved notification choices and restores the saved choices on cancel', async () => {
+    const wrapper = await create()
+    await wrapper.get('[data-page="notifications"]').trigger('click')
+    const preview = wrapper.get('.nova-notification-previews')
+    expect(preview.findAll('article')).toHaveLength(2)
+    await wrapper.get('input[aria-label="邮件摘要"]').setValue(true)
+    expect(preview.findAll('article')).toHaveLength(3)
+    await button(wrapper, '取消').trigger('click')
+    expect(preview.findAll('article')).toHaveLength(2)
+    for (const input of wrapper.findAll('input[role="switch"]')) await input.setValue(false)
+    expect(preview.findAll('article')).toHaveLength(0)
+    expect(preview.get('p').text()).not.toBe('')
   })
 })

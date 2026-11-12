@@ -8,12 +8,12 @@ export default defineConfig({
   css: { postcss: { plugins: [scopeNovaCss()] } },
   build: {
     lib: {
-      entry: 'src/index.ts',
+      entry: { index: 'src/index.ts', charts: 'src/charts.ts' },
       formats: ['es'],
-      fileName: 'nova-account',
+      fileName: (_format, name) => (name === 'index' ? 'nova-account.js' : 'charts.js'),
       cssFileName: 'nova-account',
     },
-    rolldownOptions: { external: ['vue'] },
+    rolldownOptions: { external: ['vue', /^echarts\//] },
     sourcemap: true,
   },
 })

@@ -192,7 +192,22 @@ export interface NovaAdapter {
   /** Explicit UI disclosure, never an authorization flag. */ simulated?: boolean
 }
 export type AccountPage =
-  'overview' | 'profile' | 'security' | 'devices' | 'notifications' | 'messages' | 'appearance'
+  | 'overview'
+  | 'profile'
+  | 'security'
+  | 'devices'
+  | 'notifications'
+  | 'messages'
+  | 'appearance'
+  | `custom:${string}`
+/** Host-owned pages rendered inside the account navigation and content area. */
+export interface AccountExtraPage {
+  id: `custom:${string}`
+  label: string
+  description: string
+  symbol?: string
+  group?: string
+}
 export interface PasswordStrength {
   score: 0 | 1 | 2 | 3 | 4
   label: string

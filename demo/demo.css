@@ -232,3 +232,150 @@ label.demo-check {
     display: none;
   }
 }
+
+/* Account demo: shared rhythm for every built-in and host-owned page. */
+.nova-demo [data-account-sidebar] > div:first-child {
+  padding: 22px 24px;
+}
+.nova-demo [data-account-sidebar] {
+  background: var(--na-surface);
+}
+.nova-demo [data-account-nav] {
+  gap: 2px;
+  flex-shrink: 0;
+  padding: 0 14px 12px;
+}
+.nova-demo [data-account-nav] > button {
+  padding: 10px 14px;
+}
+.nova-demo [data-account-nav] button[data-page] {
+  min-height: 40px;
+  padding: 9px 14px;
+  border-radius: 8px;
+}
+.nova-demo [data-account-nav] button svg {
+  width: 18px;
+  height: 18px;
+}
+.nova-demo [data-account-nav] > p {
+  margin-top: 18px;
+  margin-bottom: 6px;
+  padding: 0 14px;
+  font-size: 12px;
+}
+.nova-demo [data-account-sidebar] > p {
+  padding: 16px 28px;
+  font-size: 12px;
+}
+.nova-demo [data-account-content] {
+  padding: 32px 40px;
+  scroll-behavior: auto;
+}
+.nova-demo [data-account-page-header] {
+  align-items: center;
+  margin-bottom: 28px;
+}
+.nova-demo [data-account-page-header] h1 {
+  line-height: 1.4;
+  letter-spacing: -0.025em;
+}
+.nova-demo [data-account-page-header] p {
+  max-width: 65ch;
+  line-height: 1.7;
+}
+.nova-demo [data-account-savebar] {
+  padding-top: 18px;
+  border-top: 1px solid var(--na-line);
+}
+.nova-demo input[role='switch'] {
+  position: relative;
+  appearance: none;
+  width: 44px;
+  height: 26px;
+  border: 1px solid var(--na-control);
+  border-radius: 99px;
+  background: var(--na-line);
+  transition: background 180ms ease-out;
+}
+.nova-demo input[role='switch']::before {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--na-surface);
+  content: '';
+  transition: transform 180ms ease-out;
+}
+.nova-demo input[role='switch']:checked {
+  background: var(--na-brand);
+  border-color: var(--na-brand);
+}
+.nova-demo input[role='switch']:checked::before {
+  background: var(--na-on-brand);
+  transform: translateX(18px);
+}
+.nova-demo input[role='switch']:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+@media (max-width: 767px) {
+  .nova-demo [data-account-content] {
+    padding: 24px 16px;
+  }
+  .nova-demo [data-account-page-header] {
+    align-items: flex-start;
+    gap: 12px;
+    margin-bottom: 24px;
+  }
+  .nova-demo [data-account-page-header] h1 {
+    font-size: 22px;
+  }
+  .nova-demo [data-account-page-header] > span {
+    display: none;
+  }
+  .nova-demo [data-mobile-account-nav] {
+    padding: 12px 16px;
+  }
+  .nova-demo [data-mobile-account-nav] select {
+    font-size: 16px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .nova-demo *,
+  .nova-demo *::before,
+  .nova-demo *::after {
+    transition-duration: 0s !important;
+    animation-duration: 0s !important;
+  }
+}
+.nova-demo .nova-avatar-upload:focus-within {
+  outline: 2px solid var(--na-brand);
+  outline-offset: 3px;
+}
+.nova-demo .nova-device-heading {
+  padding-bottom: 20px;
+  border-bottom: 1px solid var(--na-line);
+}
+.nova-demo [data-message-read='true'] h2 {
+  font-weight: 400;
+  color: var(--na-muted);
+}
+.nova-demo [data-message-read='true'] button > span:not(.na\:sr-only) {
+  color: var(--na-muted);
+}
+.nova-demo [data-account-page='messages'] [role='group'] button[aria-pressed='true'],
+.nova-demo [data-account-page='security'] [role='group'] button[aria-pressed='true'] {
+  background: var(--na-soft);
+  color: var(--na-brand);
+  border-color: var(--na-soft);
+}
+.nova-demo .nova-appearance [data-selected='true'] {
+  border-color: var(--na-brand);
+  background: var(--na-soft);
+}
+.nova-demo .nova-appearance [data-appearance-choice='mode'] > svg {
+  width: 24px;
+  height: 24px;
+}

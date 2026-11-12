@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, reactive, ref, shallowRef, watch } from 'vue'
+import { computed, defineAsyncComponent, reactive, ref, shallowRef, watch } from 'vue'
 import {
   NovaAccount,
   NovaAppearance,
@@ -14,6 +14,7 @@ import {
 import type {
   AccountAdapter,
   AccountPage,
+  AccountExtraPage,
   AccountSnapshot,
   Appearance,
   AuthAdapter,
@@ -36,22 +37,113 @@ import {
 } from './auth'
 import { createDemoAccountAdapter, DEMO_ACCOUNT_VALUES } from './account'
 import SceneGallery from './SceneGallery.vue'
+import ComponentGallery from './ComponentGallery.vue'
+import IconGallery from './IconGallery.vue'
+const ChartGallery = defineAsyncComponent(() => import('./ChartGallery.vue'))
+const OverviewActivity = defineAsyncComponent(() => import('./OverviewActivity.vue'))
+import NovaIcon from '../src/components/NovaIcon.vue'
 import ProfileSlotEditor from './ProfileSlotEditor.vue'
 import './demo.css'
+import './workspace.css'
 const settings = reactive(defaultSettings())
 const signedIn = ref(false)
 const locale = ref<NovaLocale>('zh-CN')
 const timeZone = ref('Asia/Shanghai')
 const toolsOpen = ref(false)
-const panel = ref<'tools' | 'appearance' | 'settings' | 'host' | 'components' | 'about'>('tools')
+const panel = ref<'tools' | 'appearance' | 'settings' | 'host' | 'about'>('tools')
 const layout = ref<'full' | 'embedded'>('full')
 const strengthOn = ref(false)
 const customSecurity = ref(false)
 const customProfile = ref(false)
-const scenesOn = ref(false)
-watch(scenesOn, (visible) => {
-  if (visible) toolsOpen.value = false
-})
+const extraPages: AccountExtraPage[] = [
+  {
+    id: 'custom:charts',
+    label: '数据概览',
+    description: '查看任务与订单趋势，体验动态图表。',
+    group: '业务场景',
+  },
+  {
+    id: 'custom:tasks',
+    label: '我的任务',
+    description: '安排待办事项，聚焦当前进展。',
+    symbol: '☑',
+    group: '业务场景',
+  },
+  {
+    id: 'custom:editor',
+    label: '内容编辑',
+    description: '撰写内容，预览并保存草稿。',
+    symbol: '✎',
+    group: '业务场景',
+  },
+  {
+    id: 'custom:comments',
+    label: '社区互动',
+    description: '发布评论，参与讨论。',
+    symbol: '☷',
+    group: '业务场景',
+  },
+  {
+    id: 'custom:orders',
+    label: '我的订单',
+    description: '查看订单详情与状态，体验模拟支付。',
+    symbol: '▤',
+    group: '业务场景',
+  },
+  {
+    id: 'custom:fields',
+    label: '输入字段',
+    description: '体验前后缀、多行输入和表单状态。',
+    symbol: '▭',
+    group: '基础组件',
+  },
+  {
+    id: 'custom:buttons',
+    label: '操作按钮',
+    description: '体验操作层级、加载反馈与禁用状态。',
+    symbol: '▣',
+    group: '基础组件',
+  },
+  {
+    id: 'custom:dialogs',
+    label: '对话框',
+    description: '体验确认操作、键盘关闭与焦点恢复。',
+    symbol: '□',
+    group: '基础组件',
+  },
+  {
+    id: 'custom:icons',
+    label: '开源图标',
+    description: '搜索 Lucide 图标，调节样式并复制用法。',
+    group: '基础组件',
+  },
+]
+const sceneSection = ref('tasks')
+const componentSection = ref('fields')
+const visitedScenes = ref(false)
+const visitedComponents = ref(false)
+const visitedCharts = ref(false)
+const visitedIcons = ref(false)
+const isScenePage = computed(() =>
+  ['custom:tasks', 'custom:editor', 'custom:comments', 'custom:orders'].includes(page.value),
+)
+const isComponentPage = computed(() =>
+  ['custom:fields', 'custom:buttons', 'custom:dialogs'].includes(page.value),
+)
+function openDemoPage(target: AccountPage) {
+  toolsOpen.value = false
+  if (!signedIn.value) preview()
+  page.value = target
+}
+function openComponent(name: string) {
+  openDemoPage(
+    name === 'NovaDialog'
+      ? 'custom:dialogs'
+      : name === 'NovaButton'
+        ? 'custom:buttons'
+        : 'custom:fields',
+  )
+}
 const page = ref<AccountPage>('overview')
 const pageLabels: Record<AccountPage, string> = {
   overview: '账户概览',
@@ -61,7 +153,20 @@ const pageLabels: Record<AccountPage, string> = {
   notifications: '通知偏好',
   messages: '消息中心',
   appearance: '外观',
+  ...Object.fromEntries(extraPages.map((item) => [item.id, item.label])),
 }
+watch(page, (value) => {
+  if (value === 'custom:charts') visitedCharts.value = true
+  if (value === 'custom:icons') visitedIcons.value = true
+  if (isScenePage.value) {
+    sceneSection.value = value.slice(7)
+    visitedScenes.value = true
+  }
+  if (isComponentPage.value) {
+    componentSection.value = value.slice(7)
+    visitedComponents.value = true
+  }
+})
 const pages = Object.entries(pageLabels) as [AccountPage, string][]
 const totp = reactive({ password: '', code: '', busy: false, error: '' })
 const mathAnswer = ref('')
@@ -111,8 +216,6 @@ const controlledAppearanceOn = ref(false)
 const controlledAppearance = ref<Appearance>({ mode: 'light', accent: 'blue' })
 const storageChoice = ref<'nova-appearance-v1' | 'off'>('nova-appearance-v1')
 const storageKey = computed(() => (storageChoice.value === 'off' ? false : 'nova-appearance-v1'))
-// 基础组件形态面板的字段值，仅本页内存。
-const gallery = reactive({ site: '', bio: '', locked: '预填充内容', bad: '' })
 // --- 统一事件日志 ---
 interface DemoEventEntry {
   time: string
@@ -202,6 +305,10 @@ function preview() {
   signedIn.value = true
 }
 function resetDemo() {
+  visitedCharts.value = false
+  visitedIcons.value = false
+  visitedScenes.value = false
+  visitedComponents.value = false
   signedIn.value = false
   page.value = 'overview'
   sessionUser.value = null
@@ -425,15 +532,7 @@ function onStorageChange(
         </NovaTheme>
       </section>
     </div>
-    <div v-if="scenesOn" class="demo-scenes-bar">
-      <p>
-        业务场景组合画廊：用库的 NovaButton / NovaField / NovaDialog
-        基础组件组合出字段、列表、编辑器、评论与订单等常见宿主形态。这些卡片不是库内置业务组件，数据均为内存虚构。
-      </p>
-      <button type="button" class="demo-back" @click="scenesOn = false">返回账户演示</button>
-    </div>
-    <SceneGallery v-if="scenesOn" />
-    <div v-show="!multiInstance && !scenesOn" class="demo-single">
+    <div v-show="!multiInstance" class="demo-single">
       <div v-if="layout === 'embedded'" class="demo-hostbar">
         <strong>虚构宿主站点</strong>
         <span>首页 · 商店 · 社区 · 账户设置</span>
@@ -452,6 +551,7 @@ function onStorageChange(
         :identifier="identifier"
         :modes="enabledModes"
         :pages="enabledPages"
+        :extra-pages="extraPages"
         :two-step="twoStepOn"
         :messages="messagesOn ? demoMessages : undefined"
         :brand="brandName"
@@ -465,6 +565,37 @@ function onStorageChange(
         @page-change="onPageChange"
         @logout="onLogout"
       >
+        <template #overview="{ snapshot }"
+          ><OverviewActivity :snapshot="snapshot" @explore="openDemoPage('custom:charts')"
+        /></template>
+        <template #page="{ appearance }">
+          <ChartGallery
+            v-if="visitedCharts"
+            v-show="page === 'custom:charts'"
+            :active="page === 'custom:charts'"
+            :appearance="appearance"
+          />
+          <IconGallery
+            v-if="visitedIcons"
+            v-show="page === 'custom:icons'"
+            :appearance="appearance"
+          />
+          <SceneGallery
+            v-if="visitedScenes"
+            v-show="isScenePage"
+            :active-scene="sceneSection"
+            :active="isScenePage"
+            :appearance="appearance"
+            @components="openComponent"
+          />
+          <ComponentGallery
+            v-if="visitedComponents"
+            v-show="isComponentPage"
+            :active-component="componentSection"
+            :active="isComponentPage"
+            :appearance="appearance"
+          />
+        </template>
         <template #tools="theme">
           <NovaButton
             variant="ghost"
@@ -472,10 +603,8 @@ function onStorageChange(
               resolvedThemeMode(theme.appearance) === 'dark' ? '切换浅色模式' : '切换深色模式'
             "
             @click="toggleThemeMode(theme)"
-            ><span aria-hidden="true">{{
-              resolvedThemeMode(theme.appearance) === 'dark' ? '☀' : '☾'
-            }}</span
-            ><span class="demo-toggle-label" aria-hidden="true">{{
+            ><NovaIcon :name="resolvedThemeMode(theme.appearance) === 'dark' ? 'sun' : 'moon'" />
+            <span class="demo-toggle-label" aria-hidden="true">{{
               resolvedThemeMode(theme.appearance) === 'dark' ? '浅色' : '深色'
             }}</span></NovaButton
           >
@@ -491,11 +620,9 @@ function onStorageChange(
                   ? '演示设置'
                   : panel === 'host'
                     ? '宿主集成演示'
-                    : panel === 'components'
-                      ? '基础组件形态'
-                      : panel === 'about'
-                        ? '关于这份组件库'
-                        : '体验工具'
+                    : panel === 'about'
+                      ? '关于这份组件库'
+                      : '体验工具'
             "
             @close="toolsOpen = false"
           >
@@ -505,8 +632,8 @@ function onStorageChange(
               <NovaButton @click="panel = 'appearance'">外观设置</NovaButton>
               <NovaButton @click="panel = 'settings'">演示设置</NovaButton>
               <NovaButton @click="panel = 'host'">宿主集成演示</NovaButton>
-              <NovaButton @click="panel = 'components'">基础组件形态</NovaButton>
-              <NovaButton @click="scenesOn = true">业务场景组合</NovaButton>
+              <NovaButton @click="openDemoPage('custom:fields')">基础组件形态</NovaButton>
+              <NovaButton @click="openDemoPage('custom:tasks')">业务场景组合</NovaButton>
               <NovaButton @click="panel = 'about'">组件库与隐私说明</NovaButton>
               <p class="demo-note">全部账户、设备与消息均为虚构。快捷预览不代表身份认证。</p>
             </div>
@@ -820,42 +947,6 @@ function onStorageChange(
                   >打开预览窗口</NovaButton
                 >
               </div>
-            </div>
-            <div v-else-if="panel === 'components'" class="demo-stack">
-              <p class="demo-note">
-                NovaField 与 NovaButton 可脱离 NovaAccount 单独使用（独立组件应置于 NovaTheme
-                内）。以下展示宿主常用形态；字段值只存在于本页内存。
-              </p>
-              <NovaField v-model="gallery.site" label="前缀 / 后缀插槽" placeholder="站点名称">
-                <template #prefix
-                  ><span class="demo-affix" aria-hidden="true">https://</span></template
-                >
-                <template #suffix
-                  ><span class="demo-affix" aria-hidden="true">.example</span></template
-                >
-              </NovaField>
-              <NovaField
-                v-model="gallery.bio"
-                as="textarea"
-                label='多行文本 as="textarea"'
-                :maxlength="40"
-                hint="maxlength 40：原生属性按 UTF-16 code units 计数，服务端仍须执行实际长度限制"
-              ></NovaField>
-              <NovaField v-model="gallery.locked" label="禁用态" disabled />
-              <NovaField
-                v-model="gallery.bad"
-                label="错误态"
-                error="演示错误文案，由宿主显式传入"
-              />
-              <div class="demo-grid">
-                <NovaButton variant="primary">主要操作</NovaButton>
-                <NovaButton>默认操作</NovaButton>
-                <NovaButton variant="ghost">幽灵操作</NovaButton>
-                <NovaButton disabled>禁用操作</NovaButton>
-              </div>
-              <p class="demo-note">
-                错误态由宿主显式传入；组件不自行提交或校验业务规则，服务端才是授权与校验的执行方。
-              </p>
             </div>
             <div v-else class="demo-stack">
               <p>

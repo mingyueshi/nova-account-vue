@@ -21,7 +21,8 @@ assert(packed?.filename, 'npm pack must return a tarball')
 const files = packed.files.map((file) => file.path)
 assert(files.includes('dist/nova-account.js'))
 assert(files.includes('dist/index.d.ts'))
-for (const file of ['LICENSE', 'README.en.md', 'CHANGELOG.md'])
+assert(files.includes('dist/charts.js') && files.includes('dist/charts.d.ts'))
+for (const file of ['LICENSE', 'README.en.md', 'CHANGELOG.md', 'THIRD_PARTY_NOTICES.md'])
   assert(files.includes(file), `missing package document: ${file}`)
 assert.equal(packageJson.license, 'MIT')
 assert(files.includes('dist/nova-account.css'))
@@ -34,6 +35,7 @@ assert(
   'no secret/config artifacts in package',
 )
 const js = readFileSync(join(root, 'dist/nova-account.js'), 'utf8')
+assert(!js.includes('echarts'), 'optional chart engine must not enter the account entry')
 assert(/from\s*["']vue["']/.test(js), 'Vue must remain an external import')
 assert(
   !/NovaDemo2026|demo@nova\.example|createDemoAdapter/.test(js),
@@ -83,7 +85,7 @@ import { createRequire } from 'node:module'
 import { createSSRApp, h } from 'vue'
 import { renderToString } from '@vue/server-renderer'
 import * as library from 'nova-account'
-for (const name of ['NovaAccount','NovaTheme','NovaAuthForm','NovaAccountCenter','NovaAppearance','NovaButton','NovaField','NovaDialog','NovaCaptcha','useAppearance','useAuthFlow','useAccount','NovaError','NOVA_ERROR_CODES','provideNovaLocale','useNovaLocale','zhCN','enUS']) assert(name in library, 'missing export ' + name)
+for (const name of ['NovaAccount','NovaTheme','NovaAuthForm','NovaAccountCenter','NovaAppearance','NovaButton','NovaIcon','NOVA_ICON_NAMES','NovaField','NovaDialog','NovaCaptcha','useAppearance','useAuthFlow','useAccount','NovaError','NOVA_ERROR_CODES','provideNovaLocale','useNovaLocale','zhCN','enUS']) assert(name in library, 'missing export ' + name)
 assert(!('createDemoAdapter' in library))
 const resolved = fileURLToPath(import.meta.resolve('nova-account'))
 assert(realpathSync(resolved).startsWith(process.cwd() + '/node_modules/nova-account/'))
@@ -92,6 +94,13 @@ const css = readFileSync(fileURLToPath(import.meta.resolve('nova-account/style.c
 assert(css.includes('.nova-account') && css.includes('na\\\\:flex'))
 const html = await renderToString(createSSRApp({render: () => h(library.NovaTheme, {}, {default: () => h(library.NovaButton, {variant:'primary'}, {default: () => 'Tarball SSR verified'})})}))
 assert(html.includes('Tarball SSR verified'))
+const icon = await renderToString(createSSRApp({render: () => h(library.NovaIcon, {name:'security',label:'Account security'})}))
+assert(icon.includes('<svg') && icon.includes('Account security') && !icon.includes('aria-hidden'))
+assert(library.NOVA_ICON_NAMES.includes('security'))
+const charts = await import('nova-account/charts')
+assert(!('NovaChart' in library), 'charts must remain an optional entry')
+const chart = await renderToString(createSSRApp({render: () => h(charts.NovaChart, {option:{series:[{type:'bar',data:[1]}]},label:'SSR chart'})}))
+assert(chart.includes('SSR chart') && chart.includes('320px'))
 assert.equal(typeof globalThis.window, 'undefined')
 console.log('PASS tarball ESM exports, explicit compiled CSS, external Vue and SSR')
 `,
@@ -101,6 +110,9 @@ writeFileSync(
   `
 import { NovaAccount, NovaAuthForm, NovaButton, NovaTheme, NovaError, useAuthFlow, type AuthAdapter, type NovaAdapter, type Appearance, type NovaMessages, type NovaErrorCode, type NovaRequestResult } from 'nova-account'
 import { h } from 'vue'
+import { NovaChart, type NovaChartOption } from 'nova-account/charts'
+const chartOption: NovaChartOption = {series:[{type:'line',data:[1,2,3]}]}
+h(NovaChart, {option:chartOption,label:'Activity'})
 const unavailable = async (): Promise<never> => { throw new NovaError('ADAPTER_NOT_CONFIGURED', 'Configure a server adapter') }
 const auth: AuthAdapter = {challenge:unavailable,verifyCaptcha:unavailable,sendCode:unavailable,login:unavailable,register:unavailable,verifyResetCode:unavailable,resetPassword:unavailable,logout:unavailable}
 const theme: Appearance = {mode:'system',accent:'teal'}

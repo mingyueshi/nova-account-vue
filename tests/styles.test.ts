@@ -6,7 +6,7 @@ const source = readFileSync('src/styles/index.css', 'utf8')
 function tokens(selector: string) {
   const output: Record<string, string> = {}
   postcss.parse(source).walkRules((rule) => {
-    if (rule.selector === selector)
+    if (rule.selector.replace(/['"]/g, '') === selector)
       rule.walkDecls((declaration) => {
         output[declaration.prop] = declaration.value
       })

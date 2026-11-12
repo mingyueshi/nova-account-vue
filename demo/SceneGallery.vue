@@ -1,31 +1,82 @@
 <script setup lang="ts">
-import { computed, reactive, ref, watch } from 'vue'
+import { Eye } from '@lucide/vue'
+import { computed, nextTick, onBeforeUnmount, reactive, ref, useId, watch } from 'vue'
+import type { Appearance } from '../src'
 import { NovaButton, NovaDialog, NovaField, NovaTheme } from '../src'
+import NovaIcon from '../src/components/NovaIcon.vue'
+import DemoUsage from './DemoUsage.vue'
+import { useWorkspace } from './useWorkspace'
 import './scene-gallery.css'
 
-/**
- * Composition-only showcase: hosts combine the shipped base components
- * (NovaField / NovaButton / NovaDialog) into their own business scenes.
- * These cards are demo app content, never part of the npm package.
- */
-
-// --- 字段形态 ---
-const fields = reactive({
-  site: '',
-  amount: '',
-  phone: '',
-  secret: '',
-  when: '',
-  intro: '预填写的简介内容',
-  broken: '已被占用的名称',
-  locked: '由服务端下发的值',
+const props = withDefaults(defineProps<{ appearance?: Appearance; active?: boolean }>(), {
+  active: true,
 })
+defineEmits<{ components: [name: string] }>()
+const previewId = useId()
+const taskDetailId = useId()
+const { root: workspace, wide } = useWorkspace()
+function focusInvalid(event?: Event) {
+  const form = event?.currentTarget as HTMLFormElement | null
+  void nextTick(() => form?.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus())
+}
+const activeScene = defineModel<string>('activeScene', { default: 'tasks' })
+const scenes = [
+  {
+    key: 'tasks',
+    parts: ['NovaField', 'NovaButton'],
+    steps: [
+      '添加一条任务，按 Enter 即可提交。',
+      '勾选完成，按状态筛选；搜索标题可快速定位。',
+      '删除后可以撤销，切换账户页会保留当前任务。',
+    ],
+  },
+  {
+    key: 'editor',
+    parts: ['NovaField', 'NovaButton'],
+    steps: [
+      '填写标题与正文，也可以填入示例内容。',
+      '打开预览检查排版，然后保存草稿。',
+      '保存后继续编辑，状态会提示尚未保存的修改。',
+    ],
+  },
+  {
+    key: 'comments',
+    parts: ['NovaField', 'NovaButton'],
+    steps: [
+      '发布你的看法，最新的评论会显示在最前面。',
+      '点赞可以再次点击取消；按最受赞排序查看讨论。',
+    ],
+  },
+  {
+    key: 'orders',
+    parts: ['NovaButton', 'NovaDialog'],
+    steps: [
+      '按订单状态筛选，或搜索商品与订单号。',
+      '打开待支付订单的详情，查看金额后体验模拟支付。',
+      '模拟支付后，订单进入待发货状态，不会产生真实交易。',
+    ],
+  },
+]
+const currentScene = computed(
+  () => scenes.find((scene) => scene.key === activeScene.value) ?? scenes[0]!,
+)
+const timers = new Set<ReturnType<typeof setTimeout>>()
+function later(action: () => void, delay: number) {
+  const timer = setTimeout(() => {
+    timers.delete(timer)
+    action()
+  }, delay)
+  timers.add(timer)
+}
+onBeforeUnmount(() => timers.forEach((timer) => clearTimeout(timer)))
 
-// --- 任务列表 ---
 interface Task {
   id: number
   title: string
   done: boolean
+  note?: string
+  due?: string
+  priority?: string
 }
 let taskSeq = 3
 const tasks = ref<Task[]>([
@@ -33,81 +84,149 @@ const tasks = ref<Task[]>([
   { id: 2, title: '回复客户邮件', done: true },
   { id: 3, title: '整理周报提纲', done: false },
 ])
+const selectedTaskId = ref(1)
+const selectedTask = computed(() => tasks.value.find((task) => task.id === selectedTaskId.value))
+const taskDetail = ref<HTMLElement>()
+function selectTask(task: Task) {
+  selectedTaskId.value = task.id
+  if (!wide.value)
+    void nextTick(() => {
+      taskDetail.value?.scrollIntoView?.({ block: 'start', behavior: 'smooth' })
+      taskDetail.value?.focus({ preventScroll: true })
+    })
+}
 const taskQuery = ref('')
 const taskFilter = ref<'all' | 'open' | 'done'>('all')
 const taskDraft = ref('')
 const taskError = ref('')
+const taskNote = ref('')
+const removedTask = ref<{ task: Task; index: number } | null>(null)
 const taskFilters = [
   { key: 'all', label: '全部' },
   { key: 'open', label: '进行中' },
   { key: 'done', label: '已完成' },
 ] as const
+const doneCount = computed(() => tasks.value.filter((task) => task.done).length)
+const taskCounts = computed(() => ({
+  all: tasks.value.length,
+  open: tasks.value.length - doneCount.value,
+  done: doneCount.value,
+}))
 const visibleTasks = computed(() =>
   tasks.value.filter(
     (task) =>
       (taskFilter.value === 'all' || (taskFilter.value === 'done') === task.done) &&
-      task.title.includes(taskQuery.value.trim()),
+      task.title.toLocaleLowerCase().includes(taskQuery.value.trim().toLocaleLowerCase()),
   ),
 )
-const doneCount = computed(() => tasks.value.filter((task) => task.done).length)
-function addTask() {
+watch(taskDraft, (value) => {
+  if (value.trim()) taskError.value = ''
+})
+function addTask(event?: Event) {
   const title = taskDraft.value.trim()
   if (!title) {
     taskError.value = '请输入任务内容。'
+    focusInvalid(event)
     return
   }
   taskError.value = ''
-  tasks.value.unshift({ id: ++taskSeq, title, done: false })
+  const id = ++taskSeq
+  tasks.value.unshift({ id, title, done: false })
+  selectedTaskId.value = id
   taskDraft.value = ''
+  taskQuery.value = ''
+  taskFilter.value = 'all'
+  removedTask.value = null
+  taskNote.value = `已添加「${title}」。`
 }
 function toggleTask(task: Task) {
   task.done = !task.done
+  taskNote.value = task.done ? `已完成「${task.title}」。` : `「${task.title}」已恢复为进行中。`
 }
 function removeTask(id: number) {
-  tasks.value = tasks.value.filter((task) => task.id !== id)
+  const index = tasks.value.findIndex((task) => task.id === id)
+  if (index < 0) return
+  const task = tasks.value[index]!
+  removedTask.value = { task: { ...task }, index }
+  tasks.value.splice(index, 1)
+  taskNote.value = `已删除「${task.title}」。`
+}
+function undoTask() {
+  if (!removedTask.value) return
+  tasks.value.splice(removedTask.value.index, 0, removedTask.value.task)
+  removedTask.value = null
+  taskFilter.value = 'all'
+  taskQuery.value = ''
+  taskNote.value = '任务已恢复。'
+}
+function resetTaskFilter() {
+  taskQuery.value = ''
+  taskFilter.value = 'all'
 }
 
-// --- 简单编辑器 ---
 const post = reactive({ title: '', body: '' })
 const postTitleError = ref('')
 const postBodyError = ref('')
 const postBusy = ref(false)
 const postSaved = ref('')
-const previewOn = ref(false)
-function savePost() {
+const savedPost = ref<{ title: string; body: string } | null>(null)
+const postDirty = computed(() =>
+  savedPost.value
+    ? post.title !== savedPost.value.title || post.body !== savedPost.value.body
+    : !!(post.title || post.body),
+)
+const previewMode = ref<'auto' | 'show' | 'hide'>('auto')
+const previewOn = computed({
+  get: () => previewMode.value === 'show' || (previewMode.value === 'auto' && wide.value),
+  set: (value: boolean) => {
+    previewMode.value = value ? 'show' : 'hide'
+  },
+})
+function savePost(event?: Event) {
   if (postBusy.value) return
   postTitleError.value = post.title.trim() ? '' : '标题不能为空。'
   postBodyError.value = post.body.trim() ? '' : '正文不能为空。'
-  if (postTitleError.value || postBodyError.value) return
+  if (postTitleError.value || postBodyError.value) {
+    focusInvalid(event)
+    return
+  }
+  const draft = { ...post }
   postBusy.value = true
-  window.setTimeout(() => {
+  postSaved.value = ''
+  later(() => {
+    savedPost.value = draft
     postBusy.value = false
-    postSaved.value = `已保存《${post.title.trim()}》到内存（演示，刷新即清空）。`
+    postSaved.value = `已保存《${draft.title.trim()}》到内存（演示，刷新即清空）。`
   }, 700)
 }
 function clearPost() {
+  if (postBusy.value) return
   post.title = ''
   post.body = ''
   postTitleError.value = ''
   postBodyError.value = ''
   postSaved.value = ''
+  savedPost.value = null
   previewOn.value = false
 }
-// Host-side pattern: clear a field error as soon as the user edits the field.
+function fillPost() {
+  post.title = '让工作台更好用的三个小习惯'
+  post.body =
+    '先记录，再专注。\n\n把想到的事情写进任务清单，每次只处理一件。完成后及时回顾，让下一步更清楚。'
+}
 watch(
   () => post.title,
   (value) => {
-    if (postTitleError.value && value.trim()) postTitleError.value = ''
+    if (value.trim()) postTitleError.value = ''
   },
 )
 watch(
   () => post.body,
   (value) => {
-    if (postBodyError.value && value.trim()) postBodyError.value = ''
+    if (value.trim()) postBodyError.value = ''
   },
 )
 
-// --- 评论 ---
 interface Comment {
   id: number
   author: string
@@ -143,20 +262,31 @@ const comments = ref<Comment[]>([
     liked: false,
   },
 ])
-const avatarColors = ['#6958c5', '#217560', '#956100', '#636172']
 const commentDraft = ref('')
 const commentError = ref('')
 const commentBusy = ref(false)
-function publishComment() {
+const commentNote = ref('')
+const commentSort = ref('latest')
+const sortedComments = computed(() =>
+  commentSort.value === 'popular'
+    ? [...comments.value].sort((a, b) => b.likes - a.likes)
+    : comments.value,
+)
+watch(commentDraft, (value) => {
+  if (value.trim()) commentError.value = ''
+})
+function publishComment(event?: Event) {
   if (commentBusy.value) return
   const body = commentDraft.value.trim()
   if (!body) {
     commentError.value = '评论内容不能为空。'
+    focusInvalid(event)
     return
   }
   commentError.value = ''
+  commentNote.value = ''
   commentBusy.value = true
-  window.setTimeout(() => {
+  later(() => {
     commentBusy.value = false
     comments.value.unshift({
       id: ++commentSeq,
@@ -167,6 +297,8 @@ function publishComment() {
       liked: false,
     })
     commentDraft.value = ''
+    commentSort.value = 'latest'
+    commentNote.value = '评论已发布。'
   }, 700)
 }
 function toggleLike(comment: Comment) {
@@ -174,8 +306,7 @@ function toggleLike(comment: Comment) {
   comment.likes += comment.liked ? 1 : -1
 }
 
-// --- 订单 ---
-type OrderStatus = 'pending' | 'shipped' | 'done'
+type OrderStatus = 'pending' | 'processing' | 'shipped' | 'done'
 interface Order {
   id: string
   title: string
@@ -185,6 +316,7 @@ interface Order {
 }
 const statusLabels: Record<OrderStatus, string> = {
   pending: '待支付',
+  processing: '待发货',
   shipped: '已发货',
   done: '已完成',
 }
@@ -220,358 +352,637 @@ const orders = ref<Order[]>([
 const orderFilters = [
   { key: 'all', label: '全部' },
   { key: 'pending', label: '待支付' },
+  { key: 'processing', label: '待发货' },
   { key: 'shipped', label: '已发货' },
   { key: 'done', label: '已完成' },
 ] as const
 const orderFilter = ref<'all' | OrderStatus>('all')
-const orderCounts = computed(() => ({
-  all: orders.value.length,
-  pending: orders.value.filter((order) => order.status === 'pending').length,
-  shipped: orders.value.filter((order) => order.status === 'shipped').length,
-  done: orders.value.filter((order) => order.status === 'done').length,
-}))
+const orderQuery = ref('')
+const orderCounts = computed(
+  () =>
+    Object.fromEntries(
+      orderFilters.map((filter) => [
+        filter.key,
+        filter.key === 'all'
+          ? orders.value.length
+          : orders.value.filter((order) => order.status === filter.key).length,
+      ]),
+    ) as Record<'all' | OrderStatus, number>,
+)
 const visibleOrders = computed(() =>
-  orders.value.filter((order) => orderFilter.value === 'all' || order.status === orderFilter.value),
+  orders.value.filter(
+    (order) =>
+      (orderFilter.value === 'all' || order.status === orderFilter.value) &&
+      `${order.id} ${order.title} ${order.items.map((item) => item.name).join(' ')}`
+        .toLocaleLowerCase()
+        .includes(orderQuery.value.trim().toLocaleLowerCase()),
+  ),
+)
+const selectedOrderId = ref('NO-2026-0817')
+const inspectedOrder = computed(() =>
+  orders.value.find((order) => order.id === selectedOrderId.value),
 )
 const openOrderId = ref('')
-const payNote = ref('')
-const paying = ref(false)
+watch([() => props.active, activeScene], ([active, scene]) => {
+  if (!active || scene !== 'orders') openOrderId.value = ''
+})
 const activeOrder = computed(
   () => orders.value.find((order) => order.id === openOrderId.value) ?? null,
 )
+const payingIds = reactive(new Set<string>())
+const paymentNotes = reactive<Record<string, string>>({})
+const paying = computed(() => !!activeOrder.value && payingIds.has(activeOrder.value.id))
 const cny = new Intl.NumberFormat('zh-CN', { style: 'currency', currency: 'CNY' })
 function orderTotal(order: Order) {
-  return order.items.reduce((sum, item) => sum + item.qty * item.price, 0)
+  return order.items.reduce((sum, item) => sum + Math.round(item.price * 100) * item.qty, 0) / 100
 }
 function openOrder(id: string) {
+  selectedOrderId.value = id
   openOrderId.value = id
-  payNote.value = ''
 }
 function payOrder() {
   const order = activeOrder.value
-  if (!order || paying.value || order.status !== 'pending') return
-  paying.value = true
-  window.setTimeout(() => {
-    order.status = 'shipped'
-    paying.value = false
-    payNote.value = '演示支付完成：状态已更新为“已发货”。数据仅存在内存。'
+  if (!order || payingIds.has(order.id) || order.status !== 'pending') return
+  payingIds.add(order.id)
+  later(() => {
+    order.status = 'processing'
+    payingIds.delete(order.id)
+    paymentNotes[order.id] = '模拟支付完成，订单等待发货。'
   }, 800)
+}
+function resetOrderFilter() {
+  orderQuery.value = ''
+  orderFilter.value = 'all'
 }
 </script>
 <template>
-  <div class="demo-scenes">
-    <!-- 字段形态 -->
-    <section class="demo-scene-cell" aria-labelledby="scene-fields-title">
-      <h2 id="scene-fields-title" class="demo-scene-title">字段形态</h2>
-      <NovaTheme>
-        <div class="demo-scene-card">
-          <div class="demo-scene-fields">
-            <NovaField
-              v-model="fields.site"
-              label="站点地址"
-              placeholder="站点名称"
-              autocomplete="off"
-            >
-              <template #prefix
-                ><span class="demo-scene-affix" aria-hidden="true">https://</span></template
-              >
-              <template #suffix
-                ><span class="demo-scene-affix" aria-hidden="true">.example</span></template
-              >
-            </NovaField>
-            <NovaField
-              v-model="fields.amount"
-              label="金额"
-              type="number"
-              inputmode="decimal"
-              min="0"
-              placeholder="0.00"
-              hint="数字输入配合前缀单位"
-            >
-              <template #prefix
-                ><span class="demo-scene-affix" aria-hidden="true">¥</span></template
-              >
-            </NovaField>
-            <NovaField
-              v-model="fields.phone"
-              label="手机号"
-              type="tel"
-              inputmode="tel"
-              autocomplete="tel"
-              placeholder="13800000000"
-            >
-              <template #prefix
-                ><span class="demo-scene-affix" aria-hidden="true">+86</span></template
-              >
-            </NovaField>
-            <NovaField
-              v-model="fields.secret"
-              label="密码"
-              type="password"
-              autocomplete="new-password"
-              hint="密码输入不做明文回显"
-            />
-            <NovaField v-model="fields.when" label="日期" type="date" hint="浏览器原生日期选择器" />
-            <NovaField
-              v-model="fields.intro"
-              as="textarea"
-              label="简介"
-              :maxlength="60"
-              :hint="`已输入 ${fields.intro.length}/60 字符（原生 maxlength 按 UTF-16 code units 计数）`"
-            />
-            <NovaField
-              v-model="fields.broken"
-              label="错误态字段"
-              error="该名称已被占用（演示文案）"
-            />
-            <NovaField v-model="fields.locked" label="禁用字段" disabled />
-          </div>
-          <p class="demo-scene-meta">字段值仅保存在本页内存；长度、格式与业务校验由服务端执行。</p>
-        </div>
-      </NovaTheme>
-    </section>
-
-    <!-- 任务列表 -->
-    <section class="demo-scene-cell" aria-labelledby="scene-tasks-title">
-      <h2 id="scene-tasks-title" class="demo-scene-title">列表与筛选</h2>
-      <NovaTheme>
-        <div class="demo-scene-card">
-          <NovaField
-            v-model="taskQuery"
-            label="搜索任务"
-            type="search"
-            placeholder="按标题过滤"
-            autocomplete="off"
-          />
-          <div role="group" aria-label="任务状态筛选" class="demo-scene-row">
-            <button
-              v-for="filter in taskFilters"
-              :key="filter.key"
-              type="button"
-              class="demo-scene-chip"
-              :aria-pressed="taskFilter === filter.key"
-              @click="taskFilter = filter.key"
-            >
-              {{ filter.label }}
-            </button>
-          </div>
-          <form aria-label="任务添加" class="demo-scene-form" @submit.prevent="addTask">
-            <NovaField
-              v-model="taskDraft"
-              label="新任务"
-              placeholder="例如：整理周报提纲"
-              autocomplete="off"
-              :error="taskError"
-            />
-            <NovaButton type="submit" variant="primary">添加</NovaButton>
-          </form>
-          <ul class="demo-scene-list">
-            <li v-for="task in visibleTasks" :key="task.id" class="demo-scene-item">
-              <label class="demo-scene-grow demo-scene-check">
-                <input type="checkbox" :checked="task.done" @change="toggleTask(task)" />
-                <span :class="{ 'demo-scene-done': task.done }">{{ task.title }}</span>
-              </label>
-              <button
-                type="button"
-                class="demo-scene-chip"
-                aria-label="删除任务"
-                @click="removeTask(task.id)"
-              >
-                删除
-              </button>
-            </li>
-            <li v-if="visibleTasks.length === 0" class="demo-scene-empty">
-              没有匹配的任务；切换筛选或清空搜索词。
-            </li>
-          </ul>
-          <p class="demo-scene-meta">
-            进行中 {{ tasks.length - doneCount }} · 已完成 {{ doneCount }}（数据仅内存）
-          </p>
-        </div>
-      </NovaTheme>
-    </section>
-
-    <!-- 简单编辑器 -->
-    <section class="demo-scene-cell" aria-labelledby="scene-editor-title">
-      <h2 id="scene-editor-title" class="demo-scene-title">简单编辑器</h2>
-      <NovaTheme>
-        <div class="demo-scene-card">
-          <form aria-label="保存文章" class="demo-scene-form" @submit.prevent="savePost">
-            <NovaField
-              v-model="post.title"
-              label="文章标题"
-              :maxlength="40"
-              autocomplete="off"
-              :error="postTitleError"
-            />
-            <NovaField
-              v-model="post.body"
-              as="textarea"
-              label="正文"
-              :maxlength="200"
-              :hint="`已输入 ${post.body.length}/200 字符`"
-              :error="postBodyError"
-            />
-            <div class="demo-scene-row">
-              <NovaButton type="submit" variant="primary" :busy="postBusy">保存草稿</NovaButton>
-              <NovaButton :aria-pressed="previewOn" @click="previewOn = !previewOn"
-                >预览</NovaButton
-              >
-              <NovaButton variant="ghost" @click="clearPost">清空</NovaButton>
-            </div>
-          </form>
-          <div v-if="previewOn" class="demo-scene-preview">
-            <p>
-              <strong>{{ post.title.trim() || '（无标题）' }}</strong>
-            </p>
-            <p>{{ post.body.trim() || '（暂无正文）' }}</p>
-          </div>
-          <p v-if="postSaved" role="status" class="demo-scene-meta">{{ postSaved }}</p>
-          <p class="demo-scene-meta">
-            富文本编辑器由宿主自行实现；此处演示 maxlength、字数提示与提交忙态的组合。
-          </p>
-        </div>
-      </NovaTheme>
-    </section>
-
-    <!-- 评论 -->
-    <section class="demo-scene-cell" aria-labelledby="scene-comments-title">
-      <h2 id="scene-comments-title" class="demo-scene-title">评论区</h2>
-      <NovaTheme>
-        <div class="demo-scene-card">
-          <form aria-label="发布评论" class="demo-scene-form" @submit.prevent="publishComment">
-            <NovaField
-              v-model="commentDraft"
-              as="textarea"
-              label="发表评论"
-              :maxlength="120"
-              autocomplete="off"
-              :hint="`已输入 ${commentDraft.length}/120 字符`"
-              :error="commentError"
-            />
-            <div class="demo-scene-row">
-              <NovaButton type="submit" variant="primary" :busy="commentBusy">发布</NovaButton>
-              <span class="demo-scene-meta">{{ comments.length }} 条评论</span>
-            </div>
-          </form>
-          <ul class="demo-scene-list">
-            <li v-for="comment in comments" :key="comment.id" class="demo-scene-comment">
-              <span
-                class="demo-scene-avatar"
-                :style="{ background: avatarColors[comment.id % avatarColors.length] }"
-                aria-hidden="true"
-                >{{ comment.author.slice(0, 1) }}</span
-              >
-              <div class="demo-scene-grow">
-                <p class="demo-scene-meta">
-                  <strong>{{ comment.author }}</strong> · {{ comment.at }}
-                </p>
-                <p>{{ comment.body }}</p>
-                <button
-                  type="button"
-                  class="demo-scene-chip"
-                  :aria-pressed="comment.liked"
-                  aria-label="点赞评论"
-                  @click="toggleLike(comment)"
+  <div ref="workspace" class="demo-showcase">
+    <div class="demo-scenes">
+      <section v-show="activeScene === 'tasks'" class="demo-scene-cell" aria-label="任务清单">
+        <NovaTheme :model-value="appearance">
+          <div class="demo-task-workspace">
+            <div class="demo-panel">
+              <div class="demo-panel-heading">
+                <div>
+                  <h2>任务清单</h2>
+                  <p>记录、完成，再安排下一步。</p>
+                </div>
+                <span class="demo-subtle-count">共 {{ tasks.length }} 项</span>
+              </div>
+              <form aria-label="任务添加" class="demo-task-composer" @submit.prevent="addTask">
+                <NovaField
+                  v-model="taskDraft"
+                  label="新任务"
+                  :maxlength="80"
+                  placeholder="添加一件要做的事…"
+                  autocomplete="off"
+                  :error="taskError"
+                />
+                <NovaButton type="submit" variant="primary"
+                  ><NovaIcon name="plus" />添加</NovaButton
                 >
-                  赞 {{ comment.likes }}
+              </form>
+              <div class="demo-list-toolbar">
+                <div role="group" aria-label="任务状态筛选" class="demo-filter-tabs">
+                  <button
+                    v-for="filter in taskFilters"
+                    :key="filter.key"
+                    type="button"
+                    :aria-pressed="taskFilter === filter.key"
+                    @click="taskFilter = filter.key"
+                  >
+                    {{ filter.label }}<span>{{ taskCounts[filter.key] }}</span>
+                  </button>
+                </div>
+                <div class="demo-compact-search">
+                  <NovaField
+                    v-model="taskQuery"
+                    label="搜索任务"
+                    type="search"
+                    placeholder="搜索任务"
+                    autocomplete="off"
+                    ><template #prefix><NovaIcon name="search" /></template
+                  ></NovaField>
+                </div>
+              </div>
+              <ul class="demo-task-list">
+                <li
+                  v-for="task in visibleTasks"
+                  :key="task.id"
+                  class="demo-scene-item demo-task-item"
+                  :class="{ 'is-done': task.done, 'is-selected': selectedTaskId === task.id }"
+                >
+                  <label class="demo-scene-check"
+                    ><input type="checkbox" :checked="task.done" @change="toggleTask(task)" /><span
+                      :class="{ 'demo-scene-done': task.done }"
+                      >{{ task.title }}</span
+                    ></label
+                  >
+                  <div class="demo-task-row-actions">
+                    <button
+                      type="button"
+                      class="demo-icon-button"
+                      :aria-label="`查看任务 ${task.title}`"
+                      :aria-pressed="selectedTaskId === task.id"
+                      @click="selectTask(task)"
+                    >
+                      <NovaIcon name="chevron" /></button
+                    ><button
+                      type="button"
+                      class="demo-icon-button"
+                      :aria-label="`删除任务 ${task.title}`"
+                      @click="removeTask(task.id)"
+                    >
+                      <NovaIcon name="trash" />
+                    </button>
+                  </div>
+                </li>
+                <li v-if="!visibleTasks.length" class="demo-empty">
+                  <NovaIcon :name="taskQuery ? 'search' : 'tasks'" />
+                  <h3>
+                    {{
+                      taskQuery
+                        ? '没有找到匹配的任务'
+                        : taskFilter === 'done'
+                          ? '还没有已完成的任务'
+                          : taskFilter === 'open'
+                            ? '待办已全部完成'
+                            : '从第一条任务开始'
+                    }}
+                  </h3>
+                  <p>
+                    {{
+                      taskQuery
+                        ? '试试其他关键词，或清空筛选查看全部。'
+                        : '把想做的事情记下来，完成后勾选即可。'
+                    }}
+                  </p>
+                  <NovaButton
+                    v-if="taskQuery || taskFilter !== 'all'"
+                    variant="ghost"
+                    @click="resetTaskFilter"
+                    >查看全部任务</NovaButton
+                  >
+                </li>
+              </ul>
+              <div class="demo-list-footer">
+                <span>进行中 {{ tasks.length - doneCount }} · 已完成 {{ doneCount }}</span
+                ><span class="demo-scene-meta">数据仅保存在本页</span>
+              </div>
+              <div v-if="taskNote" class="demo-inline-notice">
+                <span role="status">{{ taskNote }}</span
+                ><button
+                  v-if="removedTask"
+                  type="button"
+                  class="demo-link-button"
+                  @click="undoTask"
+                >
+                  <NovaIcon name="undo" />撤销删除
                 </button>
               </div>
-            </li>
-          </ul>
-          <p class="demo-scene-meta">评论数据为虚构合成内容，仅保存在本页内存。</p>
-        </div>
-      </NovaTheme>
-    </section>
-
-    <!-- 订单 -->
-    <section class="demo-scene-cell" aria-labelledby="scene-orders-title">
-      <h2 id="scene-orders-title" class="demo-scene-title">订单列表</h2>
-      <NovaTheme>
-        <div class="demo-scene-card">
-          <div role="group" aria-label="订单状态筛选" class="demo-scene-row">
-            <button
-              v-for="filter in orderFilters"
-              :key="filter.key"
-              type="button"
-              class="demo-scene-chip"
-              :aria-pressed="orderFilter === filter.key"
-              @click="orderFilter = filter.key"
+            </div>
+            <aside
+              ref="taskDetail"
+              class="demo-panel demo-task-detail"
+              tabindex="-1"
+              :aria-labelledby="taskDetailId"
             >
-              {{ filter.label }}（{{ orderCounts[filter.key] }}）
-            </button>
-          </div>
-          <ul class="demo-scene-list">
-            <li v-for="order in visibleOrders" :key="order.id" class="demo-scene-item">
-              <div class="demo-scene-grow">
-                <p>{{ order.title }}</p>
-                <p class="demo-scene-meta">{{ order.id }} · {{ order.placedAt }}</p>
+              <div class="demo-panel-heading">
+                <div>
+                  <h2 :id="taskDetailId">任务详情</h2>
+                  <p>在清单旁补充信息，变更即时保留。</p>
+                </div>
+                <NovaIcon name="tasks" />
               </div>
-              <span class="demo-scene-status" :data-status="order.status">{{
-                statusLabels[order.status]
-              }}</span>
-              <button
-                type="button"
-                class="demo-scene-chip"
-                :aria-label="`查看订单 ${order.id}`"
-                @click="openOrder(order.id)"
-              >
-                详情
-              </button>
-            </li>
-            <li v-if="visibleOrders.length === 0" class="demo-scene-empty">该状态下暂无订单。</li>
-          </ul>
-          <p class="demo-scene-meta">订单与支付均为内存模拟；真实支付、发货与退款由服务端执行。</p>
-          <!-- 对话框留在 NovaTheme 根内，避免丢失主题 token。 -->
-          <NovaDialog
-            v-if="activeOrder"
-            :open="true"
-            :title="`订单详情 ${activeOrder.id}`"
-            @close="openOrderId = ''"
-          >
-            <p class="demo-scene-meta">
-              {{ activeOrder.title }} · 下单于 {{ activeOrder.placedAt }}
-            </p>
-            <table class="demo-scene-table">
-              <thead>
-                <tr>
-                  <th scope="col">品名</th>
-                  <th scope="col">数量</th>
-                  <th scope="col">单价</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr v-for="item in activeOrder.items" :key="item.name">
-                  <td>{{ item.name }}</td>
-                  <td>× {{ item.qty }}</td>
-                  <td>{{ cny.format(item.price) }}</td>
-                </tr>
-              </tbody>
-            </table>
-            <p class="demo-scene-total">
-              <span>合计</span><span>{{ cny.format(orderTotal(activeOrder)) }}</span>
-            </p>
-            <p>
-              状态：<span class="demo-scene-status" :data-status="activeOrder.status">{{
-                statusLabels[activeOrder.status]
-              }}</span>
-            </p>
-            <p v-if="payNote" role="status" class="demo-scene-meta">{{ payNote }}</p>
-            <template #footer>
-              <div class="demo-scene-row">
+              <template v-if="selectedTask"
+                ><h3>{{ selectedTask.title }}</h3>
+                <span class="demo-task-state" :data-done="selectedTask.done">{{
+                  selectedTask.done ? '已完成' : '进行中'
+                }}</span>
+                <div class="demo-task-detail-fields">
+                  <NovaField
+                    :model-value="selectedTask.note || ''"
+                    label="任务备注"
+                    as="textarea"
+                    :rows="5"
+                    :maxlength="200"
+                    placeholder="补充执行要点或相关信息…"
+                    @update:model-value="selectedTask.note = $event"
+                  /><NovaField
+                    :model-value="selectedTask.due || ''"
+                    label="计划日期"
+                    type="date"
+                    @update:model-value="selectedTask.due = $event"
+                  /><label class="demo-native-field"
+                    >优先级<select
+                      :value="selectedTask.priority || 'normal'"
+                      @change="selectedTask.priority = ($event.target as HTMLSelectElement).value"
+                    >
+                      <option value="normal">普通</option>
+                      <option value="high">优先处理</option>
+                      <option value="low">稍后安排</option>
+                    </select></label
+                  >
+                </div>
                 <NovaButton
-                  v-if="activeOrder.status === 'pending'"
-                  variant="primary"
-                  :busy="paying"
-                  @click="payOrder"
-                  >模拟支付</NovaButton
+                  :variant="selectedTask.done ? 'secondary' : 'primary'"
+                  @click="toggleTask(selectedTask)"
+                  ><NovaIcon name="check" :size="16" />{{
+                    selectedTask.done ? '恢复为进行中' : '标记为完成'
+                  }}</NovaButton
                 >
-                <NovaButton variant="ghost" @click="openOrderId = ''">关闭</NovaButton>
+                <p class="demo-scene-meta">详情仅保存在本页内存，刷新后重置。</p></template
+              >
+              <div v-else class="demo-empty">
+                <NovaIcon name="tasks" />
+                <h3>选择一条任务</h3>
+                <p>点击清单中的详情按钮，在这里补充信息。</p>
               </div>
-            </template>
-          </NovaDialog>
-        </div>
-      </NovaTheme>
-    </section>
+            </aside>
+          </div>
+        </NovaTheme>
+      </section>
+
+      <section v-show="activeScene === 'editor'" class="demo-scene-cell" aria-label="文章编辑器">
+        <NovaTheme :model-value="appearance">
+          <div class="demo-panel">
+            <div class="demo-panel-heading">
+              <div>
+                <h2>文章草稿</h2>
+                <p>先把想法写下来，排版会在预览中呈现。</p>
+              </div>
+              <span class="demo-draft-state" :data-saved="!!savedPost && !postDirty"
+                ><span aria-hidden="true">●</span
+                >{{
+                  postBusy
+                    ? '正在保存'
+                    : postDirty
+                      ? '有未保存的修改'
+                      : savedPost
+                        ? '已保存'
+                        : '尚未开始'
+                }}</span
+              >
+            </div>
+            <div class="demo-editor-layout" :class="{ 'with-preview': previewOn }">
+              <form
+                aria-label="保存文章"
+                class="demo-scene-form demo-editor-form"
+                @submit.prevent="savePost"
+              >
+                <NovaField
+                  v-model="post.title"
+                  label="文章标题"
+                  :maxlength="40"
+                  placeholder="给这篇内容起个标题"
+                  autocomplete="off"
+                  :hint="`${post.title.length} / 40 字符`"
+                  :error="postTitleError"
+                />
+                <NovaField
+                  v-model="post.body"
+                  as="textarea"
+                  label="正文"
+                  :rows="10"
+                  :maxlength="200"
+                  placeholder="写下你的想法，支持换行…"
+                  :hint="`已输入 ${post.body.length}/200 字符`"
+                  :error="postBodyError"
+                />
+                <div class="demo-editor-actions">
+                  <div class="demo-scene-row">
+                    <NovaButton type="submit" variant="primary" :busy="postBusy"
+                      ><NovaIcon v-if="!postBusy" name="save" :size="16" />保存草稿</NovaButton
+                    ><NovaButton
+                      :aria-pressed="previewOn"
+                      :aria-controls="previewOn ? previewId : undefined"
+                      :aria-expanded="previewOn"
+                      @click="previewOn = !previewOn"
+                      ><NovaIcon :icon="Eye" :size="16" />预览</NovaButton
+                    >
+                  </div>
+                  <NovaButton v-if="!post.title && !post.body" variant="ghost" @click="fillPost"
+                    >填入示例内容</NovaButton
+                  ><NovaButton v-else variant="ghost" :disabled="postBusy" @click="clearPost"
+                    ><NovaIcon name="trash" :size="16" />清空</NovaButton
+                  >
+                </div>
+              </form>
+              <aside
+                v-if="previewOn"
+                :id="previewId"
+                class="demo-scene-preview demo-article-preview"
+                aria-label="文章预览"
+              >
+                <span class="demo-scene-meta">内容预览</span>
+                <h3>{{ post.title.trim() || '等待你的标题' }}</h3>
+                <p>{{ post.body.trim() || '填写正文后，即可在这里检查内容与段落。' }}</p>
+              </aside>
+            </div>
+            <p v-if="postSaved && !postDirty" role="status" class="demo-success-note">
+              <NovaIcon name="check" />{{ postSaved }}
+            </p>
+            <p v-else class="demo-scene-meta demo-editor-status">
+              {{
+                postBusy
+                  ? '正在保存当前版本，你可以继续编辑。'
+                  : '切换账户页会保留草稿；刷新页面后重置。'
+              }}
+            </p>
+          </div>
+        </NovaTheme>
+      </section>
+
+      <section v-show="activeScene === 'comments'" class="demo-scene-cell" aria-label="社区讨论">
+        <NovaTheme :model-value="appearance">
+          <div class="demo-community-page">
+            <div class="demo-discussion-topic">
+              <span class="demo-topic-icon"><NovaIcon name="comments" /></span>
+              <div>
+                <h2>你最想完善哪一个交互细节？</h2>
+                <p>分享使用中的发现，或给其他人的建议点个赞。</p>
+              </div>
+            </div>
+            <div class="demo-community-workspace">
+              <form
+                aria-label="发布评论"
+                class="demo-comment-composer demo-panel"
+                @submit.prevent="publishComment"
+              >
+                <span class="demo-scene-avatar demo-current-avatar" aria-hidden="true">你</span>
+                <div class="demo-scene-form">
+                  <NovaField
+                    v-model="commentDraft"
+                    as="textarea"
+                    label="发表评论"
+                    :rows="3"
+                    :maxlength="120"
+                    :disabled="commentBusy"
+                    placeholder="写下你的建议，让讨论更有帮助…"
+                    :hint="`已输入 ${commentDraft.length}/120 字符`"
+                    :error="commentError"
+                  />
+                  <div class="demo-comment-compose-footer">
+                    <span class="demo-scene-meta">以演示用户身份参与讨论</span
+                    ><NovaButton type="submit" variant="primary" :busy="commentBusy"
+                      >发布</NovaButton
+                    >
+                  </div>
+                </div>
+              </form>
+              <div class="demo-community-feed demo-panel">
+                <div class="demo-discussion-toolbar">
+                  <h3>{{ comments.length }} 条评论</h3>
+                  <label class="demo-sort-control"
+                    >排序<select v-model="commentSort">
+                      <option value="latest">最新发布</option>
+                      <option value="popular">最受赞</option>
+                    </select></label
+                  >
+                </div>
+                <p v-if="commentNote" role="status" class="demo-success-note">{{ commentNote }}</p>
+                <ul class="demo-comment-list">
+                  <li
+                    v-for="comment in sortedComments"
+                    :key="comment.id"
+                    class="demo-scene-comment"
+                  >
+                    <span
+                      class="demo-scene-avatar"
+                      :data-avatar="comment.id % 3"
+                      aria-hidden="true"
+                      >{{ comment.author.slice(0, 1) }}</span
+                    >
+                    <div class="demo-scene-grow">
+                      <div class="demo-comment-byline">
+                        <strong>{{ comment.author }}</strong
+                        ><span>{{ comment.at }}</span
+                        ><span v-if="comment.author === '你'" class="demo-own-label">我</span>
+                      </div>
+                      <p class="demo-comment-body">{{ comment.body }}</p>
+                      <button
+                        type="button"
+                        class="demo-like-button"
+                        :aria-pressed="comment.liked"
+                        :aria-label="`赞 ${comment.likes}，${comment.author}的评论`"
+                        @click="toggleLike(comment)"
+                      >
+                        <NovaIcon name="like" />赞 {{ comment.likes }}
+                      </button>
+                    </div>
+                  </li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </NovaTheme>
+      </section>
+
+      <section v-show="activeScene === 'orders'" class="demo-scene-cell" aria-label="订单列表">
+        <NovaTheme :model-value="appearance">
+          <div class="demo-orders">
+            <div class="demo-panel demo-orders-toolbar">
+              <div role="group" aria-label="订单状态筛选" class="demo-filter-tabs">
+                <button
+                  v-for="filter in orderFilters"
+                  :key="filter.key"
+                  type="button"
+                  :aria-pressed="orderFilter === filter.key"
+                  @click="orderFilter = filter.key"
+                >
+                  {{ filter.label }}<span>{{ orderCounts[filter.key] }}</span>
+                </button>
+              </div>
+              <div class="demo-compact-search">
+                <NovaField
+                  v-model="orderQuery"
+                  label="搜索订单"
+                  type="search"
+                  placeholder="商品名称或订单号"
+                  ><template #prefix><NovaIcon name="search" /></template
+                ></NovaField>
+              </div>
+            </div>
+            <div class="demo-order-workspace">
+              <ul class="demo-order-list">
+                <li
+                  v-for="order in visibleOrders"
+                  :key="order.id"
+                  class="demo-order-card"
+                  :class="{ 'is-selected': selectedOrderId === order.id }"
+                >
+                  <div class="demo-order-heading">
+                    <div>
+                      <button
+                        type="button"
+                        class="demo-order-select"
+                        :aria-pressed="selectedOrderId === order.id"
+                        :aria-label="`选择订单 ${order.id}`"
+                        @click="selectedOrderId = order.id"
+                      >
+                        {{ order.id }}</button
+                      ><time>{{ order.placedAt }}</time>
+                    </div>
+                    <span class="demo-scene-status" :data-status="order.status"
+                      ><span aria-hidden="true">●</span>{{ statusLabels[order.status] }}</span
+                    >
+                  </div>
+                  <div class="demo-order-body">
+                    <span class="demo-product-icon" aria-hidden="true"
+                      ><NovaIcon name="orders"
+                    /></span>
+                    <div class="demo-order-summary">
+                      <h2>{{ order.title }}</h2>
+                      <p>
+                        {{ order.items.map((item) => `${item.name} × ${item.qty}`).join('、') }}
+                      </p>
+                    </div>
+                    <div class="demo-order-amount">
+                      <strong>{{ cny.format(orderTotal(order)) }}</strong
+                      ><span
+                        >共
+                        {{ order.items.reduce((count, item) => count + item.qty, 0) }} 件商品</span
+                      >
+                    </div>
+                  </div>
+                  <div class="demo-order-footer">
+                    <span class="demo-scene-meta">{{
+                      order.status === 'pending'
+                        ? '等待付款，确认后进入待发货。'
+                        : order.status === 'processing'
+                          ? '支付已完成，等待安排发货。'
+                          : order.status === 'shipped'
+                            ? '商品已发出，请留意签收。'
+                            : '订单已完成，感谢你的支持。'
+                    }}</span
+                    ><NovaButton
+                      :variant="order.status === 'pending' ? 'primary' : 'secondary'"
+                      :data-order-id="order.id"
+                      :aria-label="`${order.status === 'pending' ? '查看并支付' : '查看详情'}订单 ${order.id}`"
+                      @click="openOrder(order.id)"
+                      >{{ order.status === 'pending' ? '查看并支付' : '查看详情' }}</NovaButton
+                    >
+                  </div>
+                </li>
+                <li v-if="!visibleOrders.length" class="demo-panel demo-empty">
+                  <NovaIcon :name="orderQuery ? 'search' : 'orders'" />
+                  <h3>{{ orderQuery ? '没有找到匹配的订单' : '该状态下暂无订单。' }}</h3>
+                  <p>试试其他状态，或查看全部订单。</p>
+                  <NovaButton variant="ghost" @click="resetOrderFilter">查看全部订单</NovaButton>
+                </li>
+              </ul>
+              <aside
+                v-if="inspectedOrder"
+                class="demo-panel demo-order-inspector"
+                aria-label="订单摘要"
+              >
+                <div class="demo-panel-heading">
+                  <div>
+                    <h2>订单摘要</h2>
+                    <p>{{ inspectedOrder.id }}</p>
+                  </div>
+                  <span class="demo-scene-status" :data-status="inspectedOrder.status">{{
+                    statusLabels[inspectedOrder.status]
+                  }}</span>
+                </div>
+                <h3>{{ inspectedOrder.title }}</h3>
+                <ul class="demo-order-detail-items">
+                  <li v-for="item in inspectedOrder.items" :key="item.name">
+                    <div>
+                      <strong>{{ item.name }}</strong
+                      ><span>{{ cny.format(item.price) }} × {{ item.qty }}</span>
+                    </div>
+                    <strong>{{
+                      cny.format((Math.round(item.price * 100) * item.qty) / 100)
+                    }}</strong>
+                  </li>
+                </ul>
+                <p class="demo-scene-total">
+                  <span>合计</span><strong>{{ cny.format(orderTotal(inspectedOrder)) }}</strong>
+                </p>
+                <div class="demo-order-inspector-status">
+                  <NovaIcon :name="inspectedOrder.status === 'pending' ? 'clock' : 'check'" />
+                  <div>
+                    <h4>{{ statusLabels[inspectedOrder.status] }}</h4>
+                    <p>
+                      {{
+                        inspectedOrder.status === 'pending'
+                          ? '核对商品与金额后，可打开详情体验模拟支付。'
+                          : inspectedOrder.status === 'processing'
+                            ? '模拟支付已完成，订单等待发货。'
+                            : inspectedOrder.status === 'shipped'
+                              ? '商品已发出，请留意签收。'
+                              : '本次订单已完成。'
+                      }}
+                    </p>
+                  </div>
+                </div>
+                <NovaButton
+                  :variant="inspectedOrder.status === 'pending' ? 'primary' : 'secondary'"
+                  @click="openOrder(inspectedOrder.id)"
+                  >打开订单详情<NovaIcon name="chevron" :size="16"
+                /></NovaButton>
+                <p class="demo-scene-meta">列表与摘要状态同步更新。</p>
+              </aside>
+            </div>
+            <p class="demo-scene-meta">所有订单与支付均为模拟，不会产生真实交易。</p>
+            <NovaDialog
+              v-if="activeOrder"
+              :open="true"
+              :title="`订单详情 ${activeOrder.id}`"
+              @close="openOrderId = ''"
+              ><div class="demo-order-dialog-meta">
+                <span class="demo-scene-status" :data-status="activeOrder.status">{{
+                  statusLabels[activeOrder.status]
+                }}</span
+                ><span>下单于 {{ activeOrder.placedAt }}</span>
+              </div>
+              <h3 class="demo-order-dialog-title">{{ activeOrder.title }}</h3>
+              <ul class="demo-order-detail-items">
+                <li v-for="item in activeOrder.items" :key="item.name">
+                  <div>
+                    <strong>{{ item.name }}</strong
+                    ><span>单价 {{ cny.format(item.price) }} · 数量 {{ item.qty }}</span>
+                  </div>
+                  <strong>{{ cny.format((Math.round(item.price * 100) * item.qty) / 100) }}</strong>
+                </li>
+              </ul>
+              <p class="demo-scene-total">
+                <span>合计</span><strong>{{ cny.format(orderTotal(activeOrder)) }}</strong>
+              </p>
+              <p v-if="paymentNotes[activeOrder.id]" role="status" class="demo-success-note">
+                <NovaIcon name="check" />{{ paymentNotes[activeOrder.id] }}
+              </p>
+              <p v-else class="demo-scene-meta demo-payment-note">
+                {{
+                  paying
+                    ? '正在处理模拟支付，可以关闭此窗口后继续浏览。'
+                    : activeOrder.status === 'pending'
+                      ? '点击下方按钮体验支付反馈，不会真实扣款。'
+                      : '当前订单状态与列表同步。'
+                }}
+              </p>
+              <template #footer
+                ><div class="demo-dialog-actions">
+                  <NovaButton variant="secondary" @click="openOrderId = ''">关闭</NovaButton
+                  ><NovaButton
+                    v-if="activeOrder.status === 'pending'"
+                    variant="primary"
+                    :busy="paying"
+                    @click="payOrder"
+                    >模拟支付</NovaButton
+                  >
+                </div></template
+              ></NovaDialog
+            >
+          </div>
+        </NovaTheme>
+      </section>
+    </div>
+    <DemoUsage
+      :components="currentScene.parts"
+      :steps="currentScene.steps"
+      @component="$emit('components', $event)"
+    />
   </div>
 </template>

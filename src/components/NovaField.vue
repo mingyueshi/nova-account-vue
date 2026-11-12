@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { useId } from 'vue'
+import { useId, useSlots } from 'vue'
 defineOptions({ inheritAttrs: false })
 const props = withDefaults(
   defineProps<{
@@ -18,11 +18,23 @@ const props = withDefaults(
 const emit = defineEmits<{ 'update:modelValue': [value: string] }>()
 defineSlots<{ prefix?(): unknown; suffix?(): unknown }>()
 const id = useId()
+const slots = useSlots()
+const affixed = () => !!(slots.prefix || slots.suffix)
 </script>
 <template>
-  <div class="na:grid na:gap-2">
+  <div class="nova-field na:grid na:gap-2">
     <label :for="id" class="na:text-sm na:font-medium">{{ label }}</label>
-    <div class="na:flex na:min-w-0 na:items-center na:gap-2">
+    <div
+      class="na:flex na:min-w-0 na:items-center na:gap-2"
+      :class="
+        affixed()
+          ? [
+              'nova-field-affixed na:rounded-xl na:border na:bg-[var(--na-surface)] na:px-3.5',
+              error ? 'na:border-[var(--na-error)]' : 'na:border-[var(--na-control)]',
+            ]
+          : undefined
+      "
+    >
       <slot name="prefix" />
       <component
         :is="as"
@@ -35,7 +47,15 @@ const id = useId()
         :disabled="disabled"
         :aria-invalid="!!error || undefined"
         :aria-describedby="error ? `${id}-error` : hint ? `${id}-hint` : undefined"
-        class="na:min-h-12 na:w-full na:min-w-0 na:rounded-xl na:border na:border-[var(--na-control)] na:bg-[var(--na-surface)] na:px-3.5 na:py-3 na:text-base na:text-[var(--na-ink)] na:placeholder:text-[var(--na-muted)] na:focus:border-[var(--na-brand)] na:disabled:opacity-50"
+        class="na:min-h-12 na:w-full na:min-w-0 na:py-3 na:text-base na:text-[var(--na-ink)] na:placeholder:text-[var(--na-muted)] na:disabled:opacity-50"
+        :class="
+          affixed()
+            ? 'na:border-0 na:bg-transparent na:px-0'
+            : [
+                'na:rounded-xl na:border na:bg-[var(--na-surface)] na:px-3.5 na:focus:border-[var(--na-brand)]',
+                error ? 'na:border-[var(--na-error)]' : 'na:border-[var(--na-control)]',
+              ]
+        "
         @input="
           emit('update:modelValue', ($event.target as HTMLInputElement | HTMLTextAreaElement).value)
         "

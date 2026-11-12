@@ -3,14 +3,15 @@ import { computed, useId } from 'vue'
 import { useNovaLocale } from '../locale'
 import type { Accent, Appearance, ThemeMode } from '../types'
 import NovaButton from './NovaButton.vue'
+import NovaIcon from './NovaIcon.vue'
 const { t } = useNovaLocale()
 const id = useId()
 const props = defineProps<{ modelValue: Appearance; storageError?: string }>()
 const emit = defineEmits<{ 'update:modelValue': [value: Appearance] }>()
 const modes = computed<{ id: ThemeMode; label: string; icon: string }[]>(() => [
-  { id: 'light', label: t('appearance.light'), icon: '☀' },
-  { id: 'dark', label: t('appearance.dark'), icon: '☾' },
-  { id: 'system', label: t('appearance.system'), icon: '◐' },
+  { id: 'light', label: t('appearance.light'), icon: 'sun' },
+  { id: 'dark', label: t('appearance.dark'), icon: 'moon' },
+  { id: 'system', label: t('appearance.system'), icon: 'system' },
 ])
 const accents = computed<{ id: Accent; label: string; color: string }[]>(() => [
   { id: 'blue', label: t('accent.blue'), color: '#1d4ed8' },
@@ -45,13 +46,15 @@ function update(value: Partial<Appearance>) {
 }
 </script>
 <template>
-  <section class="na:grid na:gap-7" :aria-label="t('appearance.title')">
+  <section class="nova-appearance na:grid na:gap-7" :aria-label="t('appearance.title')">
     <fieldset class="na:m-0 na:min-w-0 na:border-0 na:p-0">
       <legend class="na:mb-3 na:text-sm na:font-semibold">{{ t('appearance.mode') }}</legend>
       <div class="na:grid na:grid-cols-3 na:gap-2">
         <label
           v-for="mode in modes"
           :key="mode.id"
+          data-appearance-choice="mode"
+          :data-selected="modelValue.mode === mode.id"
           class="na:relative na:cursor-pointer na:focus-within:outline-2 na:focus-within:outline-offset-2 na:focus-within:outline-[var(--na-brand)] na:rounded-xl na:border na:border-[var(--na-line)] na:p-4 na:text-left na:hover:bg-[var(--na-soft)]"
           :class="
             modelValue.mode === mode.id
@@ -67,8 +70,8 @@ function update(value: Partial<Appearance>) {
             :checked="modelValue.mode === mode.id"
             @change="update({ mode: mode.id })"
           />
-          <span class="na:mb-3 na:block na:text-2xl" aria-hidden="true">{{ mode.icon }}</span
-          ><span class="na:text-xs na:font-medium"
+          <NovaIcon class="na:mb-3 na:block" :name="mode.icon" /><span
+            class="na:text-xs na:font-medium"
             >{{ mode.label }}
             <span aria-hidden="true">{{ modelValue.mode === mode.id ? '✓' : '' }}</span></span
           >
@@ -81,6 +84,8 @@ function update(value: Partial<Appearance>) {
         <label
           v-for="accent in accents"
           :key="accent.id"
+          data-appearance-choice="accent"
+          :data-selected="modelValue.accent === accent.id"
           class="na:relative na:cursor-pointer na:focus-within:outline-2 na:focus-within:outline-offset-2 na:focus-within:outline-[var(--na-brand)] na:flex na:min-h-12 na:items-center na:gap-2 na:rounded-xl na:border na:border-[var(--na-line)] na:bg-[var(--na-surface)] na:px-3 na:py-3 na:text-xs"
           :class="modelValue.accent === accent.id ? 'na:text-[var(--na-brand)]' : ''"
         >
@@ -100,9 +105,22 @@ function update(value: Partial<Appearance>) {
         >
       </div>
     </fieldset>
-    <div class="na:rounded-xl na:border na:border-[var(--na-line)] na:bg-[var(--na-soft)] na:p-5">
+    <div
+      class="nova-appearance-preview na:rounded-xl na:border na:border-[var(--na-line)] na:bg-[var(--na-soft)] na:p-5"
+    >
       <p class="na:mb-1 na:font-medium">{{ t('appearance.previewTitle') }}</p>
       <p class="na:text-sm na:text-[var(--na-muted)]">{{ t('appearance.previewText') }}</p>
+      <div class="nova-mini-workspace" aria-hidden="true">
+        <div class="nova-mini-top"><span></span><i></i><i></i></div>
+        <div class="nova-mini-sidebar"><b></b><span></span><span></span><span></span></div>
+        <div class="nova-mini-main">
+          <div></div>
+          <section><span></span><span></span></section>
+          <p></p>
+          <p></p>
+          <p></p>
+        </div>
+      </div>
       <NovaButton variant="primary" class="na:mt-4" tabindex="-1">{{
         t('appearance.button')
       }}</NovaButton>

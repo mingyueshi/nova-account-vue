@@ -13,7 +13,11 @@
       "import": "./dist/nova-account.js"
     },
     "./style.css": "./dist/nova-account.css",
-    "./package.json": "./package.json"
+    "./package.json": "./package.json",
+    "./charts": {
+      "types": "./dist/charts.d.ts",
+      "import": "./dist/charts.js"
+    }
   },
   "files": [
     "dist",
@@ -22,7 +26,8 @@
     "QA.md",
     "LICENSE",
     "CHANGELOG.md",
-    "README.en.md"
+    "README.en.md",
+    "THIRD_PARTY_NOTICES.md"
   ],
   "sideEffects": [
     "**/*.css"
@@ -84,5 +89,9 @@
   "bugs": {
     "url": "https://github.com/mingyueshi/nova-account-vue/issues"
   },
-  "license": "MIT"
+  "license": "MIT",
+  "dependencies": {
+    "@lucide/vue": "1.72.0",
+    "echarts": "6.1.0"
+  }
 }

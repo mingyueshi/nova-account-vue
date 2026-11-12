@@ -4,6 +4,7 @@ import { defineComponent, h, ref } from 'vue'
 import NovaAccountCenter from '../src/components/NovaAccountCenter.vue'
 import NovaAccount from '../src/components/NovaAccount.vue'
 import NovaField from '../src/components/NovaField.vue'
+import NovaDialog from '../src/components/NovaDialog.vue'
 import NovaAuthForm from '../src/components/NovaAuthForm.vue'
 import { createDemoAccountAdapter } from '../demo/account'
 import { createDemoAuthAdapter, demoUser } from '../demo/auth'
@@ -19,6 +20,33 @@ function adapter(): NovaAdapter {
 }
 
 describe('controlled account pages', () => {
+  it('renders host pages in the account shell and falls back when a page is removed', async () => {
+    const wrapper = mount(NovaAccount, {
+      attachTo: document.body,
+      props: {
+        adapter: adapter(),
+        initialUser: demoUser(),
+        initialPage: 'custom:reports',
+        extraPages: [
+          { id: 'custom:reports', label: '业务报告', description: '查看我的报告', group: '业务' },
+        ],
+      },
+      slots: { page: '<div data-host-page>宿主业务内容</div>' },
+    })
+    wrappers.push(wrapper)
+    await flushPromises()
+    expect(wrapper.get('h1').text()).toBe('业务报告')
+    expect(wrapper.get('main [data-host-page]').isVisible()).toBe(true)
+    await wrapper.get('[data-page="profile"]').trigger('click')
+    expect(wrapper.get('h1').text()).toBe('个人资料')
+    expect(wrapper.get('main [data-host-page]').isVisible()).toBe(false)
+    await wrapper.get('[data-page="custom:reports"]').trigger('click')
+    expect(wrapper.get('main [data-host-page]').isVisible()).toBe(true)
+    await wrapper.setProps({ extraPages: [] })
+    expect(wrapper.get('h1').text()).toBe('账户概览')
+    expect(wrapper.find('[data-page="custom:reports"]').exists()).toBe(false)
+  })
+
   it('requests a controlled page without committing until the parent accepts it', async () => {
     const wrapper = mount(NovaAccountCenter, {
       props: { adapter: adapter().account, page: 'messages' },
@@ -104,6 +132,29 @@ describe('field and auth presentation extensions', () => {
     expect(wrapper.emitted('update:modelValue')).toEqual([['Draft']])
   })
 
+  it('updates the shared field outline when affix slots appear or disappear', async () => {
+    const show = ref(false)
+    const wrapper = mount(
+      defineComponent({
+        render: () =>
+          h(
+            NovaField,
+            { modelValue: '', label: 'Site' },
+            show.value ? { prefix: () => h('span', 'https://') } : {},
+          ),
+      }),
+    )
+    wrappers.push(wrapper)
+    expect(wrapper.find('.nova-field-affixed').exists()).toBe(false)
+    show.value = true
+    await flushPromises()
+    expect(wrapper.findAll('.nova-field-affixed')).toHaveLength(1)
+    expect(wrapper.get('.nova-field-affixed').text()).toBe('https://')
+    show.value = false
+    await flushPromises()
+    expect(wrapper.find('.nova-field-affixed').exists()).toBe(false)
+  })
+
   it('bounds codes by default and permits a different server code length', async () => {
     const wrapper = mount(NovaAuthForm, { props: { adapter: adapter().auth, codeLength: 8 } })
     wrappers.push(wrapper)
@@ -135,5 +186,24 @@ describe('field and auth presentation extensions', () => {
     expect(wrapper.get('meter').attributes('value')).toBe('2')
     expect(wrapper.text()).toContain('Host assessment')
     expect(wrapper.text()).toContain('Use a unique password')
+  })
+})
+
+describe('dialog native close sequencing', () => {
+  it('ignores a delayed close event after reopening and reports a real external close', async () => {
+    const wrapper = mount(NovaDialog, {
+      attachTo: document.body,
+      props: { open: true, title: 'Confirm' },
+    })
+    wrappers.push(wrapper)
+    await wrapper.setProps({ open: false })
+    await wrapper.setProps({ open: true })
+    const dialog = wrapper.get('dialog')
+    expect((dialog.element as HTMLDialogElement).open).toBe(true)
+    await dialog.trigger('close')
+    expect(wrapper.emitted('close')).toBeUndefined()
+    dialog.element.removeAttribute('open')
+    await dialog.trigger('close')
+    expect(wrapper.emitted('close')).toHaveLength(1)
   })
 })

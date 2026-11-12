@@ -25,6 +25,10 @@ function sync() {
     if (previousFocus?.isConnected) previousFocus.focus()
   }
 }
+function onNativeClose() {
+  // Native close events are queued: an older event must not close a reopened dialog.
+  if (props.open && dialog.value && !dialog.value.open) emit('close')
+}
 watch(() => props.open, sync, { flush: 'post' })
 onMounted(() => {
   mounted = true
@@ -39,12 +43,12 @@ onBeforeUnmount(() => {
     ref="dialog"
     :aria-labelledby="id"
     aria-modal="true"
-    class="nova-dialog na:m-auto na:max-h-[calc(100dvh-2rem)] na:w-[calc(100%-2rem)] na:max-w-md na:overflow-y-auto na:rounded-2xl na:border na:border-[var(--na-line)] na:bg-[var(--na-surface)] na:p-6 na:text-[var(--na-ink)] na:shadow-2xl"
+    class="nova-dialog na:m-auto na:max-h-[calc(100dvh-2rem)] na:w-[calc(100%-2rem)] na:max-w-md na:overflow-y-auto na:rounded-2xl na:border na:border-[var(--na-line)] na:bg-[var(--na-surface)] na:p-6 na:text-[var(--na-ink)]"
     @cancel.prevent="emit('close')"
-    @close="props.open && emit('close')"
+    @close="onNativeClose"
   >
     <header class="na:mb-5 na:flex na:items-start na:justify-between na:gap-4">
-      <h2 :id="id" ref="heading" tabindex="-1" class="na:pt-2 na:text-lg na:font-semibold">
+      <h2 :id="id" ref="heading" tabindex="-1" class="na:m-0 na:pt-2 na:text-lg na:font-semibold">
         {{ title }}
       </h2>
       <NovaButton variant="ghost" :aria-label="t('dialog.close')" @click="emit('close')"

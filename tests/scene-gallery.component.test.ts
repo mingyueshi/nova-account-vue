@@ -59,15 +59,17 @@ describe('scene gallery interactions', () => {
     expect(wrapper.text()).toContain('进行中 2 · 已完成 2')
     await wrapper
       .findAll('button')
-      .find((item) => item.text() === '已完成')!
+      .find((item) => item.text().startsWith('已完成'))!
       .trigger('click')
     expect(wrapper.text()).toContain('回复客户邮件')
     expect(wrapper.text()).toContain('写周报')
     const doneRow = wrapper
       .findAll('li.demo-scene-item')
       .find((item) => item.text().includes('写周报'))!
-    await doneRow.get('button[aria-label="删除任务"]').trigger('click')
-    expect(wrapper.text()).not.toContain('写周报')
+    await doneRow.get('button[aria-label^="删除任务 "]').trigger('click')
+    expect(wrapper.get('.demo-task-list').text()).not.toContain('写周报')
+    await button(wrapper, '撤销删除').trigger('click')
+    expect(wrapper.get('.demo-task-list').text()).toContain('写周报')
   })
 
   it('editor validates, previews and saves with a busy state', async () => {
@@ -84,6 +86,7 @@ describe('scene gallery interactions', () => {
     expect(preview.text()).toContain('接入笔记')
     expect(preview.text()).toContain('第一段内容。')
     expect(button(wrapper, '预览').attributes('aria-pressed')).toBe('true')
+    expect(button(wrapper, '预览').attributes('aria-controls')).toBe(preview.attributes('id'))
     await form.trigger('submit')
     expect(wrapper.find('[role="status"]').exists()).toBe(false)
     await vi.advanceTimersByTimeAsync(700)
@@ -92,6 +95,34 @@ describe('scene gallery interactions', () => {
     await button(wrapper, '清空').trigger('click')
     expect(wrapper.find('.demo-scene-preview').exists()).toBe(false)
     expect(wrapper.find('[role="status"]').exists()).toBe(false)
+  })
+
+  it('keeps edits made while saving distinct from the saved snapshot', async () => {
+    const wrapper = create()
+    await fieldInput(wrapper, '文章标题').setValue('第一版标题')
+    await fieldInput(wrapper, '正文').setValue('第一版正文')
+    await wrapper.get('form[aria-label="保存文章"]').trigger('submit')
+    await fieldInput(wrapper, '文章标题').setValue('第二版标题')
+    await vi.advanceTimersByTimeAsync(700)
+    expect(wrapper.get('.demo-draft-state').text()).toContain('有未保存的修改')
+    expect(wrapper.find('.demo-success-note').exists()).toBe(false)
+    await wrapper.get('form[aria-label="保存文章"]').trigger('submit')
+    await vi.advanceTimersByTimeAsync(700)
+    expect(wrapper.get('.demo-draft-state').text()).toContain('已保存')
+    expect(wrapper.get('.demo-success-note').text()).toContain('第二版标题')
+  })
+
+  it('reveals newly added tasks when a previous search and completion filter exclude them', async () => {
+    const wrapper = create()
+    await fieldInput(wrapper, '搜索任务').setValue('不存在的词')
+    await wrapper.get('[aria-label="任务状态筛选"]').findAll('button')[2]!.trigger('click')
+    await fieldInput(wrapper, '新任务').setValue('下一步')
+    await wrapper.get('form[aria-label="任务添加"]').trigger('submit')
+    expect(wrapper.get('.demo-task-list').text()).toContain('下一步')
+    expect((fieldInput(wrapper, '搜索任务').element as HTMLInputElement).value).toBe('')
+    expect(wrapper.get('[aria-label="任务状态筛选"] button').attributes('aria-pressed')).toBe(
+      'true',
+    )
   })
 
   it('comments validate, publish newest-first and toggle likes', async () => {
@@ -110,7 +141,7 @@ describe('scene gallery interactions', () => {
     expect(firstComment.text()).toContain('刚刚')
     expect(firstComment.text()).toContain('很实用的组合演示')
     expect(wrapper.text()).toContain('4 条评论')
-    const like = firstComment.get('button[aria-label="点赞评论"]')
+    const like = firstComment.get('button.demo-like-button')
     await like.trigger('click')
     expect(like.text()).toBe('赞 1')
     expect(like.attributes('aria-pressed')).toBe('true')
@@ -129,7 +160,7 @@ describe('scene gallery interactions', () => {
     expect(wrapper.text()).not.toContain('NO-2026-0802')
     await wrapper
       .findAll('button')
-      .find((item) => item.attributes('aria-label') === '查看订单 NO-2026-0817')!
+      .find((item) => item.attributes('data-order-id') === 'NO-2026-0817')!
       .trigger('click')
     const dialog = wrapper.get('dialog[open]')
     expect(dialog.text()).toContain('订单详情 NO-2026-0817')
@@ -141,8 +172,8 @@ describe('scene gallery interactions', () => {
       .trigger('click')
     await vi.advanceTimersByTimeAsync(800)
     await flushPromises()
-    expect(dialog.text()).toContain('状态已更新为“已发货”')
-    expect(dialog.text()).toContain('已发货')
+    expect(dialog.text()).toContain('模拟支付完成，订单等待发货。')
+    expect(dialog.text()).toContain('待发货')
     await dialog
       .findAll('button')
       .find((item) => item.text() === '关闭')!
@@ -156,17 +187,43 @@ describe('scene gallery interactions', () => {
     expect(wrapper.text()).toContain('该状态下暂无订单。')
   })
 
-  it('App opens the gallery from the tools panel and returns to the account shell', async () => {
+  it('isolates payment progress and receipts when another order is opened', async () => {
+    const wrapper = create()
+    await wrapper.get('[data-order-id="NO-2026-0817"]').trigger('click')
+    await button(wrapper, '模拟支付').trigger('click')
+    await wrapper
+      .get('dialog[open]')
+      .findAll('button')
+      .find((item) => item.text() === '关闭')!
+      .trigger('click')
+    await wrapper.get('[data-order-id="NO-2026-0802"]').trigger('click')
+    await vi.advanceTimersByTimeAsync(800)
+    expect(wrapper.get('dialog[open]').text()).not.toContain('模拟支付完成')
+    expect(wrapper.get('dialog[open]').text()).toContain('机械键盘')
+    await wrapper
+      .get('dialog[open]')
+      .findAll('button')
+      .find((item) => item.text() === '关闭')!
+      .trigger('click')
+    await wrapper.get('[data-order-id="NO-2026-0817"]').trigger('click')
+    expect(wrapper.get('dialog[open]').text()).toContain('待发货')
+    expect(wrapper.get('dialog[open]').text()).toContain('模拟支付完成，订单等待发货。')
+    expect(wrapper.get('dialog[open]').find('[aria-busy]').exists()).toBe(false)
+  })
+
+  it('App opens business content within the account shell', async () => {
     const wrapper = create(App)
     await button(wrapper, '体验工具 ↗').trigger('click')
     await button(wrapper, '业务场景组合').trigger('click')
+    await vi.advanceTimersByTimeAsync(400)
     await flushPromises()
     expect(wrapper.find('dialog[open]').exists()).toBe(false)
     expect(wrapper.find('.demo-scenes').exists()).toBe(true)
-    expect(wrapper.get('h2').text()).toBe('字段形态')
-    expect(wrapper.find('.demo-single').isVisible()).toBe(false)
-    await button(wrapper, '返回账户演示').trigger('click')
-    expect(wrapper.find('.demo-scenes').exists()).toBe(false)
+    expect(wrapper.get('[aria-label="任务清单"] h2').text()).toBe('任务清单')
+    expect(wrapper.find('.demo-single').isVisible()).toBe(true)
+    expect(wrapper.get('h1').text()).toBe('我的任务')
+    await wrapper.get('[data-page="overview"]').trigger('click')
+    expect(wrapper.get('.demo-scenes').isVisible()).toBe(false)
     expect(wrapper.find('.demo-single').isVisible()).toBe(true)
   })
 })

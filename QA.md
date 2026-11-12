@@ -1,5 +1,17 @@
 # Nova Account Vue 开发版验证
 
+## 2026-11-12 本机全屏精修与动态图表
+
+本地工作区验证，未提交或部署。对照 `django-nova-admin/dist/styles.css`、`dist/presets.css`、`dist/js/open-icons.js` 和 `dist/js/chart-lab-data.js` 对齐配色、Lucide 线宽与 ECharts 版本。25 套深色预设的品牌、背景、面板、文字、边界令牌与后端逐项一致；默认浅色使用冷灰底，辅助文字采用后台预设的 `#5a667c`，保留控制边界和深色柔和背景的对比度调整。
+
+- `npm run check`：lint、format、strict types、202 项测试、覆盖率门槛、构建和体积预算通过；行覆盖率 92.26%。修正对比度测试的属性选择器引号匹配，使 52 种主题组合实际检查各自令牌。
+- Chrome 完整回归 44/44，通过账户流程、全屏重排、图表筛选/回放/CSV 下载、320–2560px 图表尺寸与深色 axe；额外复测最终比例、线型与窄屏图表 3/3。52 套外观预览和扩展页的 axe 扫描通过。
+- 逐页浏览 16 个账户页面；1920px、390px、320px 主内容均无横向溢出。头像预设、详情侧栏、操作反馈与表单字段经过实际截图检查。
+- `npm run verify:package`：独立 tarball 消费者的 ESM、CSS、严格 TypeScript 与 Node SSR 通过，包括可选图表入口；检查基础账户 JS 不导入 ECharts，图表类型声明独立输出。
+- 实际 gzip：账户 JS 37,875 bytes / 40 KiB，CSS 5,935 bytes / 6 KiB，可选图表适配器 2,002 bytes / 4 KiB。演示的 ECharts 引擎约 205 KB gzip，按需载入，不包含在上述基础账户预算中。
+
+本轮浏览器结论限定为本机 Chrome；未重跑 Firefox、WebKit 和 Nuxt 验证。
+
 ## 2026-11-09 云端增量审查
 
 基线 `6975baa`（2026-11-07），独立克隆最新 `main`，未改动用户本地工作区。本轮修复宿主 `identifier` / `modes` / `pages` / `twoStep` 的边界，以及 demo 切换多实例丢失主会话和 320px 预览高度不符的问题；未发布 npm 包或部署站点。

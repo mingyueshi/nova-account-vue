@@ -16,6 +16,7 @@ import type {
   NovaAdapter,
   SessionUser,
   AccountPage,
+  AccountExtraPage,
   PasswordStrength,
 } from '../types'
 const props = withDefaults(
@@ -25,6 +26,8 @@ const props = withDefaults(
       initialPage?: AccountPage
       /** Visible account pages; defaults to all seven. */
       pages?: AccountPage[]
+      /** Additional host-owned pages displayed in the account sidebar. */
+      extraPages?: AccountExtraPage[]
       /** Hide the two-step toggle when the host has no step-up implementation. */
       twoStep?: boolean
       layout?: 'full' | 'embedded'
@@ -60,8 +63,21 @@ const emit = defineEmits<{
   pageChange: [page: AccountPage]
 }>()
 defineSlots<{
+  overview?(props: {
+    snapshot: AccountSnapshot
+    adapter: AccountAdapter
+    refresh: () => Promise<AccountSnapshot | undefined>
+    appearance: Appearance
+  }): unknown
   brand?(): unknown
   footer?(): unknown
+  page?(props: {
+    page: AccountPage
+    snapshot: AccountSnapshot
+    adapter: AccountAdapter
+    refresh: () => Promise<AccountSnapshot | undefined>
+    appearance: Appearance
+  }): unknown
   /** Replaces the built-in profile page; the host owns drafts and unsaved guards for it. */
   profile?(props: {
     snapshot: AccountSnapshot
@@ -179,13 +195,15 @@ defineExpose({
             >{{ brand }}<span class="na:text-[var(--na-brand)]">.</span></span
           ></slot
         >
-        <slot
-          name="tools"
-          :appearance="theme.appearance"
-          :set-appearance="theme.setAppearance"
-          :storage-error="theme.storageError"
-          :signed-in="!!user"
-        />
+        <div v-if="$slots.tools" class="na:flex na:items-center na:gap-2">
+          <slot
+            name="tools"
+            :appearance="theme.appearance"
+            :set-appearance="theme.setAppearance"
+            :storage-error="theme.storageError"
+            :signed-in="!!user"
+          />
+        </div>
       </header>
       <div
         v-if="logoutError"
@@ -205,16 +223,23 @@ defineExpose({
         :page="page"
         :initial-page="initialPage"
         :pages="pages"
+        :extra-pages="extraPages"
         :two-step="twoStep"
         @update:page="emit('update:page', $event)"
         @page-change="emit('pageChange', $event)"
         @logout="logout"
       >
+        <template v-if="$slots.page" #page="slotProps"
+          ><slot name="page" v-bind="slotProps" :appearance="theme.appearance"
+        /></template>
         <template #appearance
           ><NovaAppearance
             :model-value="theme.appearance"
             :storage-error="theme.storageError"
             @update:model-value="theme.setAppearance"
+        /></template>
+        <template v-if="$slots.overview" #overview="slotProps"
+          ><slot name="overview" v-bind="slotProps" :appearance="theme.appearance"
         /></template>
         <template v-if="$slots.profile" #profile="slotProps"
           ><slot name="profile" v-bind="slotProps"

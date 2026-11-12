@@ -24,6 +24,22 @@ defineSlots<{ default(): unknown }>()
           : 'na:border-[var(--na-line)] na:bg-[var(--na-surface)] na:text-[var(--na-ink)] na:hover:bg-[var(--na-soft)]'
     "
   >
-    <span v-if="busy" aria-hidden="true">◌</span><slot />
+    <svg
+      v-if="busy"
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="none"
+      class="na:motion-safe:animate-spin"
+      aria-hidden="true"
+    >
+      <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2" opacity="0.25" />
+      <path
+        d="M12 3a9 9 0 0 1 9 9"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+      /></svg
+    ><slot />
   </button>
 </template>

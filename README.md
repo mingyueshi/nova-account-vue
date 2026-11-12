@@ -1,6 +1,6 @@
 # Nova Account · Vue 组件库开发版
 
-**状态：`0.1.0-dev.1`，可复用组件库的开发交付，不是生产认证系统。**
+**状态：`0.1.0-dev.2`，可复用组件库的开发交付，不是生产认证系统。**
 
 [English](README.en.md) · [MIT 许可证](LICENSE) · [更新与升级策略](CHANGELOG.md)
 
@@ -17,6 +17,49 @@
 - 显式 adapter props、TypeScript 接口、typed events/slots；可单独使用组件或使用 `NovaAccount` 外壳。
 - ESM、Vue peer dependency/external、自包含声明文件、独立预编译 CSS 导出。
 - Nuxt 3/4 无 `ClientOnly` 的真实 tarball 接入示例及 SSR smoke。
+
+## 全屏演示与图标
+
+业务与组件示例沿用账户侧栏。宽屏按工作内容重排：概览与活动并列，资料分为头像和信息区，消息提供列表旁阅读，任务与订单带详情侧栏，编辑器自动展开预览。通知、外观和基础组件提供对应的预览或反馈区；空间不足时回到单列。演示布局使用账户内容容器宽度判断，兼容嵌入式宿主。
+
+账户导航与业务操作使用 [Lucide Vue](https://lucide.dev/guide/vue) 开源 SVG。`NovaIcon` 提供内置语义名称，也支持传入额外 Lucide 组件；按名称静态导入，不依赖 CDN。演示中的「开源图标」可搜索 55 个精选图标、调整尺寸/线宽/颜色，并复制用法或 SVG。
+
+```vue
+<script setup lang="ts">
+import { Camera } from '@lucide/vue'
+import { NovaIcon, NOVA_ICON_NAMES } from 'nova-account'
+</script>
+
+<template>
+  <NovaIcon name="security" :size="20" :stroke-width="1.75" />
+  <NovaIcon :icon="Camera" label="相机" color="currentColor" />
+</template>
+```
+
+`size` 默认 20，`strokeWidth` 默认 2，`color` 默认 `currentColor`。装饰图标默认 `aria-hidden`；传入 `label` 时使用有名称的 `img` 语义。`NOVA_ICON_NAMES` 列出内置名称；未知名称显示 `fallback`（默认 ◇）。图标的 ISC 与 Feather MIT 许可见 [第三方许可](THIRD_PARTY_NOTICES.md)。
+
+## 动态图表（可选入口）
+
+与 `django-nova-admin` 的图表实验室使用同版本 Apache ECharts 6.1.0。基础账户入口不引入 ECharts；需要图表的页面显式导入独立入口。演示在账户概览中汇总当前活动记录，并在「业务场景 → 数据概览」提供任务/订单、7/30 天、折线/柱状、期间构成、模拟回放、空/全零状态与 CSV 导出。数据明细与图表、汇总使用同一份筛选记录。
+
+```vue
+<script setup lang="ts">
+import { NovaChart, type NovaChartOption } from 'nova-account/charts'
+import 'nova-account/style.css'
+const option: NovaChartOption = {
+  xAxis: { type: 'category', data: ['周一', '周二'] },
+  yAxis: { type: 'value' },
+  series: [{ id: 'tasks', name: '完成任务', type: 'bar', data: [8, 12] }],
+}
+</script>
+<template>
+  <NovaChart :option="option" label="任务完成情况" :height="320" />
+</template>
+```
+
+放在 `NovaTheme` 或账户内容区内，图表会读取主题令牌、响应容器尺寸和减少动态效果设置。`active=false` 暂停绘图；`description` 提供数值说明；`colorTokens` 可指定语义颜色变量；`errorLabel` 可替换错误提示。宿主提供可读的数据明细，并负责数据请求、定时器和离页暂停。组件卸载时释放实例和监听器；当前注册折线、柱状、饼/环形、提示、图例与范围缩放，使用 SVG 渲染。
+
+通过 `NovaAccount` 的 `#overview="{ snapshot, adapter, refresh, appearance }"` 可在默认概览中补充账户相关内容；独立 `NovaAccountCenter` 提供同名插槽（不含 appearance）。默认账户组件不包含演示记录或回放逻辑。
 
 ## 开发
 
@@ -40,7 +83,7 @@ npm run dev            # Vite演示开发；demo CSP禁止业务网络连接
 
 ## 接入（不要求宿主安装 Tailwind）
 
-目前未在 npm registry 发布。先在此仓库运行 `npm run build && npm pack`，然后在消费项目中运行 `npm install /实际路径/nova-account-0.1.0-dev.1.tgz`。tarball 是本地生成物，不提交到 Git；不要把 `npm install nova-account` 当成安装此开发版的方式。
+目前未在 npm registry 发布。先在此仓库运行 `npm run build && npm pack`，然后在消费项目中运行 `npm install /实际路径/nova-account-0.1.0-dev.2.tgz`。tarball 是本地生成物，不提交到 Git；不要把 `npm install nova-account` 当成安装此开发版的方式。
 
 ```vue
 <script setup lang="ts">
@@ -103,6 +146,8 @@ const messages: Partial<NovaMessages> = { 'auth.welcome': '登录你的账户' }
 
 `page` + `update:page` 支持受控导航，`initialPage` 仅设置非受控初始页，`pageChange` 反映实际页签变化。内部导航先执行 dirty guard；外部 page 更新视为宿主权威跳转，路由卸载、后退等仍需宿主自己的离开确认。
 
+宿主可以通过 `extraPages: AccountExtraPage[]` 和 `#page` 插槽，把自己的业务页面接入同一套账户导航与主内容区。扩展页 ID 使用 `custom:` 前缀，支持 `label`、`description`、`symbol` 和 `group`；同样参与 `page` / `pages` 受控导航和内置资料离页确认。`#page` 提供 `{ page, snapshot, adapter, refresh, appearance }`，可按当前 ID 显示对应内容。插槽在切换到内置页时保留挂载并隐藏；扩展业务页自己的草稿校验与离开保护由宿主实现。
+
 宿主裁剪功能可直接传给 `NovaAccount`，或传给对应的独立组件：
 
 - `identifier="username"` 将账号作为文本收集，去掉首尾空白但保留大小写，仍通过 adapter 的 `email` 字段传递；邮箱模式保留原有小写规范化。`identifier` 动态变化会取消旧验证流程并清除密码、验证码；`useAuthFlow` 也支持 ref/getter 配置。
@@ -145,13 +190,13 @@ const messages: Partial<NovaMessages> = { 'auth.welcome': '登录你的账户' }
 
 ## 独立演示
 
-右上 **体验工具 → 一键填入示例**；不会默认在主界面堆放示例凭据。工具内可快捷预览、切换外观、选择慢速/断网/验证失败/验证码过期/业务拒绝。
+登录或通过 **体验工具 → 用户中心预览** 进入账号体验后，业务场景与基础组件直接融入账户侧栏和主内容区。侧栏包含「业务场景」与「基础组件」分组，无需离开账号外壳；手机端使用分组页面选择器，避免横向寻找入口。右上 **体验工具 → 一键填入示例** 可快速体验登录，工具内也可配置外观、慢速/断网/验证失败/验证码过期/业务拒绝。
 
 - **宿主集成演示**面板：全屏 / `layout="embedded"` 切换（附虚构宿主页面外壳）、`v-model:page` 受控跳转与统一事件日志（`authenticated` / `logout` / `pageChange` / `update:page` / `update:appearance`，倒序保留 8 条）、`identifier` 用户名模式（演示账号 `demo`，一键填入会同步切换）、`modes` 登录方式裁剪、`pages` 账户页裁剪、`twoStep` 开关、`initialUser` 会话恢复（重挂载外壳直接进入账户中心）、typed `messages` 文案覆盖与 `brand` 品牌名、受控 `appearance`、`storageKey` 持久化切换（重挂载生效）、`codeLength` 调整（4 位时演示码同步为 `2468`）、宿主 `passwordStrength` 强度评估、`#security` 插槽的 TOTP 形式二次认证与危险区注销确认、`#authFooter` 第三方登录占位、禁用本地存储以触发 `storageError`、多实例主题隔离视图（两个独立 `NovaTheme` 根并排）、独立视口预览窗口（请求所选尺寸，媒体查询按实际宽度响应；浏览器可能调整窗口大小）。
 - 常见错误路径：面板内可让会话过期（下一次账户请求返回 401，随后自动清除本地会话并返回登录页）、模拟另一台设备修改资料（下一次操作返回 `REVISION_CONFLICT`）；**演示设置**可开启发送限流，首次发送成功后 20 秒内再发会返回带剩余秒数的提示。
 - **演示设置**中可把挑战方式切换为算术题，走宿主 `#captcha` 插槽的出题、错误提示与换一题流程；“滑块结果”的失败与过期同样适用于算术题。
-- **基础组件形态**面板：脱离 `NovaAccount` 展示 `NovaField` 的 prefix/suffix 插槽、`as="textarea"`、`maxlength`、禁用与错误态，以及 `NovaButton` 各变体。
-- **业务场景组合**画廊：从体验工具进入独立宽屏视图，仅用库的基础组件组合出常见宿主形态——字段（前缀/后缀、金额、手机号、密码、日期、textarea 字数、错误/禁用）、任务列表（搜索、状态筛选、完成、空态）、简单编辑器（maxlength、字数提示、预览、忙态保存）、评论区（校验、发布、点赞）与订单（状态筛选、详情对话框、模拟支付）。卡片均非库内置业务组件，数据为内存虚构。
+- **基础组件**侧栏分组：在账户内容区展示 `NovaField` 的 prefix/suffix 插槽、`as="textarea"`、`maxlength`、禁用与错误态，以及 `NovaButton` 各变体、加载反馈与防重复提交，`NovaDialog` 的确认、表单校验和长内容三种示例。前后缀共用输入边框，另有只读、禁用与可重试校验示例。输入字段、操作按钮、对话框作为账户内页面逐项浏览，沿用账户主题与导航。
+- **业务场景**侧栏分组：我的任务、内容编辑、社区互动、我的订单直接显示在账号内容区，交互说明与组件用法收在页尾的可展开区域。切换账户页会保留场景输入；从未保存的资料或偏好页离开时，沿用账户的确认流程。仅用库的基础组件组合出常见宿主形态——任务列表（搜索、状态数量、完成、空态与删除撤销）、编辑器（字数提示、并排预览、保存快照与未保存状态）、评论区（校验、发布、点赞与排序）及订单（搜索、状态筛选、商品与金额明细、详情弹窗、模拟支付后转待发货）。卡片均非库内置业务组件，数据为内存虚构。
 - 内建资料页支持**头像上传**：适配器实现可选的 `uploadAvatar` 能力即出现上传 / 移除控件（组件负责选文件转 data URL 与忙态），概览卡与资料页显示 `avatarUrl` 图片；类型 / 大小校验由适配器 / 服务端执行，演示适配器仅收图片且 ≤ 2 MB。
 - `#profile` 插槽可整体替换资料页（props 同 `#security`），演示通过宿主面板开关体验：头像上传 + 职位 / 电话 / 生日 / 性别 / 网址 / 兴趣标签等扩展字段（扩展字段仅存内存，真实接入由宿主扩展契约），未保存守卫由宿主实现。
 - 外壳 header 常驻**明暗快切按钮**（登录前后都可随时切换；跟随系统时先落到当前实际模式再翻转，品牌色保持不变，选择经 storage-key 持久化）；完整外观设置（品牌色等 26 套）仍在外观设置面板。接入方可直接复制 `#tools` 插槽里的这一模式。

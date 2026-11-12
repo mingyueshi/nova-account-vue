@@ -7,30 +7,37 @@
    The 25 accents mirror the django-nova-admin palette scheme one-to-one ('blue' is the
    admin default scheme). Light keeps neutral surfaces with a brand-only swap; dark
    switches the whole tinted surface set per accent, like the admin preview does.
-   Deviations forced by the 4.5:1 contrast gates: blue dark soft #193454 -> #142842
-   (muted text sits on soft containers in this library), blue dark control derived. */
+   Default surfaces follow dist/styles.css. Controls keep a stronger boundary, and blue
+   dark soft #193454 -> #142842 keeps muted text legible inside compact UI.
+   Light muted uses the admin preset value #5a667c to meet text contrast gates. */
 .nova-account {
-  --na-canvas: #f9f9fb;
+  --na-canvas: #f4f6fa;
   --na-surface: #fff;
-  --na-ink: #272633;
-  --na-muted: #71657e;
-  --na-line: #e4ddea;
-  --na-control: #9d8eac;
-  --na-error: #ae4554;
+  --na-ink: #23283a;
+  --na-muted: #5a667c;
+  --na-line: #e7eaf2;
+  --na-control: #7d8a9f;
+  --na-error: #b1223c;
   --na-brand: #1d4ed8;
   --na-soft: #eef3fb;
   --na-on-brand: #fff;
-  --na-sidebar: #f3f1f7;
-  --na-backdrop: #25203166;
+  --na-sidebar: #fff;
+  --na-backdrop: #17213766;
+  --na-chart-success: #208660;
+  --na-chart-info: #477ecd;
+  --na-chart-warm: #b97455;
   color-scheme: light;
   color: var(--na-ink);
   background: var(--na-canvas);
   font-family:
     Inter,
-    'Noto Sans SC',
     -apple-system,
     BlinkMacSystemFont,
     'Segoe UI',
+    'PingFang SC',
+    'Hiragino Sans GB',
+    'Noto Sans SC',
+    'Microsoft YaHei',
     sans-serif;
   font-size: 14px;
   line-height: 1.6;
@@ -49,6 +56,9 @@
   --na-brand: #93c5fd;
   --na-soft: #142842;
   --na-on-brand: #181520;
+  --na-chart-success: #67dcad;
+  --na-chart-info: #7cacff;
+  --na-chart-warm: #ecb298;
   color-scheme: dark;
 }
 .nova-account[data-accent='teal'] {
@@ -446,6 +456,13 @@
   .nova-account :where(button, input, textarea, select, a):focus-visible {
     outline: 2px solid var(--na-brand);
     outline-offset: 3px;
+  }
+  .nova-account .nova-field-affixed:focus-within {
+    outline: 2px solid var(--na-brand);
+    outline-offset: 2px;
+  }
+  .nova-account .nova-field-affixed :focus-visible {
+    outline: none;
   }
   .nova-account :where(button) {
     border-style: solid;

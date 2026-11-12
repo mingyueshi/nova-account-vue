@@ -31,7 +31,7 @@ describe('account shell session lifecycle', () => {
       .mockRejectedValueOnce(new Error('Host service unavailable'))
       .mockResolvedValueOnce(undefined)
     const wrapper = await create(adapter(logout))
-    const signOut = () => wrapper.findAll('button').find((item) => item.text() === '↗ Sign out')!
+    const signOut = () => wrapper.findAll('button').find((item) => item.text() === 'Sign out')!
     await signOut().trigger('click')
     await flushPromises()
     expect(wrapper.get('h1').text()).toBe('Overview')
@@ -54,7 +54,7 @@ describe('account shell session lifecycle', () => {
       })
     })
     const wrapper = await create(adapter(logout))
-    const signOut = wrapper.findAll('button').find((item) => item.text() === '↗ Sign out')!
+    const signOut = wrapper.findAll('button').find((item) => item.text() === 'Sign out')!
     await signOut.trigger('click')
     await signOut.trigger('click')
     expect(wrapper.text()).toContain('Signing out…')
@@ -77,7 +77,7 @@ describe('account shell session lifecycle', () => {
     )
     await wrapper
       .findAll('button')
-      .find((item) => item.text() === '↗ Sign out')!
+      .find((item) => item.text() === 'Sign out')!
       .trigger('click')
     await flushPromises()
     expect(wrapper.text()).toContain('Sign-out failed. Try again.')
@@ -93,7 +93,7 @@ describe('account shell session lifecycle', () => {
     await flushPromises()
     await wrapper
       .findAll('button')
-      .find((item) => item.text() === '↗ Sign out')!
+      .find((item) => item.text() === 'Sign out')!
       .trigger('click')
     wrapper.unmount()
     wrappers.splice(wrappers.indexOf(wrapper), 1)

@@ -1,6 +1,12 @@
 import { test, expect, type Page } from '@playwright/test'
 import AxeBuilder from '@axe-core/playwright'
 
+async function navigate(page: Page, id: string) {
+  const mobile = page.locator('[data-mobile-account-nav] select')
+  if (await mobile.isVisible()) await mobile.selectOption(id)
+  else await page.locator(`[data-page="${id}"]`).click()
+}
+
 async function settings(page: Page) {
   await page.getByRole('button', { name: '体验工具' }).click()
   await page
@@ -101,15 +107,15 @@ test('password sign-in, keyboard slider, profile save, messages and device confi
 }) => {
   await expect(page.getByRole('slider')).not.toBeVisible()
   await login(page)
-  await page.locator('[data-page="profile"]').click()
+  await navigate(page, 'profile')
   await page.getByLabel('昵称', { exact: true }).fill('Browser demo')
   await page.getByLabel('个人简介', { exact: true }).fill('Fictional information only')
   await page.getByRole('button', { name: '保存资料', exact: true }).click()
   await expect(page.getByRole('status').filter({ hasText: '演示资料已保存' })).toBeVisible()
-  await page.locator('[data-page="messages"]').click()
+  await navigate(page, 'messages')
   await page.getByRole('button', { name: '全部标为已读', exact: true }).click()
   await expect(page.getByRole('button', { name: '未读 0', exact: true })).toBeVisible()
-  await page.locator('[data-page="devices"]').click()
+  await navigate(page, 'devices')
   await page.getByRole('button', { name: '退出其他设备', exact: true }).click()
   const dialog = page.getByRole('dialog', { name: '退出其他设备？', exact: true })
   await dialog.getByRole('button', { name: '确认演示操作', exact: true }).click()
@@ -177,7 +183,7 @@ test('dirty navigation: native focus containment, Escape, discard, and focus ret
   page,
 }) => {
   await preview(page)
-  await page.locator('[data-page="profile"]').click()
+  await navigate(page, 'profile')
   await page.getByLabel('昵称', { exact: true }).fill('Unsaved draft')
   const target = page.locator('[data-page="devices"]')
   await target.focus()
@@ -204,7 +210,7 @@ test('dirty navigation: native focus containment, Escape, discard, and focus ret
   await target.click()
   await dialog.getByRole('button', { name: '放弃并离开', exact: true }).click()
   await expect(page.getByRole('heading', { name: '登录设备', exact: true })).toBeFocused()
-  await page.locator('[data-page="profile"]').click()
+  await navigate(page, 'profile')
   await expect(page.getByLabel('昵称', { exact: true })).toHaveValue('Nova')
 })
 
@@ -283,10 +289,10 @@ for (const viewport of [
     await page.getByRole('button', { name: '确认重置', exact: true }).click()
     await preview(page)
     for (const tab of ['profile', 'messages', 'devices', 'notifications', 'appearance']) {
-      await page.locator(`[data-page="${tab}"]`).click()
+      await navigate(page, tab)
       await withinViewport()
     }
-    await page.getByRole('button', { name: '↗ 退出登录', exact: true }).click()
+    await page.getByRole('button', { name: '退出登录', exact: true }).click()
     await expect(page.getByRole('heading', { name: '欢迎回来', exact: true })).toBeVisible()
   })
 }
@@ -306,7 +312,7 @@ test('English locale, appearance radio keyboard control and appearance-only pers
   await expect(page.getByRole('heading', { name: 'Welcome back', exact: true })).toBeVisible()
   await expect(page.getByText('Enter a valid email address.', { exact: true })).toBeVisible()
   await preview(page, 'Edit profile')
-  await page.locator('[data-page="appearance"]').click()
+  await navigate(page, 'appearance')
   const dark = await chooseRadio(page, 'Dark')
   await dark.press('ArrowRight')
   await expect(page.getByRole('radio', { name: 'System', exact: true })).toBeChecked()
@@ -317,7 +323,7 @@ test('English locale, appearance radio keyboard control and appearance-only pers
   })
   await page.reload()
   await expect(page.getByRole('heading', { name: '欢迎回来', exact: true })).toBeVisible()
-  await expect(page.locator('.nova-account')).toHaveAttribute('data-accent', 'teal')
+  await expect(page.locator('.nova-demo')).toHaveAttribute('data-accent', 'teal')
   await expect(page.getByLabel('邮箱', { exact: true })).toHaveValue('')
   await expect(page.getByLabel('密码', { exact: true })).toHaveValue('')
 })
@@ -328,7 +334,7 @@ test('axe: auth, error, register, challenge, account pages, and all 52 appearanc
   test.slow()
   const scan = async () => {
     // Assess the selected theme after CSS color transitions have settled.
-    await page.locator('.nova-account').evaluate(async (root) => {
+    await page.locator('.nova-demo').evaluate(async (root) => {
       await Promise.all(
         root
           .getAnimations({ subtree: true })
@@ -360,7 +366,7 @@ test('axe: auth, error, register, challenge, account pages, and all 52 appearanc
     'messages',
     'appearance',
   ]) {
-    await page.locator(`[data-page="${tab}"]`).click()
+    await navigate(page, tab)
     await scan()
   }
   for (const mode of ['浅色', '深色']) {
@@ -400,7 +406,46 @@ test('axe: auth, error, register, challenge, account pages, and all 52 appearanc
         contentType: 'image/png',
       })
     }
+    for (const id of [
+      'charts',
+      'tasks',
+      'editor',
+      'comments',
+      'orders',
+      'fields',
+      'buttons',
+      'dialogs',
+      'icons',
+    ]) {
+      await navigate(page, `custom:${id}`)
+      if (id === 'charts') await page.locator('.demo-chart-main .nova-chart svg').waitFor()
+      await scan()
+    }
+    await navigate(page, 'appearance')
   }
+  await page.setViewportSize({ width: 390, height: 844 })
+  for (const id of [
+    'charts',
+    'tasks',
+    'editor',
+    'comments',
+    'orders',
+    'fields',
+    'buttons',
+    'dialogs',
+    'icons',
+  ]) {
+    await navigate(page, `custom:${id}`)
+    if (id === 'charts') await page.locator('.demo-chart-main .nova-chart svg').waitFor()
+    await scan()
+  }
+  await navigate(page, 'custom:dialogs')
+  await page.getByRole('button', { name: '打开示例对话框', exact: true }).click()
+  await scan()
+  await page
+    .getByRole('dialog', { name: '确认保存更改？', exact: true })
+    .getByRole('button', { name: '取消', exact: true })
+    .click()
 })
 
 test('host panel: embedded layout switch and controlled page jumps log pageChange', async ({
@@ -448,7 +493,7 @@ test('external edit: the next account mutation reports a revision conflict', asy
   const host = await hostPanel(page)
   await host.getByRole('button', { name: '模拟另一设备修改' }).click()
   await host.getByRole('button', { name: '关闭对话框' }).click()
-  await page.locator('[data-page="profile"]').click()
+  await navigate(page, 'profile')
   await page.getByLabel('昵称', { exact: true }).fill('Conflict draft')
   await page.getByRole('button', { name: '保存资料', exact: true }).click()
   // The rejection surfaces both as the section alert and the adapter error line.
@@ -487,7 +532,7 @@ test('TOTP security slot enables two-step; the danger zone returns to the auth p
   const host = await hostPanel(page)
   await host.getByRole('checkbox', { name: /#security 插槽/ }).check()
   await host.getByRole('button', { name: '关闭对话框' }).click()
-  await page.locator('[data-page="security"]').click()
+  await navigate(page, 'security')
   await expect(page.getByRole('heading', { name: '宿主二次认证（TOTP 形式演示）' })).toBeVisible()
   await page.getByLabel('当前密码', { exact: true }).fill('NovaDemo2026!')
   await page.getByLabel('验证器验证码', { exact: true }).fill('246810')
@@ -544,7 +589,7 @@ test('capability switches: username identifier, trimmed modes and pages, unified
   await preview(page)
   await expect(page.locator('[data-page="devices"]')).toHaveCount(0)
   await expect(page.locator('[data-page="profile"]')).toBeVisible()
-  await page.locator('[data-page="profile"]').click()
+  await navigate(page, 'profile')
   const signedInHost = await hostPanel(page)
   const log = signedInHost.locator('[data-event-log] li')
   await expect(log.filter({ hasText: 'pageChange' }).first()).toContainText('个人资料')
@@ -555,7 +600,7 @@ test('initialUser restores the shell signed in and records the event', async ({ 
   const host = await hostPanel(page)
   await host.getByRole('button', { name: '以已验证会话进入（重挂载外壳）' }).click()
   await expect(page.getByRole('heading', { name: '账户概览', exact: true })).toBeVisible()
-  await page.locator('[data-page="profile"]').click()
+  await navigate(page, 'profile')
   await expect(page.getByRole('heading', { name: '个人资料', exact: true })).toBeVisible()
   const reopened = await hostPanel(page)
   await expect(
@@ -575,7 +620,7 @@ test('messages override and brand prop reshape the auth card and header', async 
 
 test('event log records authenticated and logout around a real sign-in', async ({ page }) => {
   await login(page)
-  await page.getByRole('button', { name: '↗ 退出登录', exact: true }).click()
+  await page.getByRole('button', { name: '退出登录', exact: true }).click()
   await expect(page.getByRole('heading', { name: '欢迎回来', exact: true })).toBeVisible()
   const host = await hostPanel(page)
   const log = host.locator('[data-event-log] li')
@@ -589,13 +634,15 @@ async function sceneGallery(page: Page) {
     .getByRole('dialog', { name: '体验工具', exact: true })
     .getByRole('button', { name: '业务场景组合', exact: true })
     .click()
-  await expect(page.getByRole('heading', { name: '字段形态' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: '任务清单', exact: true })).toBeVisible()
 }
 
-test('scene gallery: fields card and task list add, search and complete', async ({ page }) => {
+test('scene gallery: component fields and task list add, search and complete', async ({ page }) => {
   await sceneGallery(page)
+  await navigate(page, 'custom:fields')
   await expect(page.getByLabel('站点地址', { exact: true })).toBeVisible()
   await expect(page.getByLabel('金额', { exact: true })).toBeVisible()
+  await navigate(page, 'custom:tasks')
   await page.getByLabel('新任务', { exact: true }).fill('写周报')
   await page.getByRole('button', { name: '添加', exact: true }).click()
   await expect(page.getByText('进行中 3 · 已完成 1')).toBeVisible()
@@ -610,24 +657,27 @@ test('scene gallery: editor save, comment publish and simulated order payment', 
   page,
 }) => {
   await sceneGallery(page)
+  await navigate(page, 'custom:editor')
   // Editor: fill, save and observe the memory-only status note.
   await page.getByLabel('文章标题', { exact: true }).fill('接入笔记')
   await page.getByLabel('正文', { exact: true }).fill('第一段内容。')
   await page.getByRole('button', { name: '保存草稿', exact: true }).click()
   await expect(page.getByRole('status')).toContainText('已保存《接入笔记》到内存')
+  await navigate(page, 'custom:comments')
   // Comments: publish and see the newest-first synthetic thread grow.
   await page.getByLabel('发表评论', { exact: true }).fill('很实用的组合演示')
   await page.getByRole('button', { name: '发布', exact: true }).click()
   await expect(page.getByText('4 条评论')).toBeVisible()
+  await navigate(page, 'custom:orders')
   // Orders: filter, open the detail dialog and simulate payment.
   await page.getByRole('button', { name: /待支付/ }).click()
   await expect(page.getByText('NO-2026-0802')).toHaveCount(0)
-  await page.getByRole('button', { name: '查看订单 NO-2026-0817' }).click()
+  await page.getByRole('button', { name: '查看并支付订单 NO-2026-0817' }).click()
   const dialog = page.getByRole('dialog', { name: '订单详情 NO-2026-0817' })
   await expect(dialog).toBeVisible()
   await expect(dialog.getByText('¥228.00')).toBeVisible()
   await dialog.getByRole('button', { name: '模拟支付' }).click()
-  await expect(dialog.getByRole('status')).toContainText('状态已更新为“已发货”')
+  await expect(dialog.getByRole('status')).toContainText('模拟支付完成，订单等待发货。')
   await dialog.getByRole('button', { name: '关闭', exact: true }).click()
   await expect(dialog).toHaveCount(0)
   // The only pending order has been paid: the pending filter is now empty.
@@ -637,7 +687,7 @@ test('scene gallery: editor save, comment publish and simulated order payment', 
 
 test('avatar upload on the profile page and the #profile slot editor', async ({ page }) => {
   await preview(page)
-  await page.locator('[data-page="profile"]').click()
+  await navigate(page, 'profile')
   const fileInput = page.locator('input[type="file"]')
   // The demo adapter rejects non-images with an inline alert.
   await fileInput.setInputFiles({
@@ -676,7 +726,7 @@ test('avatar upload on the profile page and the #profile slot editor', async ({ 
 test('header quick toggle switches light/dark anytime and preserves the accent', async ({
   page,
 }) => {
-  const shell = page.locator('.nova-account').first()
+  const shell = page.locator('.nova-demo').first()
   await expect(shell).toHaveAttribute('data-theme', 'light')
   await expect(shell).toHaveAttribute('data-accent', 'blue')
   await page.getByRole('button', { name: '切换深色模式' }).click()
@@ -773,7 +823,7 @@ test('multi-instance preview preserves the primary session, draft and controlled
   page,
 }) => {
   await preview(page)
-  await page.locator('[data-page="profile"]').click()
+  await navigate(page, 'profile')
   await page.getByLabel('昵称', { exact: true }).fill('Unsaved primary draft')
   const host = await hostPanel(page)
   await host
@@ -884,7 +934,7 @@ for (const viewport of [
   }) => {
     await page.setViewportSize(viewport)
     await preview(page)
-    await page.locator('[data-page="profile"]').click()
+    await navigate(page, 'profile')
     const host = await hostPanel(page)
     await host.getByRole('combobox', { name: '外壳布局 layout' }).selectOption('embedded')
     await host.getByRole('button', { name: '关闭对话框' }).click()
@@ -929,10 +979,172 @@ for (const viewport of [
       'profile',
     ]) {
       const target = page.locator(`[data-page="${tab}"]`)
-      await target.click()
-      await expect(target).toHaveAttribute('aria-current', 'page')
+      await navigate(page, tab)
+      const mobile = page.locator('[data-mobile-account-nav] select')
+      if (await mobile.isVisible()) await expect(mobile).toHaveValue(tab)
+      else await expect(target).toHaveAttribute('aria-current', 'page')
       await withinHost()
     }
     await expect(page.getByLabel('昵称', { exact: true })).toHaveValue('Embedded narrow profile')
   })
 }
+
+test('fullscreen workspaces reflow by available width and preserve task edits', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1920, height: 1080 })
+  await preview(page)
+  const beside = async (left: string, right: string) => {
+    const a = await page.locator(left).boundingBox()
+    const b = await page.locator(right).boundingBox()
+    expect(a).toBeTruthy()
+    expect(b).toBeTruthy()
+    expect(b!.x).toBeGreaterThanOrEqual(a!.x + a!.width)
+    expect(Math.abs(a!.y - b!.y)).toBeLessThan(2)
+  }
+  await page.locator('.demo-overview-chart .nova-chart svg').waitFor()
+  await beside('.nova-overview-extension', '.nova-overview-activity')
+  await navigate(page, 'messages')
+  await page.locator('.nova-message-list article button').first().click()
+  await expect(page.locator('.nova-message-reader h2')).not.toHaveText('选择一条消息')
+  await expect(page.locator('dialog[open]')).toHaveCount(0)
+  await beside('.nova-message-list', '.nova-message-reader')
+  await page.getByRole('button', { name: '在弹窗中查看', exact: true }).click()
+  await expect(page.locator('dialog[open]')).toHaveCount(1)
+  await page.keyboard.press('Escape')
+  await navigate(page, 'custom:tasks')
+  await beside('.demo-task-workspace > .demo-panel:first-child', '.demo-task-detail')
+  await page.getByLabel('任务备注', { exact: true }).fill('周五评审，提前整理附件')
+  await navigate(page, 'custom:editor')
+  await expect(page.locator('.demo-article-preview')).toBeVisible()
+  await beside('.demo-editor-form', '.demo-article-preview')
+  await page.setViewportSize({ width: 820, height: 900 })
+  await expect(page.locator('.demo-article-preview')).not.toBeVisible()
+  await navigate(page, 'custom:tasks')
+  await expect(page.getByLabel('任务备注', { exact: true })).toHaveValue('周五评审，提前整理附件')
+  const list = await page.locator('.demo-task-workspace > .demo-panel:first-child').boundingBox()
+  const detail = await page.locator('.demo-task-detail').boundingBox()
+  expect(detail!.y).toBeGreaterThanOrEqual(list!.y + list!.height)
+  await navigate(page, 'messages')
+  await expect(page.locator('.nova-message-reader')).toHaveCount(0)
+  await page.locator('.nova-message-list article button').first().click()
+  await expect(page.locator('dialog[open]')).toHaveCount(1)
+})
+
+test('icon workspace configures real SVG and remains usable from 320px to 2560px', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1920, height: 1080 })
+  await preview(page)
+  await navigate(page, 'custom:icons')
+  await page.getByLabel('搜索图标', { exact: true }).fill('相机')
+  await expect(page.locator('.demo-icon-grid > button')).toHaveCount(1)
+  await page.getByRole('button', { name: '选择图标 相机 Camera', exact: true }).click()
+  await page.getByLabel('尺寸', { exact: true }).selectOption('48')
+  await page.getByLabel('线宽', { exact: true }).selectOption('2.5')
+  await expect(page.locator('.demo-icon-live svg')).toHaveAttribute('width', '48')
+  await expect(page.locator('.demo-icon-live svg')).toHaveAttribute('stroke-width', '2.5')
+  await expect(page.getByLabel('图标使用代码')).toContainText(':icon="Camera"')
+  await page.getByLabel('用法', { exact: true }).selectOption('lucide')
+  await expect(page.getByLabel('图标使用代码')).toContainText("from '@lucide/vue'")
+  await page.getByLabel('搜索图标', { exact: true }).fill('')
+  for (const width of [2560, 1440, 820, 390, 320]) {
+    await page.setViewportSize({ width, height: 900 })
+    await expect
+      .poll(() =>
+        page
+          .locator('[data-account-content]')
+          .evaluate((el) => el.scrollWidth <= el.clientWidth + 1),
+      )
+      .toBe(true)
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(
+      true,
+    )
+    if (width <= 820) {
+      const previewBox = await page.locator('.demo-icon-inspector').boundingBox()
+      const catalogBox = await page.locator('.demo-icon-browser').boundingBox()
+      expect(previewBox!.y).toBeGreaterThan(catalogBox!.y)
+    }
+  }
+  await page.getByLabel('搜索图标', { exact: true }).fill('不存在的图标')
+  await expect(page.getByRole('heading', { name: '没有找到匹配的图标' })).toBeVisible()
+  await page.getByRole('button', { name: '清空筛选', exact: true }).click()
+  await expect(page.locator('.demo-icon-grid > button')).toHaveCount(55)
+})
+
+test('account charts filter, replay, change type and export the displayed records', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1920, height: 1080 })
+  await preview(page)
+  await page.locator('.demo-overview-chart .nova-chart svg').waitFor()
+  await page.getByRole('button', { name: '查看数据演示', exact: true }).click()
+  await expect(page.getByRole('heading', { name: '数据概览', exact: true })).toBeVisible()
+  await page.locator('.demo-chart-main .nova-chart svg').waitFor()
+  await page.getByLabel('图表时间范围').selectOption('30')
+  await page.locator('.demo-chart-data summary').click()
+  await expect(page.locator('.demo-chart-data tbody tr')).toHaveCount(30)
+  await page.getByRole('button', { name: '柱状', exact: true }).click()
+  await expect(page.getByRole('button', { name: '柱状', exact: true })).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  )
+  const first = await page.locator('.demo-chart-data tbody tr').first().textContent()
+  await page.getByRole('button', { name: '开始回放', exact: true }).click()
+  await expect
+    .poll(() => page.locator('.demo-chart-data tbody tr').first().textContent())
+    .not.toBe(first)
+  await page.getByRole('button', { name: '暂停回放', exact: true }).click()
+  const downloadReady = page.waitForEvent('download')
+  await page.getByRole('button', { name: '导出 CSV', exact: true }).click()
+  const download = await downloadReady
+  expect(download.suggestedFilename()).toBe('nova-activity-30days.csv')
+  await expect(page.locator('.demo-chart-status')).toContainText('已导出当前 30 天的明细')
+  await page.getByRole('button', { name: '订单变化', exact: true }).click()
+  await expect(page.locator('.demo-chart-data thead')).toContainText('退款订单')
+  await page.getByLabel('图表数据状态').selectOption('zero')
+  await expect(page.locator('.demo-chart-ring-empty')).toContainText('当前数值均为 0')
+  await page.getByLabel('图表数据状态').selectOption('empty')
+  await expect(page.getByRole('heading', { name: '当前范围内没有数据' })).toBeVisible()
+  await page.getByRole('button', { name: '查看示例数据', exact: true }).click()
+  await page.getByRole('button', { name: '开始回放', exact: true }).click()
+  await navigate(page, 'profile')
+  await navigate(page, 'custom:charts')
+  await expect(page.getByRole('button', { name: '开始回放', exact: true })).toBeVisible()
+})
+
+test('charts resize with their workspace, remain accessible in dark mode and fit narrow screens', async ({
+  page,
+}, testInfo) => {
+  await page.setViewportSize({ width: 1920, height: 1080 })
+  await preview(page)
+  await navigate(page, 'custom:charts')
+  await page.locator('.demo-chart-main .nova-chart svg').waitFor()
+  await page.getByRole('button', { name: '切换深色模式' }).click()
+  await expect(page.locator('.demo-analytics')).toHaveAttribute('data-theme', 'dark')
+  for (const width of [2560, 1440, 820, 390, 320]) {
+    await page.setViewportSize({ width, height: 900 })
+    await expect
+      .poll(() =>
+        page
+          .locator('[data-account-content]')
+          .evaluate((el) => el.scrollWidth <= el.clientWidth + 1),
+      )
+      .toBe(true)
+    await expect
+      .poll(async () => {
+        const chart = await page.locator('.demo-chart-main .nova-chart svg').boundingBox()
+        const surface = await page.locator('.demo-chart-main .nova-chart').boundingBox()
+        return chart && surface ? Math.abs(chart.width - surface.width) < 2 : false
+      })
+      .toBe(true)
+  }
+  const results = await new AxeBuilder({ page })
+    .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+    .analyze()
+  expect(results.violations).toEqual([])
+  await testInfo.attach('chart-320-dark', {
+    body: await page.screenshot({ animations: 'disabled' }),
+    contentType: 'image/png',
+  })
+})

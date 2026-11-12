@@ -6,6 +6,8 @@ export { default as NovaAccountCenter } from './components/NovaAccountCenter.vue
 export { default as NovaAppearance } from './components/NovaAppearance.vue'
 export { default as NovaButton } from './components/NovaButton.vue'
 export { default as NovaField } from './components/NovaField.vue'
+export { default as NovaIcon } from './components/NovaIcon.vue'
+export { NOVA_ICON_NAMES } from './icons'
 export { default as NovaDialog } from './components/NovaDialog.vue'
 export { default as NovaCaptcha } from './components/NovaCaptcha.vue'
 export { useAppearance, parseAppearance } from './composables/useAppearance'
