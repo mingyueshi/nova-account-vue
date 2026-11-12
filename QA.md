@@ -1,5 +1,17 @@
 # Nova Account Vue 开发版验证
 
+## 2026-11-12 云端头像隔离修复
+
+基于官方 `c0669cf` 的修复候选；不代表浏览器、生产或远端 CI 已验收。
+
+- 将内置头像文件读取、上传与移除接入账户统一请求控制，固定操作开始时的 adapter，切账号/离页/卸载取消读取并拒绝迟到响应。
+- 新增 9 项竞态回归：旧成功/失败、读取中换 adapter、旧请求不解除新忙态、双向资料保存互斥、离页/卸载、读取错误恢复。原缺陷在修复前已通过延迟头像响应复现。
+- Node 24.22.1：`npm run check` 通过，211 项测试，行覆盖率 94.92%，分支 86.66%；账户 JS 38,013 bytes gzip、CSS 5,935 bytes、图表适配器 2,002 bytes，均在预算内。
+- 独立包 ESM/CSS/SSR/严格 TypeScript 消费验证通过。
+- 云端真实浏览器仍未完成：固定 Playwright Chromium 不存在；系统 Chromium 启动时 `process_singleton` 的 `socket()` 返回 `Operation not permitted`，未到页面断言。未将其视为产品测试失败或通过，未绕过限制。未重跑 Nuxt、Firefox/WebKit、最低 Node 或真实后端。
+
+人工补验重点：慢速头像上传或文件读取时切换账号、离开页面、退出/卸载，旧头像或错误不应回到新界面；资料保存与头像操作不应并发。客户端取消不代表已提交的服务端写入回滚。
+
 ## 2026-11-12 本机全屏精修与动态图表
 
 本地工作区验证，未提交或部署。对照 `django-nova-admin/dist/styles.css`、`dist/presets.css`、`dist/js/open-icons.js` 和 `dist/js/chart-lab-data.js` 对齐配色、Lucide 线宽与 ECharts 版本。25 套深色预设的品牌、背景、面板、文字、边界令牌与后端逐项一致；默认浅色使用冷灰底，辅助文字采用后台预设的 `#5a667c`，保留控制边界和深色柔和背景的对比度调整。

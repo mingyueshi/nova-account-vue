@@ -34,6 +34,8 @@
 
 ### Fixed
 
+- Avatar reads, uploads and removals now use the account request controller: adapter changes, navigation and unmount cancel old operations, stale results cannot replace another account, and profile saves cannot race avatar updates.
+
 - Embedded demo grid tracks shrink to the host width instead of inheriting signed-in content minimum widths; added 320px / 390px regressions for profile editing and all seven account pages after switching host layout.
 
 - Multi-instance demo grid columns can shrink below 320px inside narrow hosts; forms remain visible without clipping while wider screens retain side-by-side instances. Browser regressions cover 320px / 390px full layouts, 320px embedded layout, and an 820px two-column layout.

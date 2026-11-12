@@ -6,7 +6,6 @@ import type {
   AccountPage,
   AccountExtraPage,
   AccountSnapshot,
-  MutationContext,
   NotificationPreferences,
   Profile,
 } from '../types'
@@ -294,57 +293,78 @@ async function saveProfile() {
 /** Optional adapter capability: an avatar uploader appears in the profile page when present. */
 const canUploadAvatar = computed(() => typeof props.adapter.uploadAvatar === 'function')
 const avatarBusy = ref(false)
-const avatarError = ref('')
-let avatarController: AbortController | undefined
-async function uploadAvatar(dataUrl: string | null) {
-  if (!props.adapter.uploadAvatar || !snapshot.value) return
-  avatarController = new AbortController()
-  const context: MutationContext = {
-    signal: avatarController.signal,
-    requestId: `avatar-${Date.now()}`,
-    revision: snapshot.value.revision,
+let avatarOperation: symbol | undefined
+function readAvatar(file: File, signal: AbortSignal): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    const cleanup = () => {
+      signal.removeEventListener('abort', abort)
+      reader.onload = null
+      reader.onerror = null
+      reader.onabort = null
+    }
+    const abort = () => {
+      cleanup()
+      if (reader.readyState === FileReader.LOADING) reader.abort()
+      reject(new DOMException('Avatar read cancelled', 'AbortError'))
+    }
+    reader.onload = () => {
+      cleanup()
+      resolve(String(reader.result))
+    }
+    reader.onerror = () => {
+      cleanup()
+      reject(new Error(t('profile.avatarReadError')))
+    }
+    reader.onabort = abort
+    signal.addEventListener('abort', abort, { once: true })
+    if (signal.aborted) return abort()
+    try {
+      reader.readAsDataURL(file)
+    } catch (cause) {
+      cleanup()
+      reject(cause)
+    }
+  })
+}
+async function uploadAvatar(file: File | null) {
+  const adapter = props.adapter
+  if (!adapter.uploadAvatar || !snapshot.value || busy.value) return
+  const operation = Symbol('avatar')
+  avatarOperation = operation
+  avatarBusy.value = true
+  const finish = () => {
+    if (avatarOperation === operation) {
+      avatarOperation = undefined
+      avatarBusy.value = false
+    }
   }
   try {
-    const result = await props.adapter.uploadAvatar({ dataUrl }, context)
-    if (context.signal.aborted) return
-    snapshot.value = result
-    notice.value = props.simulated ? t('profile.avatarDemoSaved') : t('profile.avatarSaved')
-    avatarError.value = ''
-  } catch (cause) {
-    if (!context.signal.aborted)
-      avatarError.value = cause instanceof Error ? cause.message : t('common.error')
+    await mutate(
+      async (context) => {
+        context.signal.addEventListener('abort', finish, { once: true })
+        try {
+          const dataUrl = file ? await readAvatar(file, context.signal) : null
+          if (context.signal.aborted) throw new DOMException('Cancelled', 'AbortError')
+          return await adapter.uploadAvatar!({ dataUrl }, context)
+        } finally {
+          context.signal.removeEventListener('abort', finish)
+        }
+      },
+      props.simulated ? t('profile.avatarDemoSaved') : t('profile.avatarSaved'),
+    )
+  } finally {
+    finish()
   }
 }
 function onAvatarFile(event: Event) {
   const input = event.target as HTMLInputElement
   const file = input.files?.[0]
   input.value = ''
-  if (!file || avatarBusy.value || !props.adapter.uploadAvatar) return
-  avatarBusy.value = true
-  avatarError.value = ''
-  const reader = new FileReader()
-  reader.onload = async () => {
-    try {
-      await uploadAvatar(String(reader.result))
-    } finally {
-      avatarBusy.value = false
-    }
-  }
-  reader.onerror = () => {
-    avatarBusy.value = false
-    avatarError.value = t('profile.avatarReadError')
-  }
-  reader.readAsDataURL(file)
+  if (file) void uploadAvatar(file)
 }
 async function removeAvatar() {
-  if (avatarBusy.value) return
-  avatarBusy.value = true
-  avatarError.value = ''
-  try {
-    await uploadAvatar(null)
-  } finally {
-    avatarBusy.value = false
-  }
+  await uploadAvatar(null)
 }
 async function saveNotifications() {
   if (!dirty.value) return
@@ -869,13 +889,6 @@ defineExpose({ refresh, fillSecurity })
                           >{{ t('profile.avatarRemove') }}</NovaButton
                         >
                       </div>
-                      <p
-                        v-if="avatarError"
-                        role="alert"
-                        class="na:mb-0 na:mt-3 na:text-xs na:text-[var(--na-error)]"
-                      >
-                        {{ avatarError }}
-                      </p>
                     </fieldset>
                   </div>
                   <div class="nova-profile-fields na:grid na:gap-6">
