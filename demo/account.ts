@@ -33,7 +33,13 @@ export function createInitialAccount(time: number): AccountSnapshot {
   const at = (offset = 0) => new Date(time + offset).toISOString()
   return {
     revision: '0',
-    profile: { id: 'nova-demo', nickname: 'Nova', bio: '把灵感，慢慢变成日常。', avatar: 'iris' },
+    profile: {
+      id: 'nova-demo',
+      nickname: 'Nova',
+      bio: '把灵感，慢慢变成日常。',
+      avatar: 'iris',
+      avatarUrl: '',
+    },
     email: 'demo@nova.example',
     notifications: { product: true, email: false, security: true },
     security: { twoStepEnabled: false },
@@ -240,7 +246,14 @@ export function createDemoAccountAdapter({
       return commit(
         context,
         (next) => {
-          next.profile = { id: state.profile.id, nickname, bio, avatar: profile.avatar }
+          next.profile = {
+            ...next.profile,
+            id: state.profile.id,
+            nickname,
+            bio,
+            avatar: profile.avatar,
+            avatarUrl: profile.avatarUrl ?? state.profile.avatarUrl,
+          }
         },
         'account',
         '个人资料已更新',
@@ -371,6 +384,25 @@ export function createDemoAccountAdapter({
         },
         'account',
         '全部消息已标为已读',
+      )
+    },
+    async uploadAvatar(input, context) {
+      if (input.dataUrl !== null) {
+        if (!input.dataUrl.startsWith('data:image/'))
+          fail('AVATAR_TYPE', '仅支持图片文件（演示校验，服务端同样必须校验）。')
+        // Base64 data URLs carry ~4/3 overhead; 2.8M chars ≈ a 2 MB image.
+        if (input.dataUrl.length > 2_800_000)
+          fail('AVATAR_SIZE', '头像图片不能超过 2 MB（演示校验）。')
+      }
+      await pause(context)
+      if (input.dataUrl === null && !state.profile.avatarUrl) return snapshot()
+      return commit(
+        context,
+        (next) => {
+          next.profile = { ...next.profile, avatarUrl: input.dataUrl ?? '' }
+        },
+        'account',
+        input.dataUrl === null ? '演示头像已移除' : '演示头像已更新',
       )
     },
     async setTwoStep(input, context) {

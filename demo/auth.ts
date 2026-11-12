@@ -1,6 +1,8 @@
 import { NovaError } from '../src/types'
 import type { AuthAdapter, CaptchaPurpose, CodePurpose, RequestContext } from '../src/types'
 export const DEMO_EMAIL = 'demo@nova.example'
+/** `identifier="username"` collects this value; the wire contract stays on `email`. */
+export const DEMO_USERNAME = 'demo'
 export const DEMO_PASSWORD = 'NovaDemo2026!'
 export const DEMO_CODE = '246810'
 export const DEMO_NEXT_PASSWORD = 'NovaNext2026!'
@@ -71,8 +73,12 @@ export function createDemoAuthAdapter(
   } | null = null
   let rateUntil = 0
   function email(value: string) {
-    if (value.trim().toLowerCase() !== DEMO_EMAIL)
-      fail('DEMO_ONLY', `请使用示例邮箱 ${DEMO_EMAIL}，勿填写真实资料。`)
+    const trimmed = value.trim()
+    if (trimmed.toLowerCase() !== DEMO_EMAIL && trimmed !== DEMO_USERNAME)
+      fail(
+        'DEMO_ONLY',
+        `请使用示例邮箱 ${DEMO_EMAIL} 或示例账号 ${DEMO_USERNAME}，勿填写真实资料。`,
+      )
     return DEMO_EMAIL
   }
   function password(value: string, next = false) {

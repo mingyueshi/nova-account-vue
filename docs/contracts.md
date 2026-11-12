@@ -47,14 +47,15 @@ interface MutationContext extends RequestContext {
 
 `load(context)` 返回 `AccountSnapshot`，包括 revision、profile、email、notifications、devices、messages、security、activity。所有写操作返回完整新 snapshot：
 
-- `updateProfile({nickname,bio,avatar}, context)` / `updateNotifications({product,email,security}, context)`。
+- `updateProfile({nickname,bio,avatar,avatarUrl?}, context)` / `updateNotifications({product,email,security}, context)`。
+- `uploadAvatar?({dataUrl}, context)` 可选能力：实现后内建资料页出现头像上传（组件负责选文件转 data URL、忙态与移除，`null` 清除）；类型 / 大小校验与存储由适配器 / 服务端执行。`Profile.avatarUrl?` 为服务端下发的图片 URL 或 data URL，空值渲染色块头像。
 - `changePassword({currentPassword,newPassword,confirmPassword}, context)`。
 - `requestEmailChangeCode({email,currentPassword}, context)` 返回 code metadata；`changeEmail({email,code}, context)`。
 - `revokeDevice(id, context)` / `revokeOtherDevices(context)`，服务端保护当前会话并执行真实撤销。
 - `markMessageRead(id, context)` / `markAllMessagesRead(context)`，服务端授权/幂等。
 - `setTwoStep({enabled,currentPassword,code}, context)` 仅是扩展工作流钩子，**不是 TOTP/MFA 实现**。
 
-默认生产安全页只读。真实安全修改通过 `security` 插槽替换为接入方的 recent-auth / passkey / TOTP 等完整流程；不要把 `simulated:true` 当成开启生产安全流程的办法。
+默认生产安全页只读。真实安全修改通过 `security` 插槽替换为接入方的 recent-auth / passkey / TOTP 等完整流程；不要把 `simulated:true` 当成开启生产安全流程的办法。`profile` 插槽可整体替换资料页（props 同 `security`：snapshot/adapter/refresh），未保存守卫随之由宿主实现。
 
 资料/偏好页面 dirty 时导航/退出会询问放弃；`beforeunload` 仅在浏览器挂载且有未保存数据时使用。组件卸载会清除监听。宿主路由强制卸载不自动接管路由确认，需在宿主导航设计中实现阻止离开。
 
@@ -98,7 +99,7 @@ Theme 与 Account 都接受 `NovaLocaleOptions`：`locale?:'zh-CN'|'en-US'`、`m
 
 内置字段校验错误在显示时解析当前词典；locale 或 messages 改变后，已有错误随之更新，不会重新校验、重发 adapter 请求或清空输入。`useAuthFlow().fieldErrors` 仍是可读写的字符串属性，接入方直接写入的自定义错误由接入方维护翻译。
 
-Appearance props：`modelValue:Appearance`, `storageError?:string`；event `update:modelValue`。`Appearance = {mode:'light'|'dark'|'system',accent:'iris'|'blue'|'teal'|'amber'}`。
+Appearance props：`modelValue:Appearance`, `storageError?:string`；event `update:modelValue`。`Appearance = {mode:'light'|'dark'|'system',accent:Accent}`；Accent 为与 django-nova-admin 调色板一一对应的 26 个值（'blue' | 'teal' | 'indigo' | 'violet' | 'terracotta' | 'graphite' | 'midnight' | 'forest' | 'amber' | 'ocean' | 'slate' | 'plum' | 'coffee' | 'glacier' | 'rose' | 'olive' | 'ink' | 'cinnabar' | 'gilded' | 'emerald' | 'peacock' | 'sunset' | 'industrial' | 'lilac' | 'terminal' | 'parchment'）。
 
 SSR采用确定性初始light（或显式传入mode）；system和storage在onMounted后读取，所以可能有挂载后的主题更新。需要避免首屏主题闪烁的宿主可用服务端已知的非秘密外观数据提供初值。不要在模块顶层创建共享主题/账户控制器。
 

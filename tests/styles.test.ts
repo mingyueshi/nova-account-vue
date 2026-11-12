@@ -49,7 +49,34 @@ describe('precompiled style isolation', () => {
     expect(output.css).toContain('.nova-account ::backdrop')
   })
   for (const mode of ['light', 'dark'])
-    for (const accent of ['iris', 'blue', 'teal', 'amber']) {
+    for (const accent of [
+      'blue',
+      'teal',
+      'indigo',
+      'violet',
+      'terracotta',
+      'graphite',
+      'midnight',
+      'forest',
+      'amber',
+      'ocean',
+      'slate',
+      'plum',
+      'coffee',
+      'glacier',
+      'rose',
+      'olive',
+      'ink',
+      'cinnabar',
+      'gilded',
+      'emerald',
+      'peacock',
+      'sunset',
+      'industrial',
+      'lilac',
+      'terminal',
+      'parchment',
+    ]) {
       it(`${mode}/${accent}: key text and primary button contrast >= 4.5`, () => {
         const theme = {
           ...tokens('.nova-account'),

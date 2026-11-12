@@ -68,7 +68,7 @@ npm run test:e2e
 | Chromium / WebKit，macOS                                 | **28 条通过**；每个引擎 14 条，见下述场景                                                                                       |
 | Chromium / Firefox / WebKit，Linux                       | **42 条通过**；每个引擎 14 条；官方 Linux 镜像 / Node 24.22.1 / npm 11.19.1，设置 `CI=1`，均首轮通过                            |
 | axe 自动扫描                                             | Chromium / WebKit / Firefox 中认证默认/错误/注册/挑战、账户七页、浅深色 × 四品牌色；已扫描状态无 WCAG 2 A/AA、2.1 A/AA 规则违规 |
-| 主题截图                                                 | 自动采集八种外观截图供复核；没有建立像素对比基线，不声称完整视觉回归通过                                                        |
+| 主题截图                                                 | 自动采集五十二种外观截图供复核（26 种品牌色 × 明暗）；没有建立像素对比基线，不声称完整视觉回归通过                              |
 | CSS / 包边界                                             | 保留原有 CSS 隔离、八配色静态对比度、外部 Vue、无 demo 实现/凭据进入 JS 和 source map 的断言                                    |
 
 浏览器 smoke 使用构建后的静态 demo；测试框架只启动临时 loopback 服务，结束后关闭。Nuxt smoke 也只使用临时 loopback SSR 服务。Nuxt 消费者在临时目录构建，不改写仓库示例锁文件。

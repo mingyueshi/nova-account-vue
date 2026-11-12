@@ -13,7 +13,7 @@
 - 简洁居中认证；密码登录按需滑块；邮箱发码先验证，注册、码登录及重置提交不重复滑块。
 - 全屏账户外壳、响应式侧栏/移动导航；资料、消息、设备、偏好、外观与安全展示。
 - 资料/偏好保存与取消、未保存离页保护；消息详情/未读；设备确认；模拟敏感操作及活动。
-- 浅色 / 深色 / 跟随系统，紫 / 蓝 / 绿 / 琥珀；主题作用于组件根，不修改 `html/body`。
+- 浅色 / 深色 / 跟随系统；26 套品牌色与 django-nova-admin 调色板一一对应（默认蓝 + 25 个行业预设）；主题作用于组件根，不修改 `html/body`。
 - 显式 adapter props、TypeScript 接口、typed events/slots；可单独使用组件或使用 `NovaAccount` 外壳。
 - ESM、Vue peer dependency/external、自包含声明文件、独立预编译 CSS 导出。
 - Nuxt 3/4 无 `ClientOnly` 的真实 tarball 接入示例及 SSR smoke。
@@ -125,6 +125,7 @@ const messages: Partial<NovaMessages> = { 'auth.welcome': '登录你的账户' }
 - 不导入 Tailwind Preflight，不重置宿主 `body`、`html` 或裸元素。
 - Tailwind theme defaults 定位 `.nova-account`，内部 `--tw-*` 也重命名为 `--na-tw-*`，全局初始化规则限制于组件子树；层命名为 `nova-*`。
 - 主题 tokens 为 `--na-*`；消费者可在自己的 `.nova-account` 上覆盖。不同根实例的明暗与品牌色可独立。
+- 品牌色与 [django-nova-admin](https://github.com/mingyueshi/django-nova-admin) 调色板一一对应（26 套：`blue` = admin 默认配色，其余 25 个预设同名对应）。浅色模式保持中性表面、仅换品牌色；深色模式按品牌色整套切换着色表面（背景、侧栏、面板、文字、线条、控件）。`iris` 已由 `violet` 取代，旧存储值经白名单校验后安全回退到默认。
 - 原生 `<dialog>` 留在主题子树内，不 teleport 到 `body` 丢失主题。
 - 宿主自己的全局 `!important` 或高优先级样式仍可能影响组件，不声称 Shadow DOM 级隔离。
 
@@ -146,10 +147,15 @@ const messages: Partial<NovaMessages> = { 'auth.welcome': '登录你的账户' }
 
 右上 **体验工具 → 一键填入示例**；不会默认在主界面堆放示例凭据。工具内可快捷预览、切换外观、选择慢速/断网/验证失败/验证码过期/业务拒绝。
 
-- **宿主集成演示**面板：全屏 / `layout="embedded"` 切换（附虚构宿主页面外壳）、`v-model:page` 受控跳转与 `pageChange` 事件记录、`codeLength` 调整（4 位时演示码同步为 `2468`）、宿主 `passwordStrength` 强度评估、`#security` 插槽的 TOTP 形式二次认证与危险区注销确认、`#authFooter` 第三方登录占位、禁用本地存储以触发 `storageError`、多实例主题隔离视图（两个独立 `NovaTheme` 根并排）、独立视口预览窗口（请求所选尺寸，媒体查询按实际宽度响应；浏览器可能调整窗口大小）。
+- **宿主集成演示**面板：全屏 / `layout="embedded"` 切换（附虚构宿主页面外壳）、`v-model:page` 受控跳转与统一事件日志（`authenticated` / `logout` / `pageChange` / `update:page` / `update:appearance`，倒序保留 8 条）、`identifier` 用户名模式（演示账号 `demo`，一键填入会同步切换）、`modes` 登录方式裁剪、`pages` 账户页裁剪、`twoStep` 开关、`initialUser` 会话恢复（重挂载外壳直接进入账户中心）、typed `messages` 文案覆盖与 `brand` 品牌名、受控 `appearance`、`storageKey` 持久化切换（重挂载生效）、`codeLength` 调整（4 位时演示码同步为 `2468`）、宿主 `passwordStrength` 强度评估、`#security` 插槽的 TOTP 形式二次认证与危险区注销确认、`#authFooter` 第三方登录占位、禁用本地存储以触发 `storageError`、多实例主题隔离视图（两个独立 `NovaTheme` 根并排）、独立视口预览窗口（请求所选尺寸，媒体查询按实际宽度响应；浏览器可能调整窗口大小）。
 - 常见错误路径：面板内可让会话过期（下一次账户请求返回 401，随后自动清除本地会话并返回登录页）、模拟另一台设备修改资料（下一次操作返回 `REVISION_CONFLICT`）；**演示设置**可开启发送限流，首次发送成功后 20 秒内再发会返回带剩余秒数的提示。
 - **演示设置**中可把挑战方式切换为算术题，走宿主 `#captcha` 插槽的出题、错误提示与换一题流程；“滑块结果”的失败与过期同样适用于算术题。
-- 合成邮箱 `demo@nova.example`，密码 `NovaDemo2026!`，验证码 `246810`。
+- **基础组件形态**面板：脱离 `NovaAccount` 展示 `NovaField` 的 prefix/suffix 插槽、`as="textarea"`、`maxlength`、禁用与错误态，以及 `NovaButton` 各变体。
+- **业务场景组合**画廊：从体验工具进入独立宽屏视图，仅用库的基础组件组合出常见宿主形态——字段（前缀/后缀、金额、手机号、密码、日期、textarea 字数、错误/禁用）、任务列表（搜索、状态筛选、完成、空态）、简单编辑器（maxlength、字数提示、预览、忙态保存）、评论区（校验、发布、点赞）与订单（状态筛选、详情对话框、模拟支付）。卡片均非库内置业务组件，数据为内存虚构。
+- 内建资料页支持**头像上传**：适配器实现可选的 `uploadAvatar` 能力即出现上传 / 移除控件（组件负责选文件转 data URL 与忙态），概览卡与资料页显示 `avatarUrl` 图片；类型 / 大小校验由适配器 / 服务端执行，演示适配器仅收图片且 ≤ 2 MB。
+- `#profile` 插槽可整体替换资料页（props 同 `#security`），演示通过宿主面板开关体验：头像上传 + 职位 / 电话 / 生日 / 性别 / 网址 / 兴趣标签等扩展字段（扩展字段仅存内存，真实接入由宿主扩展契约），未保存守卫由宿主实现。
+- 外壳 header 常驻**明暗快切按钮**（登录前后都可随时切换；跟随系统时先落到当前实际模式再翻转，品牌色保持不变，选择经 storage-key 持久化）；完整外观设置（品牌色等 26 套）仍在外观设置面板。接入方可直接复制 `#tools` 插槽里的这一模式。
+- 合成邮箱 `demo@nova.example`，密码 `NovaDemo2026!`，验证码 `246810`；用户名模式下演示账号 `demo`。
 - 安全弹窗提供“填入示例”：新密码 `NovaNext2026!`，新邮箱 `novanext@nova.example`。
 - 模拟更改不影响登录固定凭据。验证码只在演示适配器返回，真实服务不得返回明文码。
 - 所有账户/消息/设备/安全状态仅内存；刷新/退出重置。只有 mode/accent 可在用户显式切换时保存。

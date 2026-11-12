@@ -2,7 +2,34 @@ import { useNovaLocale } from '../locale'
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import type { Accent, Appearance, ThemeMode } from '../types'
 const modes: ThemeMode[] = ['light', 'dark', 'system']
-const accents: Accent[] = ['iris', 'blue', 'teal', 'amber']
+const accents: Accent[] = [
+  'blue',
+  'teal',
+  'indigo',
+  'violet',
+  'terracotta',
+  'graphite',
+  'midnight',
+  'forest',
+  'amber',
+  'ocean',
+  'slate',
+  'plum',
+  'coffee',
+  'glacier',
+  'rose',
+  'olive',
+  'ink',
+  'cinnabar',
+  'gilded',
+  'emerald',
+  'peacock',
+  'sunset',
+  'industrial',
+  'lilac',
+  'terminal',
+  'parchment',
+]
 export function parseAppearance(value: unknown): Appearance | null {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null
   const candidate = value as Record<string, unknown>
@@ -21,7 +48,7 @@ export function useAppearance(
 ) {
   const { t } = useNovaLocale()
   const appearance = ref<Appearance>(
-    parseAppearance(options.initial) ?? { mode: 'light', accent: 'iris' },
+    parseAppearance(options.initial) ?? { mode: 'light', accent: 'blue' },
   )
   const systemDark = ref(false)
   const storageError = ref('')
@@ -50,7 +77,7 @@ export function useAppearance(
         if (stored !== null)
           appearance.value = parseAppearance(JSON.parse(stored)) ?? {
             mode: 'light',
-            accent: 'iris',
+            accent: 'blue',
           }
       } catch {
         storageError.value = t('appearance.storageError')
@@ -80,6 +107,6 @@ export function useAppearance(
     resolvedMode,
     storageError,
     setAppearance,
-    reset: () => setAppearance({ mode: 'light', accent: 'iris' }),
+    reset: () => setAppearance({ mode: 'light', accent: 'blue' }),
   }
 }

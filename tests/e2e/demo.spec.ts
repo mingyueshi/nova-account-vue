@@ -322,9 +322,10 @@ test('English locale, appearance radio keyboard control and appearance-only pers
   await expect(page.getByLabel('密码', { exact: true })).toHaveValue('')
 })
 
-test('axe: auth, error, register, challenge, account pages, and eight appearance previews', async ({
+test('axe: auth, error, register, challenge, account pages, and all 52 appearance previews', async ({
   page,
 }, testInfo) => {
+  test.slow()
   const scan = async () => {
     // Assess the selected theme after CSS color transitions have settled.
     await page.locator('.nova-account').evaluate(async (root) => {
@@ -364,7 +365,34 @@ test('axe: auth, error, register, challenge, account pages, and eight appearance
   }
   for (const mode of ['浅色', '深色']) {
     await chooseRadio(page, mode)
-    for (const accent of ['鸢尾紫', '晴空蓝', '湖水绿', '暖琥珀']) {
+    for (const accent of [
+      '默认蓝',
+      '医疗青',
+      '专业靛',
+      '文教紫',
+      '零售陶',
+      '石墨黑',
+      '午夜蓝',
+      '松林绿',
+      '暖琥珀',
+      '深海青',
+      '雾岩灰',
+      '暮梅紫',
+      '摩卡棕',
+      '冰川蓝',
+      '胭脂红',
+      '苔原绿',
+      '极夜黑',
+      '朱砂红',
+      '鎏金黄',
+      '翡翠绿',
+      '孔雀蓝',
+      '霞光紫',
+      '工业橙',
+      '兰花紫',
+      '终端绿',
+      '宣纸黄',
+    ]) {
       await chooseRadio(page, accent)
       await scan()
       await testInfo.attach(`appearance-${mode}-${accent}`, {
@@ -393,7 +421,9 @@ test('host panel: embedded layout switch and controlled page jumps log pageChang
   await signedInHost.getByRole('button', { name: '安全设置', exact: true }).click()
   await expect(page.getByRole('heading', { name: '账号安全', exact: true })).toBeVisible()
   await expect(signedInHost.getByText('当前页面：安全设置')).toBeVisible()
-  await expect(signedInHost.getByText(/pageChange：/)).toContainText('安全设置')
+  await expect(
+    signedInHost.locator('[data-event-log] li').filter({ hasText: 'pageChange' }).first(),
+  ).toContainText('安全设置')
   await signedInHost.getByRole('combobox', { name: '外壳布局 layout' }).selectOption('full')
   await expect(page.getByText('虚构宿主站点')).not.toBeVisible()
 })
@@ -486,6 +516,181 @@ test('codeLength and passwordStrength props shape the auth form', async ({ page 
   await verify(page)
   await expect(page.getByText('演示码 2468 · 没有发送真实邮件', { exact: true })).toBeVisible()
   await expect(page.getByLabel('验证码', { exact: true })).toHaveAttribute('maxlength', '4')
+})
+
+test('capability switches: username identifier, trimmed modes and pages, unified event log', async ({
+  page,
+}) => {
+  const host = await hostPanel(page)
+  await host.getByRole('combobox', { name: '账号字段 identifier' }).selectOption('username')
+  await host
+    .getByRole('group', { name: '登录方式裁剪' })
+    .getByRole('checkbox', { name: '密码登录' })
+    .uncheck()
+  await host
+    .getByRole('group', { name: '账户页裁剪' })
+    .getByRole('checkbox', { name: '登录设备' })
+    .uncheck()
+  await host.getByRole('button', { name: '关闭对话框' }).click()
+  // Password login was removed: the form falls back to code sign-in without a tablist.
+  await expect(page.getByRole('tablist')).toHaveCount(0)
+  await expect(page.getByLabel('账号', { exact: true })).toBeVisible()
+  await page.getByRole('button', { name: '体验工具' }).click()
+  await page
+    .getByRole('dialog', { name: '体验工具', exact: true })
+    .getByRole('button', { name: '一键填入示例', exact: true })
+    .click()
+  await expect(page.getByLabel('账号', { exact: true })).toHaveValue('demo')
+  await preview(page)
+  await expect(page.locator('[data-page="devices"]')).toHaveCount(0)
+  await expect(page.locator('[data-page="profile"]')).toBeVisible()
+  await page.locator('[data-page="profile"]').click()
+  const signedInHost = await hostPanel(page)
+  const log = signedInHost.locator('[data-event-log] li')
+  await expect(log.filter({ hasText: 'pageChange' }).first()).toContainText('个人资料')
+  await expect(log.filter({ hasText: 'update:page' }).first()).toContainText('个人资料')
+})
+
+test('initialUser restores the shell signed in and records the event', async ({ page }) => {
+  const host = await hostPanel(page)
+  await host.getByRole('button', { name: '以已验证会话进入（重挂载外壳）' }).click()
+  await expect(page.getByRole('heading', { name: '账户概览', exact: true })).toBeVisible()
+  await page.locator('[data-page="profile"]').click()
+  await expect(page.getByRole('heading', { name: '个人资料', exact: true })).toBeVisible()
+  const reopened = await hostPanel(page)
+  await expect(
+    reopened.locator('[data-event-log] li').filter({ hasText: 'initialUser' }).first(),
+  ).toBeVisible()
+})
+
+test('messages override and brand prop reshape the auth card and header', async ({ page }) => {
+  const host = await hostPanel(page)
+  await host.getByRole('checkbox', { name: /注入 messages 文案覆盖/ }).check()
+  await host.getByLabel('品牌名 brand', { exact: true }).fill('Acme')
+  await host.getByRole('button', { name: '关闭对话框' }).click()
+  await expect(page.getByRole('heading', { name: '登录你的 Nova 演示账户' })).toBeVisible()
+  await expect(page.getByRole('button', { name: '进入演示', exact: true })).toBeVisible()
+  await expect(page.locator('header').first()).toContainText('Acme')
+})
+
+test('event log records authenticated and logout around a real sign-in', async ({ page }) => {
+  await login(page)
+  await page.getByRole('button', { name: '↗ 退出登录', exact: true }).click()
+  await expect(page.getByRole('heading', { name: '欢迎回来', exact: true })).toBeVisible()
+  const host = await hostPanel(page)
+  const log = host.locator('[data-event-log] li')
+  await expect(log.filter({ hasText: 'authenticated' }).first()).toContainText('demo@nova.example')
+  await expect(log.filter({ hasText: 'logout' }).first()).toBeVisible()
+})
+
+async function sceneGallery(page: Page) {
+  await page.getByRole('button', { name: '体验工具' }).click()
+  await page
+    .getByRole('dialog', { name: '体验工具', exact: true })
+    .getByRole('button', { name: '业务场景组合', exact: true })
+    .click()
+  await expect(page.getByRole('heading', { name: '字段形态' })).toBeVisible()
+}
+
+test('scene gallery: fields card and task list add, search and complete', async ({ page }) => {
+  await sceneGallery(page)
+  await expect(page.getByLabel('站点地址', { exact: true })).toBeVisible()
+  await expect(page.getByLabel('金额', { exact: true })).toBeVisible()
+  await page.getByLabel('新任务', { exact: true }).fill('写周报')
+  await page.getByRole('button', { name: '添加', exact: true }).click()
+  await expect(page.getByText('进行中 3 · 已完成 1')).toBeVisible()
+  await page.getByRole('checkbox', { name: '写周报' }).check()
+  await expect(page.getByText('进行中 2 · 已完成 2')).toBeVisible()
+  await page.getByLabel('搜索任务', { exact: true }).fill('周报')
+  await expect(page.getByText('核对发票')).toHaveCount(0)
+  await expect(page.getByText('整理周报提纲')).toBeVisible()
+})
+
+test('scene gallery: editor save, comment publish and simulated order payment', async ({
+  page,
+}) => {
+  await sceneGallery(page)
+  // Editor: fill, save and observe the memory-only status note.
+  await page.getByLabel('文章标题', { exact: true }).fill('接入笔记')
+  await page.getByLabel('正文', { exact: true }).fill('第一段内容。')
+  await page.getByRole('button', { name: '保存草稿', exact: true }).click()
+  await expect(page.getByRole('status')).toContainText('已保存《接入笔记》到内存')
+  // Comments: publish and see the newest-first synthetic thread grow.
+  await page.getByLabel('发表评论', { exact: true }).fill('很实用的组合演示')
+  await page.getByRole('button', { name: '发布', exact: true }).click()
+  await expect(page.getByText('4 条评论')).toBeVisible()
+  // Orders: filter, open the detail dialog and simulate payment.
+  await page.getByRole('button', { name: /待支付/ }).click()
+  await expect(page.getByText('NO-2026-0802')).toHaveCount(0)
+  await page.getByRole('button', { name: '查看订单 NO-2026-0817' }).click()
+  const dialog = page.getByRole('dialog', { name: '订单详情 NO-2026-0817' })
+  await expect(dialog).toBeVisible()
+  await expect(dialog.getByText('¥228.00')).toBeVisible()
+  await dialog.getByRole('button', { name: '模拟支付' }).click()
+  await expect(dialog.getByRole('status')).toContainText('状态已更新为“已发货”')
+  await dialog.getByRole('button', { name: '关闭', exact: true }).click()
+  await expect(dialog).toHaveCount(0)
+  // The only pending order has been paid: the pending filter is now empty.
+  await page.getByRole('button', { name: /待支付/ }).click()
+  await expect(page.getByText('该状态下暂无订单。')).toBeVisible()
+})
+
+test('avatar upload on the profile page and the #profile slot editor', async ({ page }) => {
+  await preview(page)
+  await page.locator('[data-page="profile"]').click()
+  const fileInput = page.locator('input[type="file"]')
+  // The demo adapter rejects non-images with an inline alert.
+  await fileInput.setInputFiles({
+    name: 'notes.txt',
+    mimeType: 'text/plain',
+    buffer: Buffer.from('hello'),
+  })
+  await expect(page.locator('main').getByRole('alert')).toContainText('仅支持图片文件')
+  // A valid image flows through uploadAvatar into the snapshot previews.
+  const png = Buffer.from(
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
+    'base64',
+  )
+  await fileInput.setInputFiles({ name: 'me.png', mimeType: 'image/png', buffer: png })
+  await expect(page.getByRole('img', { name: '当前头像' }).first()).toBeVisible()
+  await page.getByRole('button', { name: '移除头像' }).click()
+  await expect(page.getByRole('img', { name: '当前头像' })).toHaveCount(0)
+  // The #profile slot replaces the built-in page with the richer host editor.
+  const host = await hostPanel(page)
+  await host.getByRole('checkbox', { name: /资料页改用 #profile 插槽/ }).check()
+  await host.getByRole('button', { name: '关闭对话框' }).click()
+  await expect(page.getByLabel('展示昵称', { exact: true })).toBeVisible()
+  await page.getByLabel('联系电话', { exact: true }).fill('123')
+  await page.getByRole('button', { name: '保存资料' }).click()
+  await expect(page.getByText('手机号格式应为 1 开头的 11 位数字。')).toBeVisible()
+  await page.getByLabel('联系电话', { exact: true }).fill('13900000000')
+  await page.getByRole('button', { name: '保存资料' }).click()
+  await expect(page.getByText('核心资料已通过适配器保存')).toBeVisible()
+  await page.getByLabel('新标签名称', { exact: true }).fill('前端')
+  await page.getByRole('button', { name: '添加标签' }).click()
+  await expect(page.locator('.demo-scene-tag').filter({ hasText: '前端' })).toBeVisible()
+  await page.getByRole('button', { name: '移除标签 前端' }).click()
+  await expect(page.locator('.demo-scene-tag').filter({ hasText: '前端' })).toHaveCount(0)
+})
+
+test('header quick toggle switches light/dark anytime and preserves the accent', async ({
+  page,
+}) => {
+  const shell = page.locator('.nova-account').first()
+  await expect(shell).toHaveAttribute('data-theme', 'light')
+  await expect(shell).toHaveAttribute('data-accent', 'blue')
+  await page.getByRole('button', { name: '切换深色模式' }).click()
+  await expect(shell).toHaveAttribute('data-theme', 'dark')
+  await expect(shell).toHaveAttribute('data-accent', 'blue')
+  // The choice persists through the storage key and survives a reload.
+  await page.reload()
+  await expect(shell).toHaveAttribute('data-theme', 'dark')
+  await page.getByRole('button', { name: '切换浅色模式' }).click()
+  await expect(shell).toHaveAttribute('data-theme', 'light')
+  // The toggle stays reachable in the header while signed in.
+  await login(page)
+  await page.getByRole('button', { name: '切换深色模式' }).click()
+  await expect(shell).toHaveAttribute('data-theme', 'dark')
 })
 
 test('rate limiting rejects the second send with remaining seconds', async ({ page }) => {

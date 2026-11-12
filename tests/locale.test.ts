@@ -45,7 +45,7 @@ describe('per-root locale and time display', () => {
           h(NovaAccountCenter, {
             adapter: createDemoAccountAdapter({ wait: () => Promise.resolve() }),
           }),
-          h(NovaAppearance, { modelValue: { mode: 'light', accent: 'iris' } }),
+          h(NovaAppearance, { modelValue: { mode: 'light', accent: 'blue' } }),
         ],
       },
     })

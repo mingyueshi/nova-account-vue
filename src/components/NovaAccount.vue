@@ -62,6 +62,12 @@ const emit = defineEmits<{
 defineSlots<{
   brand?(): unknown
   footer?(): unknown
+  /** Replaces the built-in profile page; the host owns drafts and unsaved guards for it. */
+  profile?(props: {
+    snapshot: AccountSnapshot
+    adapter: AccountAdapter
+    refresh: () => Promise<AccountSnapshot | undefined>
+  }): unknown
   /** Replaces the auth card footer (default: simulated disclosure) with host content such as SSO buttons. */
   authFooter?(): unknown
   tools?(props: {
@@ -209,6 +215,9 @@ defineExpose({
             :model-value="theme.appearance"
             :storage-error="theme.storageError"
             @update:model-value="theme.setAppearance"
+        /></template>
+        <template v-if="$slots.profile" #profile="slotProps"
+          ><slot name="profile" v-bind="slotProps"
         /></template>
         <template v-if="$slots.security" #security="slotProps"
           ><slot name="security" v-bind="slotProps"

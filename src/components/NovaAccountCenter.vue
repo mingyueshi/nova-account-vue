@@ -5,6 +5,7 @@ import type {
   AccountAdapter,
   AccountPage,
   AccountSnapshot,
+  MutationContext,
   NotificationPreferences,
   Profile,
 } from '../types'
@@ -41,6 +42,12 @@ type SecurityValues = {
 }
 defineSlots<{
   appearance(): unknown
+  /** Replaces the built-in profile page; the host owns drafts and unsaved guards for it. */
+  profile(props: {
+    snapshot: AccountSnapshot
+    adapter: AccountAdapter
+    refresh: () => Promise<AccountSnapshot | undefined>
+  }): unknown
   security(props: {
     snapshot: AccountSnapshot
     adapter: AccountAdapter
@@ -233,6 +240,61 @@ async function saveProfile() {
     props.simulated ? t('profile.demoSaved') : t('profile.saved'),
   )
   if (result) syncDrafts()
+}
+/** Optional adapter capability: an avatar uploader appears in the profile page when present. */
+const canUploadAvatar = computed(() => typeof props.adapter.uploadAvatar === 'function')
+const avatarBusy = ref(false)
+const avatarError = ref('')
+let avatarController: AbortController | undefined
+async function uploadAvatar(dataUrl: string | null) {
+  if (!props.adapter.uploadAvatar || !snapshot.value) return
+  avatarController = new AbortController()
+  const context: MutationContext = {
+    signal: avatarController.signal,
+    requestId: `avatar-${Date.now()}`,
+    revision: snapshot.value.revision,
+  }
+  try {
+    const result = await props.adapter.uploadAvatar({ dataUrl }, context)
+    if (context.signal.aborted) return
+    snapshot.value = result
+    notice.value = props.simulated ? t('profile.avatarDemoSaved') : t('profile.avatarSaved')
+    avatarError.value = ''
+  } catch (cause) {
+    if (!context.signal.aborted)
+      avatarError.value = cause instanceof Error ? cause.message : t('common.error')
+  }
+}
+function onAvatarFile(event: Event) {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+  input.value = ''
+  if (!file || avatarBusy.value || !props.adapter.uploadAvatar) return
+  avatarBusy.value = true
+  avatarError.value = ''
+  const reader = new FileReader()
+  reader.onload = async () => {
+    try {
+      await uploadAvatar(String(reader.result))
+    } finally {
+      avatarBusy.value = false
+    }
+  }
+  reader.onerror = () => {
+    avatarBusy.value = false
+    avatarError.value = t('profile.avatarReadError')
+  }
+  reader.readAsDataURL(file)
+}
+async function removeAvatar() {
+  if (avatarBusy.value) return
+  avatarBusy.value = true
+  avatarError.value = ''
+  try {
+    await uploadAvatar(null)
+  } finally {
+    avatarBusy.value = false
+  }
 }
 async function saveNotifications() {
   if (!dirty.value) return
@@ -546,7 +608,14 @@ defineExpose({ refresh, fillSecurity })
         <template v-if="snapshot">
           <section v-if="page === 'overview'" class="na:space-y-6">
             <div :class="panel" class="na:flex na:flex-wrap na:items-center na:gap-5">
+              <img
+                v-if="snapshot.profile.avatarUrl"
+                :src="snapshot.profile.avatarUrl"
+                :alt="t('profile.avatarAlt')"
+                class="na:size-16 na:rounded-2xl na:border na:border-[var(--na-line)] na:object-cover"
+              />
               <div
+                v-else
                 class="na:flex na:size-16 na:items-center na:justify-center na:rounded-2xl na:bg-[var(--na-soft)] na:text-2xl na:text-[var(--na-brand)]"
                 aria-hidden="true"
               >
@@ -622,71 +691,110 @@ defineExpose({ refresh, fillSecurity })
             </section>
           </section>
 
-          <form
-            v-else-if="page === 'profile'"
-            class="na:max-w-3xl na:space-y-5"
-            @submit.prevent="saveProfile"
-          >
-            <section :class="panel" class="na:space-y-6">
-              <fieldset class="na:m-0 na:border-0 na:p-0" :disabled="busy">
-                <legend class="na:mb-3 na:text-sm na:font-medium">
-                  {{ t('profile.avatars') }}
-                </legend>
-                <div class="na:flex na:flex-wrap na:gap-3">
-                  <button
-                    v-for="avatar in avatarOptions"
-                    :key="avatar.id"
-                    type="button"
-                    :aria-label="avatar.label"
-                    :aria-pressed="profile.avatar === avatar.id"
-                    class="na:flex na:size-12 na:items-center na:justify-center na:rounded-2xl na:border-2 na:text-lg na:text-white"
-                    :class="
-                      profile.avatar === avatar.id
-                        ? 'na:border-[var(--na-ink)] na:ring-2 na:ring-[var(--na-surface)]'
-                        : 'na:border-transparent'
-                    "
-                    :style="{ backgroundColor: avatar.color }"
-                    @click="profile.avatar = avatar.id"
-                  >
-                    {{ profile.avatar === avatar.id ? '✓' : 'N' }}
-                  </button>
+          <div v-else-if="page === 'profile'" class="na:max-w-3xl">
+            <slot name="profile" :snapshot="snapshot" :adapter="adapter" :refresh="refresh">
+              <form class="na:space-y-5" @submit.prevent="saveProfile">
+                <section :class="panel" class="na:space-y-6">
+                  <fieldset class="na:m-0 na:border-0 na:p-0" :disabled="busy || avatarBusy">
+                    <legend class="na:mb-3 na:text-sm na:font-medium">
+                      {{ t('profile.avatars') }}
+                    </legend>
+                    <div class="na:flex na:flex-wrap na:items-center na:gap-4">
+                      <img
+                        v-if="snapshot.profile.avatarUrl"
+                        :src="snapshot.profile.avatarUrl"
+                        :alt="t('profile.avatarAlt')"
+                        class="na:size-12 na:rounded-2xl na:border na:border-[var(--na-line)] na:object-cover"
+                      />
+                      <div class="na:flex na:flex-wrap na:gap-3">
+                        <button
+                          v-for="avatar in avatarOptions"
+                          :key="avatar.id"
+                          type="button"
+                          :aria-label="avatar.label"
+                          :aria-pressed="profile.avatar === avatar.id"
+                          class="na:flex na:size-12 na:items-center na:justify-center na:rounded-2xl na:border-2 na:text-lg na:text-white"
+                          :class="
+                            profile.avatar === avatar.id
+                              ? 'na:border-[var(--na-ink)] na:ring-2 na:ring-[var(--na-surface)]'
+                              : 'na:border-transparent'
+                          "
+                          :style="{ backgroundColor: avatar.color }"
+                          @click="profile.avatar = avatar.id"
+                        >
+                          {{ profile.avatar === avatar.id ? '✓' : 'N' }}
+                        </button>
+                      </div>
+                    </div>
+                    <div
+                      v-if="canUploadAvatar"
+                      class="na:mt-4 na:flex na:flex-wrap na:items-center na:gap-3"
+                    >
+                      <label
+                        class="na:inline-flex na:cursor-pointer na:items-center na:gap-2 na:rounded-xl na:border na:border-[var(--na-line)] na:bg-[var(--na-surface)] na:px-4 na:py-2.5 na:text-sm na:font-medium na:hover:bg-[var(--na-soft)]"
+                      >
+                        <span aria-hidden="true">⬆</span
+                        >{{ avatarBusy ? t('profile.avatarUploading') : t('profile.avatarUpload') }}
+                        <input
+                          type="file"
+                          accept="image/*"
+                          class="na:sr-only"
+                          @change="onAvatarFile"
+                        />
+                      </label>
+                      <NovaButton
+                        v-if="snapshot.profile.avatarUrl"
+                        variant="ghost"
+                        :disabled="avatarBusy"
+                        @click="removeAvatar"
+                        >{{ t('profile.avatarRemove') }}</NovaButton
+                      >
+                    </div>
+                    <p
+                      v-if="avatarError"
+                      role="alert"
+                      class="na:mb-0 na:mt-3 na:text-xs na:text-[var(--na-error)]"
+                    >
+                      {{ avatarError }}
+                    </p>
+                  </fieldset>
+                  <NovaField
+                    v-model="profile.nickname"
+                    :label="t('profile.nickname')"
+                    :maxlength="24"
+                    autocomplete="nickname"
+                    :disabled="busy"
+                  />
+                  <p class="na:-mt-4 na:text-xs na:text-[var(--na-muted)]">
+                    {{ t('profile.count', { count: profile.nickname.length, max: 24 }) }}
+                  </p>
+                  <NovaField
+                    v-model="profile.bio"
+                    as="textarea"
+                    :label="t('profile.bio')"
+                    :maxlength="120"
+                    :rows="4"
+                    :disabled="busy"
+                    :hint="t('profile.count', { count: profile.bio.length, max: 120 })"
+                  />
+                  <p v-if="simulated" :class="muted" class="na:m-0">{{ t('profile.demo') }}</p>
+                </section>
+                <div class="na:flex na:flex-wrap na:items-center na:justify-between na:gap-4">
+                  <p role="status" class="na:m-0 na:text-xs na:text-[var(--na-muted)]">
+                    {{ dirty ? t('profile.dirty') : t('profile.clean') }}
+                  </p>
+                  <div class="na:flex na:gap-3">
+                    <NovaButton variant="secondary" @click="discardDraft">{{
+                      t('common.cancel')
+                    }}</NovaButton
+                    ><NovaButton variant="primary" type="submit" :disabled="!dirty || busy">{{
+                      busy ? t('common.saving') : t('profile.save')
+                    }}</NovaButton>
+                  </div>
                 </div>
-              </fieldset>
-              <NovaField
-                v-model="profile.nickname"
-                :label="t('profile.nickname')"
-                :maxlength="24"
-                autocomplete="nickname"
-                :disabled="busy"
-              />
-              <p class="na:-mt-4 na:text-xs na:text-[var(--na-muted)]">
-                {{ t('profile.count', { count: profile.nickname.length, max: 24 }) }}
-              </p>
-              <NovaField
-                v-model="profile.bio"
-                as="textarea"
-                :label="t('profile.bio')"
-                :maxlength="120"
-                :rows="4"
-                :disabled="busy"
-                :hint="t('profile.count', { count: profile.bio.length, max: 120 })"
-              />
-              <p v-if="simulated" :class="muted" class="na:m-0">{{ t('profile.demo') }}</p>
-            </section>
-            <div class="na:flex na:flex-wrap na:items-center na:justify-between na:gap-4">
-              <p role="status" class="na:m-0 na:text-xs na:text-[var(--na-muted)]">
-                {{ dirty ? t('profile.dirty') : t('profile.clean') }}
-              </p>
-              <div class="na:flex na:gap-3">
-                <NovaButton variant="secondary" @click="discardDraft">{{
-                  t('common.cancel')
-                }}</NovaButton
-                ><NovaButton variant="primary" type="submit" :disabled="!dirty || busy">{{
-                  busy ? t('common.saving') : t('profile.save')
-                }}</NovaButton>
-              </div>
-            </div>
-          </form>
+              </form>
+            </slot>
+          </div>
 
           <section v-else-if="page === 'security'" class="na:space-y-6">
             <slot name="security" :snapshot="snapshot" :adapter="adapter" :refresh="refresh">

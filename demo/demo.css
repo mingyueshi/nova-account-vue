@@ -100,6 +100,52 @@ body,
   border-color: var(--na-brand);
   color: var(--na-brand);
 }
+/* Grouped sections inside the host integration panel. */
+.demo-group-title {
+  margin: 0;
+  padding-top: 12px;
+  border-top: 1px dashed var(--na-line);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--na-ink);
+}
+.demo-stack > .demo-group-title:first-child {
+  padding-top: 0;
+  border-top: 0;
+}
+/* Inline checkbox labels used inside demo-grid groups. */
+label.demo-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 36px;
+  font-size: 13px;
+}
+.demo-affix {
+  color: var(--na-muted);
+  font-size: 13px;
+  white-space: nowrap;
+}
+/* Unified typed-event log, newest first. */
+.demo-eventlog {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 12px;
+}
+.demo-eventlog li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px;
+}
+.demo-event-time {
+  color: var(--na-muted);
+  font-variant-numeric: tabular-nums;
+}
 /* Demo-level status banners and slot showcase chrome. The banner sits on the
    host page background, outside the themed component root. */
 .demo-banner {
@@ -179,4 +225,10 @@ body,
   grid-template-columns: minmax(0, 1fr);
   min-width: 0;
   gap: 16px;
+}
+/* Header quick theme toggle: hide the redundant text on very narrow widths. */
+@media (max-width: 420px) {
+  .demo-toggle-label {
+    display: none;
+  }
 }

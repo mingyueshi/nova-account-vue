@@ -83,3 +83,90 @@ describe('demo host integration', () => {
     )
   })
 })
+
+describe('demo capability switches', () => {
+  it('username identifier, trimmed modes and pages reshape both forms', async () => {
+    const wrapper = create()
+    const host = await hostPanel(wrapper)
+    const identifierLabel = host
+      .findAll('label')
+      .find((item) => item.text().includes('账号字段 identifier'))!
+    await identifierLabel.get('select').setValue('username')
+    const modesGroup = host.get('[aria-label="登录方式裁剪"]')
+    await modesGroup
+      .findAll('label')
+      .find((item) => item.text().includes('密码登录'))!
+      .get('input[type="checkbox"]')
+      .setValue(false)
+    const pagesGroup = host.get('[aria-label="账户页裁剪"]')
+    await pagesGroup
+      .findAll('label')
+      .find((item) => item.text().includes('登录设备'))!
+      .get('input[type="checkbox"]')
+      .setValue(false)
+    await flushPromises()
+    // Auth form falls back to the first allowed mode and collects a username.
+    const main = wrapper.get('main')
+    // A single remaining login mode hides the tablist entirely.
+    expect(main.findAll('[role="tab"]')).toHaveLength(0)
+    expect(main.text()).toContain('获取验证码')
+    expect(main.text()).not.toContain('密码登录')
+    expect(wrapper.find('input[autocomplete="username"]').exists()).toBe(true)
+    await button(wrapper, '体验工具 ↗').trigger('click')
+    await button(wrapper, '一键填入示例').trigger('click')
+    expect((wrapper.get('input[autocomplete="username"]').element as HTMLInputElement).value).toBe(
+      'demo',
+    )
+    // Preview renders the account center without the removed page.
+    await button(wrapper, '体验工具 ↗').trigger('click')
+    await button(wrapper, '用户中心预览').trigger('click')
+    await vi.advanceTimersByTimeAsync(400)
+    await flushPromises()
+    const pageIds = wrapper.findAll('[data-page]').map((tab) => tab.attributes('data-page'))
+    expect(pageIds).not.toContain('devices')
+    expect(pageIds).toContain('profile')
+  })
+
+  it('initialUser remounts the shell into a signed-in account center and logs the event', async () => {
+    const wrapper = create()
+    await hostPanel(wrapper)
+    await button(wrapper, '以已验证会话进入（重挂载外壳）').trigger('click')
+    await vi.advanceTimersByTimeAsync(400)
+    await flushPromises()
+    expect(wrapper.get('h1').text()).toBe('账户概览')
+    const host = await hostPanel(wrapper)
+    const entry = host
+      .findAll('[data-event-log] li')
+      .find((item) => item.text().includes('initialUser'))
+    expect(entry?.text()).toContain('账户中心')
+  })
+
+  it('unified event log records pageChange for internal navigation', async () => {
+    const wrapper = create()
+    await button(wrapper, '体验工具 ↗').trigger('click')
+    await button(wrapper, '用户中心预览').trigger('click')
+    await vi.advanceTimersByTimeAsync(400)
+    await flushPromises()
+    await wrapper.get('[data-page="profile"]').trigger('click')
+    await flushPromises()
+    const host = await hostPanel(wrapper)
+    const entry = host
+      .findAll('[data-event-log] li')
+      .find((item) => item.text().includes('pageChange'))
+    expect(entry?.text()).toContain('个人资料')
+  })
+
+  it('messages override and brand prop reshape the auth card and header', async () => {
+    const wrapper = create()
+    const host = await hostPanel(wrapper)
+    const messagesLabel = host
+      .findAll('label')
+      .find((item) => item.text().includes('注入 messages'))!
+    await messagesLabel.get('input[type="checkbox"]').setValue(true)
+    const brandLabel = host.findAll('label').find((item) => item.text().includes('品牌名'))!
+    await brandLabel.get('input').setValue('Acme')
+    expect(wrapper.find('main').text()).toContain('登录你的 Nova 演示账户')
+    expect(wrapper.findAll('button').some((item) => item.text() === '进入演示')).toBe(true)
+    expect(wrapper.find('header').text()).toContain('Acme.')
+  })
+})

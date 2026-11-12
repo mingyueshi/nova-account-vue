@@ -3,7 +3,12 @@
 @import 'tailwindcss/utilities.css' layer(utilities) prefix(na) source(none);
 @source "../components";
 
-/* Component-scoped foundation, intentionally no Tailwind Preflight or document reset. */
+/* Component-scoped foundation, intentionally no Tailwind Preflight or document reset.
+   The 25 accents mirror the django-nova-admin palette scheme one-to-one ('blue' is the
+   admin default scheme). Light keeps neutral surfaces with a brand-only swap; dark
+   switches the whole tinted surface set per accent, like the admin preview does.
+   Deviations forced by the 4.5:1 contrast gates: blue dark soft #193454 -> #142842
+   (muted text sits on soft containers in this library), blue dark control derived. */
 .nova-account {
   --na-canvas: #f9f9fb;
   --na-surface: #fff;
@@ -12,8 +17,8 @@
   --na-line: #e4ddea;
   --na-control: #9d8eac;
   --na-error: #ae4554;
-  --na-brand: #6958c5;
-  --na-soft: #f0edf9;
+  --na-brand: #1d4ed8;
+  --na-soft: #eef3fb;
   --na-on-brand: #fff;
   --na-sidebar: #f3f1f7;
   --na-backdrop: #25203166;
@@ -32,44 +37,396 @@
   text-align: left;
 }
 .nova-account[data-theme='dark'] {
-  --na-canvas: #14131b;
-  --na-surface: #1c1a25;
-  --na-ink: #f0edf8;
-  --na-muted: #b4aabd;
-  --na-line: #3c364a;
-  --na-control: #756782;
+  --na-canvas: #0c101a;
+  --na-surface: #151b28;
+  --na-ink: #eef0f6;
+  --na-muted: #8590a8;
+  --na-line: #273043;
+  --na-control: #566075;
   --na-error: #f3a5b6;
-  --na-sidebar: #181621;
+  --na-sidebar: #101520;
   --na-backdrop: #08070bbb;
-  --na-brand: #b5a6ff;
-  --na-soft: #302940;
+  --na-brand: #93c5fd;
+  --na-soft: #142842;
   --na-on-brand: #181520;
   color-scheme: dark;
 }
-.nova-account[data-accent='blue'] {
-  --na-brand: #346bbd;
-  --na-soft: #edf2fb;
-}
 .nova-account[data-accent='teal'] {
-  --na-brand: #217560;
-  --na-soft: #eaf4f0;
+  --na-brand: #0f766e;
+  --na-soft: #f0fdfa;
+}
+.nova-account[data-accent='indigo'] {
+  --na-brand: #4338ca;
+  --na-soft: #f7f8ff;
+}
+.nova-account[data-accent='violet'] {
+  --na-brand: #6d28d9;
+  --na-soft: #faf8ff;
+}
+.nova-account[data-accent='terracotta'] {
+  --na-brand: #9a3412;
+  --na-soft: #fff7ed;
+}
+.nova-account[data-accent='graphite'] {
+  --na-brand: #3f3f46;
+  --na-soft: #f4f4f5;
+}
+.nova-account[data-accent='midnight'] {
+  --na-brand: #1e40af;
+  --na-soft: #eff6ff;
+}
+.nova-account[data-accent='forest'] {
+  --na-brand: #24613b;
+  --na-soft: #f0f8ef;
 }
 .nova-account[data-accent='amber'] {
-  --na-brand: #956100;
-  --na-soft: #fbf1df;
+  --na-brand: #8a4b0f;
+  --na-soft: #fff7e8;
 }
-.nova-account[data-theme='dark'][data-accent='blue'] {
-  --na-brand: #a0c2ff;
-  --na-soft: #233249;
+.nova-account[data-accent='ocean'] {
+  --na-brand: #0e647c;
+  --na-soft: #f0fafc;
+}
+.nova-account[data-accent='slate'] {
+  --na-brand: #475569;
+  --na-soft: #f8fafc;
+}
+.nova-account[data-accent='plum'] {
+  --na-brand: #803e73;
+  --na-soft: #fcf5fa;
+}
+.nova-account[data-accent='coffee'] {
+  --na-brand: #73513e;
+  --na-soft: #faf6f1;
+}
+.nova-account[data-accent='glacier'] {
+  --na-brand: #245aa8;
+  --na-soft: #f2f7fd;
+}
+.nova-account[data-accent='rose'] {
+  --na-brand: #9b3658;
+  --na-soft: #fff5f8;
+}
+.nova-account[data-accent='olive'] {
+  --na-brand: #536722;
+  --na-soft: #f7faef;
+}
+.nova-account[data-accent='ink'] {
+  --na-brand: #465064;
+  --na-soft: #f6f7fa;
+}
+.nova-account[data-accent='cinnabar'] {
+  --na-brand: #b4342b;
+  --na-soft: #fef4f2;
+}
+.nova-account[data-accent='gilded'] {
+  --na-brand: #8f5c06;
+  --na-soft: #fdf8e9;
+}
+.nova-account[data-accent='emerald'] {
+  --na-brand: #047857;
+  --na-soft: #f0fbf5;
+}
+.nova-account[data-accent='peacock'] {
+  --na-brand: #0c6da3;
+  --na-soft: #f0f8fd;
+}
+.nova-account[data-accent='sunset'] {
+  --na-brand: #ab2f6f;
+  --na-soft: #fdf2f9;
+}
+.nova-account[data-accent='industrial'] {
+  --na-brand: #b03a0a;
+  --na-soft: #fff4ea;
+}
+.nova-account[data-accent='lilac'] {
+  --na-brand: #a1359e;
+  --na-soft: #fbf2fa;
+}
+.nova-account[data-accent='terminal'] {
+  --na-brand: #1f7a33;
+  --na-soft: #f0fbf1;
+}
+.nova-account[data-accent='parchment'] {
+  --na-brand: #7c5f33;
+  --na-soft: #faf6ea;
 }
 .nova-account[data-theme='dark'][data-accent='teal'] {
-  --na-brand: #82d7be;
-  --na-soft: #1e3733;
+  --na-brand: #5eead4;
+  --na-soft: #123b38;
+  --na-canvas: #06201e;
+  --na-sidebar: #0a2926;
+  --na-surface: #0e3230;
+  --na-ink: #e9fffa;
+  --na-muted: #a2cbc4;
+  --na-line: #2b534d;
+  --na-control: #6f9d95;
+}
+.nova-account[data-theme='dark'][data-accent='indigo'] {
+  --na-brand: #a5b4fc;
+  --na-soft: #282e54;
+  --na-canvas: #141144;
+  --na-sidebar: #1b184f;
+  --na-surface: #231f5b;
+  --na-ink: #f1efff;
+  --na-muted: #b8b4e2;
+  --na-line: #453f8a;
+  --na-control: #8d86cb;
+}
+.nova-account[data-theme='dark'][data-accent='violet'] {
+  --na-brand: #c4b5fd;
+  --na-soft: #34254f;
+  --na-canvas: #170f2d;
+  --na-sidebar: #1e1538;
+  --na-surface: #271c45;
+  --na-ink: #f7f2ff;
+  --na-muted: #c4b3de;
+  --na-line: #473663;
+  --na-control: #8e79ae;
+}
+.nova-account[data-theme='dark'][data-accent='terracotta'] {
+  --na-brand: #fdba74;
+  --na-soft: #483024;
+  --na-canvas: #230f08;
+  --na-sidebar: #2b150c;
+  --na-surface: #351c11;
+  --na-ink: #fff3ea;
+  --na-muted: #d4b19b;
+  --na-line: #5f3c26;
+  --na-control: #a8805f;
+}
+.nova-account[data-theme='dark'][data-accent='graphite'] {
+  --na-brand: #d4d4d8;
+  --na-soft: #303036;
+  --na-canvas: #111113;
+  --na-sidebar: #18181b;
+  --na-surface: #1f1f23;
+  --na-ink: #f4f4f5;
+  --na-muted: #b4b4bd;
+  --na-line: #393940;
+  --na-control: #777780;
+}
+.nova-account[data-theme='dark'][data-accent='midnight'] {
+  --na-brand: #b5b8ff;
+  --na-soft: #34376c;
+  --na-canvas: #10102b;
+  --na-sidebar: #16163a;
+  --na-surface: #1c1d46;
+  --na-ink: #f0f0ff;
+  --na-muted: #b2b7df;
+  --na-line: #393e70;
+  --na-control: #858dc4;
+}
+.nova-account[data-theme='dark'][data-accent='forest'] {
+  --na-brand: #a6e3b1;
+  --na-soft: #274c35;
+  --na-canvas: #0b1d14;
+  --na-sidebar: #11271b;
+  --na-surface: #193526;
+  --na-ink: #ecfff0;
+  --na-muted: #b0d0ba;
+  --na-line: #3b5c48;
+  --na-control: #789e81;
 }
 .nova-account[data-theme='dark'][data-accent='amber'] {
-  --na-brand: #f2c274;
-  --na-soft: #3d3020;
+  --na-brand: #f7c77f;
+  --na-soft: #4c3820;
+  --na-canvas: #23180d;
+  --na-sidebar: #2b1f12;
+  --na-surface: #342719;
+  --na-ink: #fff4e2;
+  --na-muted: #d4b99a;
+  --na-line: #59482f;
+  --na-control: #a48a64;
 }
+.nova-account[data-theme='dark'][data-accent='ocean'] {
+  --na-brand: #7dd3e8;
+  --na-soft: #164553;
+  --na-canvas: #081c26;
+  --na-sidebar: #0e2733;
+  --na-surface: #14323f;
+  --na-ink: #edfaff;
+  --na-muted: #accbd5;
+  --na-line: #315564;
+  --na-control: #749eae;
+}
+.nova-account[data-theme='dark'][data-accent='slate'] {
+  --na-brand: #cbd5e1;
+  --na-soft: #334155;
+  --na-canvas: #151b24;
+  --na-sidebar: #1c2430;
+  --na-surface: #232e3c;
+  --na-ink: #f1f5f9;
+  --na-muted: #b6c4d6;
+  --na-line: #435266;
+  --na-control: #8193aa;
+}
+.nova-account[data-theme='dark'][data-accent='plum'] {
+  --na-brand: #e4b7dc;
+  --na-soft: #4b2d49;
+  --na-canvas: #201421;
+  --na-sidebar: #291c2b;
+  --na-surface: #342437;
+  --na-ink: #fff1fc;
+  --na-muted: #d2b6cf;
+  --na-line: #5b405e;
+  --na-control: #a483a5;
+}
+.nova-account[data-theme='dark'][data-accent='coffee'] {
+  --na-brand: #dfc3a8;
+  --na-soft: #493b30;
+  --na-canvas: #1c1714;
+  --na-sidebar: #251f1b;
+  --na-surface: #302822;
+  --na-ink: #faf3eb;
+  --na-muted: #cbbcaf;
+  --na-line: #55483e;
+  --na-control: #a18e7e;
+}
+.nova-account[data-theme='dark'][data-accent='glacier'] {
+  --na-brand: #a7cdf7;
+  --na-soft: #29415f;
+  --na-canvas: #101c2b;
+  --na-sidebar: #152539;
+  --na-surface: #1d3047;
+  --na-ink: #f0f7ff;
+  --na-muted: #b7c9df;
+  --na-line: #3f5870;
+  --na-control: #819fbe;
+}
+.nova-account[data-theme='dark'][data-accent='rose'] {
+  --na-brand: #f4b5cb;
+  --na-soft: #542b3e;
+  --na-canvas: #25121b;
+  --na-sidebar: #2e1923;
+  --na-surface: #3a2430;
+  --na-ink: #fff1f6;
+  --na-muted: #dbb6c7;
+  --na-line: #634152;
+  --na-control: #b4839b;
+}
+.nova-account[data-theme='dark'][data-accent='olive'] {
+  --na-brand: #c9db96;
+  --na-soft: #3d4825;
+  --na-canvas: #191e10;
+  --na-sidebar: #222918;
+  --na-surface: #2c3520;
+  --na-ink: #f4f8e9;
+  --na-muted: #c1ccaa;
+  --na-line: #4b5837;
+  --na-control: #91a573;
+}
+.nova-account[data-theme='dark'][data-accent='ink'] {
+  --na-brand: #bdc7dc;
+  --na-soft: #293142;
+  --na-canvas: #080a10;
+  --na-sidebar: #0e121b;
+  --na-surface: #151b27;
+  --na-ink: #edf0f7;
+  --na-muted: #abb6cc;
+  --na-line: #303c50;
+  --na-control: #7587a4;
+}
+.nova-account[data-theme='dark'][data-accent='cinnabar'] {
+  --na-brand: #f9a694;
+  --na-soft: #4a2420;
+  --na-canvas: #220d0a;
+  --na-sidebar: #2a130f;
+  --na-surface: #331a14;
+  --na-ink: #fff1ec;
+  --na-muted: #d3ada2;
+  --na-line: #5c392e;
+  --na-control: #a87c6c;
+}
+.nova-account[data-theme='dark'][data-accent='gilded'] {
+  --na-brand: #f5d989;
+  --na-soft: #453a17;
+  --na-canvas: #1f1806;
+  --na-sidebar: #272009;
+  --na-surface: #2f280d;
+  --na-ink: #fff6dd;
+  --na-muted: #cfc09a;
+  --na-line: #54481f;
+  --na-control: #a08c5a;
+}
+.nova-account[data-theme='dark'][data-accent='emerald'] {
+  --na-brand: #6ee7b7;
+  --na-soft: #1d4433;
+  --na-canvas: #082313;
+  --na-sidebar: #0e2c19;
+  --na-surface: #143722;
+  --na-ink: #eafff0;
+  --na-muted: #a5ccb2;
+  --na-line: #2e5539;
+  --na-control: #6f9d7e;
+}
+.nova-account[data-theme='dark'][data-accent='peacock'] {
+  --na-brand: #82c7f0;
+  --na-soft: #1f3f5e;
+  --na-canvas: #091a2b;
+  --na-sidebar: #0e2337;
+  --na-surface: #142d44;
+  --na-ink: #eaf5ff;
+  --na-muted: #adc9dd;
+  --na-line: #2c4d68;
+  --na-control: #719cb8;
+}
+.nova-account[data-theme='dark'][data-accent='sunset'] {
+  --na-brand: #f2a9d8;
+  --na-soft: #4d2545;
+  --na-canvas: #230f1e;
+  --na-sidebar: #2b1425;
+  --na-surface: #351a2d;
+  --na-ink: #fff0f8;
+  --na-muted: #d4aec7;
+  --na-line: #5e3850;
+  --na-control: #a97f97;
+}
+.nova-account[data-theme='dark'][data-accent='industrial'] {
+  --na-brand: #ff9d5c;
+  --na-soft: #4b3222;
+  --na-canvas: #131720;
+  --na-sidebar: #181d28;
+  --na-surface: #1e2430;
+  --na-ink: #f2f5f8;
+  --na-muted: #b0bccb;
+  --na-line: #363f4d;
+  --na-control: #748296;
+}
+.nova-account[data-theme='dark'][data-accent='lilac'] {
+  --na-brand: #e3a8e0;
+  --na-soft: #46264a;
+  --na-canvas: #221129;
+  --na-sidebar: #291831;
+  --na-surface: #311f3c;
+  --na-ink: #f9f0ff;
+  --na-muted: #c7aed6;
+  --na-line: #463260;
+  --na-control: #9678ab;
+}
+.nova-account[data-theme='dark'][data-accent='terminal'] {
+  --na-brand: #6df07a;
+  --na-soft: #1d4526;
+  --na-canvas: #0a120c;
+  --na-sidebar: #0f1a11;
+  --na-surface: #142317;
+  --na-ink: #eaffec;
+  --na-muted: #a3c4a9;
+  --na-line: #28422d;
+  --na-control: #679870;
+}
+.nova-account[data-theme='dark'][data-accent='parchment'] {
+  --na-brand: #e6cfa0;
+  --na-soft: #43391f;
+  --na-canvas: #1e1a10;
+  --na-sidebar: #251f14;
+  --na-surface: #2c2519;
+  --na-ink: #f8f2e0;
+  --na-muted: #c6b896;
+  --na-line: #4c4227;
+  --na-control: #93835a;
+}
+
 @layer nova-base {
   .nova-account :where(*, *::before, *::after) {
     box-sizing: border-box;

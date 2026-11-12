@@ -82,7 +82,7 @@ describe('SSR without browser globals', () => {
       createSSRApp({ render: () => h(surface, { label: 'second' }) }),
     )
     expect(first).toContain('first@example.test:dark:teal')
-    expect(second).toContain('second@example.test:light:iris')
+    expect(second).toContain('second@example.test:light:blue')
     expect(captured[0]).not.toBe(captured[1])
     expect(captured[0]!.fields).not.toBe(captured[1]!.fields)
     expect(themes[0]!.appearance.value).not.toBe(themes[1]!.appearance.value)

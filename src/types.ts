@@ -1,6 +1,33 @@
 /** Presentation contracts. Authorization and credential verification belong to the server. */
 export type ThemeMode = 'light' | 'dark' | 'system'
-export type Accent = 'iris' | 'blue' | 'teal' | 'amber'
+/** The 26 accents mirror the django-nova-admin palette scheme one-to-one ('blue' is the admin default scheme). */
+export type Accent =
+  | 'blue'
+  | 'teal'
+  | 'indigo'
+  | 'violet'
+  | 'terracotta'
+  | 'graphite'
+  | 'midnight'
+  | 'forest'
+  | 'amber'
+  | 'ocean'
+  | 'slate'
+  | 'plum'
+  | 'coffee'
+  | 'glacier'
+  | 'rose'
+  | 'olive'
+  | 'ink'
+  | 'cinnabar'
+  | 'gilded'
+  | 'emerald'
+  | 'peacock'
+  | 'sunset'
+  | 'industrial'
+  | 'lilac'
+  | 'terminal'
+  | 'parchment'
 export interface Appearance {
   mode: ThemeMode
   accent: Accent
@@ -78,6 +105,8 @@ export interface Profile {
   nickname: string
   bio: string
   avatar: 'iris' | 'teal' | 'sun' | 'graphite'
+  /** Server-issued avatar image URL or data URL; absent/empty renders the color chip. */
+  avatarUrl?: string
 }
 export interface NotificationPreferences {
   product: boolean
@@ -147,6 +176,13 @@ export interface AccountAdapter {
   /** Two-step is an adapter workflow hook, not a TOTP implementation. Production should replace the security slot. */
   setTwoStep(
     input: { enabled: boolean; currentPassword: string; code: string },
+    context: MutationContext,
+  ): Promise<AccountSnapshot>
+  /** Optional capability: when present, the built-in profile page renders an avatar uploader.
+   *  `null` clears the avatar. The component converts the picked file to a data URL; server-side
+   *  type/size validation and storage remain authoritative. */
+  uploadAvatar?(
+    input: { dataUrl: string | null },
     context: MutationContext,
   ): Promise<AccountSnapshot>
 }

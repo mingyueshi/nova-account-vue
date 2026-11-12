@@ -24,7 +24,7 @@ const adapter: AuthAdapter = {
   resetPassword: notConfigured,
   logout: notConfigured,
 }
-const appearance = ref<Appearance>({ mode: 'light', accent: 'iris' })
+const appearance = ref<Appearance>({ mode: 'light', accent: 'blue' })
 </script>
 
 <template>

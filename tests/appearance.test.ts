@@ -12,7 +12,7 @@ afterEach(() => {
 })
 describe('strict appearance and instance-scoped theme', () => {
   it('controlled v-model updates are silent and user changes emit exactly once', async () => {
-    const value = ref<Appearance>({ mode: 'light', accent: 'iris' })
+    const value = ref<Appearance>({ mode: 'light', accent: 'blue' })
     const updates = vi.fn((next: Appearance) => {
       value.value = next
     })
@@ -47,9 +47,9 @@ describe('strict appearance and instance-scoped theme', () => {
     wrapper.unmount()
   })
   it('accepts exactly two valid fields only', () => {
-    expect(parseAppearance({ mode: 'system', accent: 'iris' })).toEqual({
+    expect(parseAppearance({ mode: 'system', accent: 'blue' })).toEqual({
       mode: 'system',
-      accent: 'iris',
+      accent: 'blue',
     })
     for (const value of [
       null,
@@ -57,8 +57,8 @@ describe('strict appearance and instance-scoped theme', () => {
       {},
       { mode: 'system' },
       { mode: 'light', accent: 'red' },
-      { mode: 'unknown', accent: 'iris' },
-      { mode: 'light', accent: 'iris', email: 'secret' },
+      { mode: 'unknown', accent: 'blue' },
+      { mode: 'light', accent: 'blue', email: 'secret' },
     ])
       expect(parseAppearance(value)).toBeNull()
   })
@@ -69,7 +69,7 @@ describe('strict appearance and instance-scoped theme', () => {
     expect(two.attributes('data-theme')).toBe('light')
     await one.setProps({ modelValue: { mode: 'light', accent: 'amber' } })
     expect(one.attributes('data-accent')).toBe('amber')
-    expect(two.attributes('data-accent')).toBe('iris')
+    expect(two.attributes('data-accent')).toBe('blue')
     expect(document.documentElement.hasAttribute('data-theme')).toBe(false)
     expect(localStorage.length).toBe(0)
     one.unmount()
@@ -90,12 +90,12 @@ describe('strict appearance and instance-scoped theme', () => {
       mode: 'dark',
       accent: 'teal',
     })
-    theme.setAppearance({ mode: 'light', accent: 'iris', password: 'not-stored' } as Appearance)
+    theme.setAppearance({ mode: 'light', accent: 'blue', password: 'not-stored' } as Appearance)
     expect(localStorage.getItem('test-theme')).not.toContain('password')
     wrapper.unmount()
   })
   it('rejects malformed persisted data and tolerates denied storage', () => {
-    localStorage.setItem('test-theme', '{"mode":"dark","accent":"iris","password":"no"}')
+    localStorage.setItem('test-theme', '{"mode":"dark","accent":"blue","password":"no"}')
     const wrapper = mount(NovaTheme, { props: { storageKey: 'test-theme' } })
     expect(wrapper.attributes('data-theme')).toBe('light')
     wrapper.unmount()
@@ -112,7 +112,7 @@ describe('strict appearance and instance-scoped theme', () => {
       }),
     )
     expect(theme.storageError.value).toContain('无法保存')
-    theme.setAppearance({ mode: 'dark', accent: 'iris' })
+    theme.setAppearance({ mode: 'dark', accent: 'blue' })
     expect(theme.appearance.value.mode).toBe('dark')
     host.unmount()
   })
@@ -133,7 +133,7 @@ describe('strict appearance and instance-scoped theme', () => {
     const wrapper = mount(
       defineComponent({
         setup() {
-          theme = useAppearance({ initial: { mode: 'system', accent: 'iris' } })
+          theme = useAppearance({ initial: { mode: 'system', accent: 'blue' } })
           return () => h('div')
         },
       }),
@@ -148,16 +148,17 @@ describe('strict appearance and instance-scoped theme', () => {
   })
   it('all modes and named accents expose native radio state and emit typed selections', async () => {
     const wrapper = mount(NovaAppearance, {
-      props: { modelValue: { mode: 'light', accent: 'iris' } },
+      props: { modelValue: { mode: 'light', accent: 'blue' } },
     })
     expect(
       wrapper
         .findAll('input[type="radio"]')
         .filter((input) => (input.element as HTMLInputElement).checked),
     ).toHaveLength(2)
-    const blue = wrapper.get('input[value="blue"]')
-    await blue.setValue(true)
-    expect(wrapper.emitted('update:modelValue')?.[0]).toEqual([{ mode: 'light', accent: 'blue' }])
+    // A radio that is already checked fires no change event; pick a different accent.
+    const teal = wrapper.get('input[value="teal"]')
+    await teal.setValue(true)
+    expect(wrapper.emitted('update:modelValue')?.[0]).toEqual([{ mode: 'light', accent: 'teal' }])
     wrapper.unmount()
   })
 })

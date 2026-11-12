@@ -17,9 +17,13 @@ import type {
   AccountSnapshot,
   Appearance,
   AuthAdapter,
+  AuthMode,
+  AuthResult,
   NovaAdapter,
   NovaLocale,
+  NovaMessages,
   PasswordStrength,
+  SessionUser,
 } from '../src'
 import {
   createDemoAuthAdapter,
@@ -28,20 +32,27 @@ import {
   demoUser,
   DEMO_EMAIL,
   DEMO_PASSWORD,
+  DEMO_USERNAME,
 } from './auth'
 import { createDemoAccountAdapter, DEMO_ACCOUNT_VALUES } from './account'
+import SceneGallery from './SceneGallery.vue'
+import ProfileSlotEditor from './ProfileSlotEditor.vue'
 import './demo.css'
 const settings = reactive(defaultSettings())
 const signedIn = ref(false)
 const locale = ref<NovaLocale>('zh-CN')
 const timeZone = ref('Asia/Shanghai')
 const toolsOpen = ref(false)
-const panel = ref<'tools' | 'appearance' | 'settings' | 'host' | 'about'>('tools')
+const panel = ref<'tools' | 'appearance' | 'settings' | 'host' | 'components' | 'about'>('tools')
 const layout = ref<'full' | 'embedded'>('full')
 const strengthOn = ref(false)
 const customSecurity = ref(false)
+const customProfile = ref(false)
+const scenesOn = ref(false)
+watch(scenesOn, (visible) => {
+  if (visible) toolsOpen.value = false
+})
 const page = ref<AccountPage>('overview')
-const pageLog = ref<string[]>([])
 const pageLabels: Record<AccountPage, string> = {
   overview: '账户概览',
   profile: '个人资料',
@@ -68,6 +79,67 @@ watch(multiInstance, (visible) => {
   if (visible) toolsOpen.value = false
 })
 const viewportWidth = ref<'off' | '390' | '320'>('off')
+// --- 能力开关：库已有、此前未演示的宿主配置 ---
+const identifier = ref<'email' | 'username'>('email')
+const modeItems: AuthMode[] = ['password', 'code', 'register', 'reset']
+const modeLabels: Record<AuthMode, string> = {
+  password: '密码登录',
+  code: '验证码登录',
+  register: '注册',
+  reset: '重置密码',
+}
+const modesOn = reactive(
+  Object.fromEntries(modeItems.map((mode) => [mode, true])) as Record<AuthMode, boolean>,
+)
+const enabledModes = computed<AuthMode[]>(() => modeItems.filter((mode) => modesOn[mode]))
+const pagesOn = reactive(
+  Object.fromEntries(pages.map(([key]) => [key, true])) as Record<AccountPage, boolean>,
+)
+const enabledPages = computed<AccountPage[]>(() =>
+  pages.filter(([key]) => pagesOn[key]).map(([key]) => key),
+)
+const twoStepOn = ref(true)
+const sessionUser = ref<SessionUser | null>(null)
+const shellKey = ref(0)
+const messagesOn = ref(false)
+const demoMessages = {
+  'auth.welcome': '登录你的 Nova 演示账户',
+  'auth.login': '进入演示',
+} satisfies Partial<NovaMessages>
+const brandName = ref('nova')
+const controlledAppearanceOn = ref(false)
+const controlledAppearance = ref<Appearance>({ mode: 'light', accent: 'blue' })
+const storageChoice = ref<'nova-appearance-v1' | 'off'>('nova-appearance-v1')
+const storageKey = computed(() => (storageChoice.value === 'off' ? false : 'nova-appearance-v1'))
+// 基础组件形态面板的字段值，仅本页内存。
+const gallery = reactive({ site: '', bio: '', locked: '预填充内容', bad: '' })
+// --- 统一事件日志 ---
+interface DemoEventEntry {
+  time: string
+  name: string
+  detail: string
+}
+const eventLog = ref<DemoEventEntry[]>([])
+function logEvent(name: string, detail = '') {
+  const time = new Date().toLocaleTimeString('zh-CN', { hour12: false })
+  eventLog.value = [{ time, name, detail }, ...eventLog.value].slice(0, 8)
+}
+function clearEventLog() {
+  eventLog.value = []
+}
+/** Changing the persistence target re-initializes the shell, like a host restart would. */
+watch(storageChoice, () => {
+  signedIn.value = false
+  page.value = 'overview'
+  sessionUser.value = null
+  shellKey.value++
+  logEvent(
+    'storageKey',
+    storageChoice.value === 'off'
+      ? 'false · 外观不再写入浏览器存储'
+      : 'nova-appearance-v1 · 恢复外观持久化',
+  )
+})
 const instances = reactive<
   {
     key: string
@@ -118,7 +190,7 @@ const adapter = shallowRef(createAdapter())
 function fill() {
   toolsOpen.value = false
   account.value?.fill({
-    email: DEMO_EMAIL,
+    email: identifier.value === 'username' ? DEMO_USERNAME : DEMO_EMAIL,
     password: DEMO_PASSWORD,
     confirmPassword: DEMO_PASSWORD,
     code: demoCode(settings.codeLength),
@@ -132,7 +204,7 @@ function preview() {
 function resetDemo() {
   signedIn.value = false
   page.value = 'overview'
-  pageLog.value = []
+  sessionUser.value = null
   totp.password = ''
   totp.code = ''
   totp.error = ''
@@ -141,6 +213,15 @@ function resetDemo() {
   clearTimeout(sessionTimer)
   sessionNote.value = ''
   adapter.value = createAdapter()
+}
+/** initialUser applies at mount; the shell remounts so the prop takes effect. */
+function enterRestoredSession() {
+  toolsOpen.value = false
+  sessionUser.value = demoUser()
+  page.value = 'overview'
+  shellKey.value++
+  signedIn.value = true
+  logEvent('initialUser', '外壳重挂载，以服务端已验证会话直接进入账户中心')
 }
 let sessionTimer: ReturnType<typeof setTimeout> | undefined
 let flowTimer: ReturnType<typeof setTimeout> | undefined
@@ -178,6 +259,22 @@ function armConflict() {
 function confirmDelete() {
   forceReturnToAuth('演示账户注销完成：这是内存模拟，刷新页面后账户会复原。')
 }
+/** Effective mode: 'system' resolves through matchMedia at interaction time. */
+function resolvedThemeMode(appearance: Appearance): 'light' | 'dark' {
+  if (appearance.mode !== 'system') return appearance.mode
+  return typeof window.matchMedia === 'function' &&
+    window.matchMedia('(prefers-color-scheme: dark)').matches
+    ? 'dark'
+    : 'light'
+}
+/** Header quick toggle: resolve 'system' first, then flip; the accent is preserved. */
+function toggleThemeMode(theme: {
+  appearance: Appearance
+  setAppearance: (value: Appearance, persist?: boolean) => void
+}) {
+  const mode = resolvedThemeMode(theme.appearance)
+  theme.setAppearance({ ...theme.appearance, mode: mode === 'dark' ? 'light' : 'dark' })
+}
 function openTools() {
   panel.value = 'tools'
   toolsOpen.value = true
@@ -193,8 +290,24 @@ function openViewportPreview() {
   )
 }
 function onPageChange(value: AccountPage) {
-  const time = new Date().toLocaleTimeString('zh-CN', { hour12: false })
-  pageLog.value = [`${time} ${pageLabels[value]}`, ...pageLog.value].slice(0, 4)
+  logEvent('pageChange', pageLabels[value])
+}
+/** Internal navigation echoes back to the host; host jumps never echo. */
+function onHostPageUpdate(value: AccountPage) {
+  page.value = value
+  logEvent('update:page', `${pageLabels[value]}（组件内导航回写）`)
+}
+function onAuthenticated(result: AuthResult) {
+  signedIn.value = true
+  logEvent('authenticated', `登录成功 · ${result.user.email}`)
+}
+function onLogout() {
+  logEvent('logout', '已退出登录')
+  resetDemo()
+}
+function onAppearanceUpdate(value: Appearance) {
+  if (controlledAppearanceOn.value) controlledAppearance.value = value
+  logEvent('update:appearance', `${value.mode} / ${value.accent}`)
 }
 /** Strength evaluation lives in the host; presentation only, never a submission gate. */
 function demoStrength(password: string): PasswordStrength {
@@ -312,13 +425,22 @@ function onStorageChange(
         </NovaTheme>
       </section>
     </div>
-    <div v-show="!multiInstance" class="demo-single">
+    <div v-if="scenesOn" class="demo-scenes-bar">
+      <p>
+        业务场景组合画廊：用库的 NovaButton / NovaField / NovaDialog
+        基础组件组合出字段、列表、编辑器、评论与订单等常见宿主形态。这些卡片不是库内置业务组件，数据均为内存虚构。
+      </p>
+      <button type="button" class="demo-back" @click="scenesOn = false">返回账户演示</button>
+    </div>
+    <SceneGallery v-if="scenesOn" />
+    <div v-show="!multiInstance && !scenesOn" class="demo-single">
       <div v-if="layout === 'embedded'" class="demo-hostbar">
         <strong>虚构宿主站点</strong>
         <span>首页 · 商店 · 社区 · 账户设置</span>
       </div>
       <NovaAccount
         ref="account"
+        :key="shellKey"
         class="nova-demo"
         :class="signedIn ? 'demo-account' : 'demo-auth'"
         :adapter="adapter"
@@ -326,15 +448,37 @@ function onStorageChange(
         :time-zone="timeZone"
         :layout="layout"
         :page="page"
-        storage-key="nova-appearance-v1"
+        :initial-user="sessionUser"
+        :identifier="identifier"
+        :modes="enabledModes"
+        :pages="enabledPages"
+        :two-step="twoStepOn"
+        :messages="messagesOn ? demoMessages : undefined"
+        :brand="brandName"
+        :appearance="controlledAppearanceOn ? controlledAppearance : undefined"
+        :storage-key="storageKey"
         :code-length="settings.codeLength"
         :password-strength="strengthOn ? demoStrength : undefined"
-        @authenticated="signedIn = true"
-        @update:page="page = $event"
+        @authenticated="onAuthenticated"
+        @update:appearance="onAppearanceUpdate"
+        @update:page="onHostPageUpdate"
         @page-change="onPageChange"
-        @logout="resetDemo"
+        @logout="onLogout"
       >
         <template #tools="theme">
+          <NovaButton
+            variant="ghost"
+            :aria-label="
+              resolvedThemeMode(theme.appearance) === 'dark' ? '切换浅色模式' : '切换深色模式'
+            "
+            @click="toggleThemeMode(theme)"
+            ><span aria-hidden="true">{{
+              resolvedThemeMode(theme.appearance) === 'dark' ? '☀' : '☾'
+            }}</span
+            ><span class="demo-toggle-label" aria-hidden="true">{{
+              resolvedThemeMode(theme.appearance) === 'dark' ? '浅色' : '深色'
+            }}</span></NovaButton
+          >
           <NovaButton variant="ghost" @click="openTools"
             >体验工具 <span aria-hidden="true">↗</span></NovaButton
           >
@@ -347,9 +491,11 @@ function onStorageChange(
                   ? '演示设置'
                   : panel === 'host'
                     ? '宿主集成演示'
-                    : panel === 'about'
-                      ? '关于这份组件库'
-                      : '体验工具'
+                    : panel === 'components'
+                      ? '基础组件形态'
+                      : panel === 'about'
+                        ? '关于这份组件库'
+                        : '体验工具'
             "
             @close="toolsOpen = false"
           >
@@ -359,15 +505,22 @@ function onStorageChange(
               <NovaButton @click="panel = 'appearance'">外观设置</NovaButton>
               <NovaButton @click="panel = 'settings'">演示设置</NovaButton>
               <NovaButton @click="panel = 'host'">宿主集成演示</NovaButton>
+              <NovaButton @click="panel = 'components'">基础组件形态</NovaButton>
+              <NovaButton @click="scenesOn = true">业务场景组合</NovaButton>
               <NovaButton @click="panel = 'about'">组件库与隐私说明</NovaButton>
               <p class="demo-note">全部账户、设备与消息均为虚构。快捷预览不代表身份认证。</p>
             </div>
-            <NovaAppearance
-              v-else-if="panel === 'appearance'"
-              :model-value="theme.appearance"
-              :storage-error="theme.storageError"
-              @update:model-value="theme.setAppearance"
-            />
+            <div v-else-if="panel === 'appearance'" class="demo-stack">
+              <NovaAppearance
+                :model-value="theme.appearance"
+                :storage-error="theme.storageError"
+                @update:model-value="theme.setAppearance"
+              />
+              <p class="demo-note">
+                26 套品牌色与 django-nova-admin 调色板一一对应（默认蓝 = admin 默认配色，其余 25
+                个预设同名对应）。深色模式会随品牌色整套切换着色表面（背景、侧栏、面板、文字、线条）。
+              </p>
+            </div>
             <div v-else-if="panel === 'settings'" class="demo-stack">
               <label
                 >界面语言<select v-model="locale">
@@ -425,6 +578,7 @@ function onStorageChange(
               <NovaButton @click="Object.assign(settings, defaultSettings())">恢复正常</NovaButton>
             </div>
             <div v-else-if="panel === 'host'" class="demo-stack">
+              <p class="demo-group-title">外壳布局与导航</p>
               <label
                 >外壳布局 layout<select v-model="layout">
                   <option value="full">全屏（默认）</option>
@@ -437,7 +591,8 @@ function onStorageChange(
               <div role="group" aria-label="受控页面导航" class="demo-stack">
                 <p class="demo-note">
                   受控导航 v-model:page。当前页面：{{ pageLabels[page] }}。宿主赋值 page
-                  属权威跳转，不经过组件内未保存守卫；组件内页签会先弹出确认。
+                  属权威跳转，不经过组件内未保存守卫；组件内页签会先弹出确认。实际页签变化见下方“事件日志”的
+                  pageChange 条目。
                 </p>
                 <div class="demo-grid">
                   <button
@@ -452,10 +607,49 @@ function onStorageChange(
                     {{ label }}
                   </button>
                 </div>
-                <p v-if="pageLog.length" class="demo-note">pageChange：{{ pageLog.join(' · ') }}</p>
-                <p v-else-if="signedIn" class="demo-note">切换页签或点击上方按钮，观察事件记录。</p>
-                <p v-else class="demo-note">登录或使用“用户中心预览”后可用。</p>
               </div>
+
+              <p class="demo-group-title">事件日志</p>
+              <div role="group" aria-label="事件日志" class="demo-stack">
+                <div class="demo-grid">
+                  <NovaButton variant="ghost" @click="clearEventLog">清空日志</NovaButton>
+                </div>
+                <ul v-if="eventLog.length" class="demo-eventlog" data-event-log>
+                  <li
+                    v-for="(entry, index) in eventLog"
+                    :key="`${entry.time}-${entry.name}-${index}`"
+                  >
+                    <span class="demo-event-time">{{ entry.time }}</span>
+                    <strong>{{ entry.name }}</strong>
+                    <span>{{ entry.detail }}</span>
+                  </li>
+                </ul>
+                <p v-else class="demo-note">
+                  尚无事件：登录、页签切换、外观变更与退出登录会按时间倒序记录（最近 8 条）。
+                </p>
+              </div>
+
+              <p class="demo-group-title">登录表单形态</p>
+              <label
+                >账号字段 identifier<select v-model="identifier">
+                  <option value="email">邮箱 · 小写规范化</option>
+                  <option value="username">用户名 · 去首尾空格、保留大小写</option>
+                </select></label
+              >
+              <p class="demo-note">
+                用户名模式下演示账号为
+                demo（“一键填入示例”会同步切换）；动态切换会取消旧验证流程并清除密码、验证码。
+              </p>
+              <div role="group" aria-label="登录方式裁剪" class="demo-grid">
+                <label v-for="mode in modeItems" :key="mode" class="demo-check"
+                  ><input v-model="modesOn[mode]" type="checkbox" /> {{ modeLabels[mode] }}</label
+                >
+              </div>
+              <p class="demo-note">
+                modes
+                裁剪登录流程：默认密码登录不可用时回退数组首项；全部取消则隐藏内置表单，仅剩宿主
+                footer / SSO 插槽。
+              </p>
               <label
                 >验证码长度 codeLength<select v-model="settings.codeLength">
                   <option :value="6">6 位（默认）</option>
@@ -474,13 +668,60 @@ function onStorageChange(
               <p class="demo-note">
                 注册与重置“设置新密码”一步显示评分、标签与提示；只影响展示，不拦截提交。
               </p>
+
+              <p class="demo-group-title">账户页裁剪</p>
+              <div role="group" aria-label="账户页裁剪" class="demo-grid">
+                <label v-for="[key, label] in pages" :key="key" class="demo-check"
+                  ><input v-model="pagesOn[key]" type="checkbox" /> {{ label }}</label
+                >
+              </div>
+              <p class="demo-note">
+                pages
+                同时限制侧栏、概览快捷入口与可显示页面；当前页或被移除的页按固有导航顺序回退到第一个可见页。
+              </p>
+
+              <p class="demo-group-title">会话恢复 initialUser</p>
+              <div role="group" aria-label="会话恢复 initialUser" class="demo-stack">
+                <NovaButton @click="enterRestoredSession"
+                  >以已验证会话进入（重挂载外壳）</NovaButton
+                >
+                <p class="demo-note">
+                  initialUser 是“服务端已验证会话”的展示输入：外壳重挂载后直接进入账户中心，不触发
+                  authenticated 事件，也不构成认证证明。真实接入在刷新 / SSR 后由宿主传入。
+                </p>
+              </div>
+
+              <p class="demo-group-title">文案与品牌</p>
               <label
-                ><input v-model="customSecurity" type="checkbox" /> 安全页改用 #security 插槽（TOTP
-                形式演示）</label
+                ><input v-model="messagesOn" type="checkbox" /> 注入 messages
+                文案覆盖（欢迎语与登录按钮）</label
               >
               <p class="demo-note">
-                开启后内置安全页被插槽替换：验证码 {{ DEMO_ACCOUNT_VALUES.code }}，当前密码
-                {{ DEMO_ACCOUNT_VALUES.currentPassword }}。
+                typed keys 局部覆盖内置文案；adapter 错误与宿主插槽文案仍由接入方翻译。
+              </p>
+              <label
+                >品牌名 brand<input v-model="brandName" type="text" autocomplete="off"
+              /></label>
+              <p class="demo-note">字符串 prop 展示在 header；完全自定义可改用 #brand 插槽。</p>
+
+              <p class="demo-group-title">外观与存储</p>
+              <label
+                ><input v-model="controlledAppearanceOn" type="checkbox" /> 受控外观
+                appearance（宿主持有状态）</label
+              >
+              <p class="demo-note">
+                开启后 update:appearance 写回宿主状态并作为权威值传回；关闭则回到 NovaTheme
+                内部状态。开启即以宿主当前值（浅色 / 默认蓝）为准。
+              </p>
+              <label
+                >外观持久化 storageKey<select v-model="storageChoice">
+                  <option value="nova-appearance-v1">持久化 · 指定 storage-key</option>
+                  <option value="off">不持久化 · false</option>
+                </select></label
+              >
+              <p class="demo-note">
+                切换后外壳按新配置重挂载（模拟宿主重新初始化）：false
+                时使用默认外观且不再写入浏览器存储；持久化时恢复上次保存的明暗与品牌色。
               </p>
               <label
                 ><input
@@ -494,6 +735,38 @@ function onStorageChange(
               <p v-if="theme.storageError" role="alert" class="demo-note">
                 {{ theme.storageError }}
               </p>
+
+              <p class="demo-group-title">安全与登录页插槽</p>
+              <label
+                ><input v-model="twoStepOn" type="checkbox" /> 显示内置两步验证入口 twoStep</label
+              >
+              <p class="demo-note">
+                取消勾选即 twoStep=false：安全页隐藏两步验证操作。宿主无二次认证实现时建议关闭并替换
+                #security 插槽。
+              </p>
+              <label
+                ><input v-model="customSecurity" type="checkbox" /> 安全页改用 #security 插槽（TOTP
+                形式演示）</label
+              >
+              <p class="demo-note">
+                开启后内置安全页被插槽替换：验证码 {{ DEMO_ACCOUNT_VALUES.code }}，当前密码
+                {{ DEMO_ACCOUNT_VALUES.currentPassword }}。
+              </p>
+              <label
+                ><input v-model="customProfile" type="checkbox" /> 资料页改用 #profile
+                插槽（头像上传 + 扩展字段演示）</label
+              >
+              <p class="demo-note">
+                开启后内建资料页被 #profile 插槽替换：头像上传经适配器 uploadAvatar
+                能力保存，职位、电话、生日、性别、标签等扩展字段仅存本页内存；未保存守卫由宿主实现。
+              </p>
+              <label
+                ><input v-model="oauthOn" type="checkbox" /> 登录卡片显示第三方登录占位（#authFooter
+                插槽）</label
+              >
+              <p class="demo-note">占位按钮仅展示、不发起任何请求；真实跳转与回调由宿主实现。</p>
+
+              <p class="demo-group-title">流程场景</p>
               <div role="group" aria-label="流程场景" class="demo-stack">
                 <p class="demo-note">真实接入方需要处理的会话与并发场景（登录后可用）。</p>
                 <div class="demo-grid">
@@ -521,11 +794,8 @@ function onStorageChange(
                   外部修改：下一次账户操作返回 REVISION_CONFLICT；演示中刷新页面或重新登录即恢复。
                 </p>
               </div>
-              <label
-                ><input v-model="oauthOn" type="checkbox" /> 登录卡片显示第三方登录占位（#authFooter
-                插槽）</label
-              >
-              <p class="demo-note">占位按钮仅展示、不发起任何请求；真实跳转与回调由宿主实现。</p>
+
+              <p class="demo-group-title">多实例主题隔离</p>
               <label
                 ><input v-model="multiInstance" type="checkbox" />
                 多实例主题隔离演示（替换主界面）</label
@@ -533,6 +803,8 @@ function onStorageChange(
               <p class="demo-note">
                 两个独立 NovaTheme 根各自渲染 NovaAuthForm；组件内导航、外观与登录状态完全隔离。
               </p>
+
+              <p class="demo-group-title">手机视口预览</p>
               <div role="group" aria-label="视口预览" class="demo-stack">
                 <label
                   >手机视口预览<select v-model="viewportWidth">
@@ -548,6 +820,42 @@ function onStorageChange(
                   >打开预览窗口</NovaButton
                 >
               </div>
+            </div>
+            <div v-else-if="panel === 'components'" class="demo-stack">
+              <p class="demo-note">
+                NovaField 与 NovaButton 可脱离 NovaAccount 单独使用（独立组件应置于 NovaTheme
+                内）。以下展示宿主常用形态；字段值只存在于本页内存。
+              </p>
+              <NovaField v-model="gallery.site" label="前缀 / 后缀插槽" placeholder="站点名称">
+                <template #prefix
+                  ><span class="demo-affix" aria-hidden="true">https://</span></template
+                >
+                <template #suffix
+                  ><span class="demo-affix" aria-hidden="true">.example</span></template
+                >
+              </NovaField>
+              <NovaField
+                v-model="gallery.bio"
+                as="textarea"
+                label='多行文本 as="textarea"'
+                :maxlength="40"
+                hint="maxlength 40：原生属性按 UTF-16 code units 计数，服务端仍须执行实际长度限制"
+              ></NovaField>
+              <NovaField v-model="gallery.locked" label="禁用态" disabled />
+              <NovaField
+                v-model="gallery.bad"
+                label="错误态"
+                error="演示错误文案，由宿主显式传入"
+              />
+              <div class="demo-grid">
+                <NovaButton variant="primary">主要操作</NovaButton>
+                <NovaButton>默认操作</NovaButton>
+                <NovaButton variant="ghost">幽灵操作</NovaButton>
+                <NovaButton disabled>禁用操作</NovaButton>
+              </div>
+              <p class="demo-note">
+                错误态由宿主显式传入；组件不自行提交或校验业务规则，服务端才是授权与校验的执行方。
+              </p>
             </div>
             <div v-else class="demo-stack">
               <p>
@@ -618,6 +926,9 @@ function onStorageChange(
             </div>
             <p class="demo-note">仅演示占位（宿主 #authFooter 插槽），未接入任何第三方服务。</p>
           </div>
+        </template>
+        <template v-if="customProfile" #profile="{ snapshot, adapter: accountAdapter, refresh }">
+          <ProfileSlotEditor :snapshot="snapshot" :adapter="accountAdapter" :refresh="refresh" />
         </template>
         <template v-if="customSecurity" #security="{ snapshot, adapter: accountAdapter, refresh }">
           <div class="demo-stack">
