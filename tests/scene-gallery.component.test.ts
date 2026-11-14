@@ -213,10 +213,10 @@ describe('scene gallery interactions', () => {
 
   it('App opens business content within the account shell', async () => {
     const wrapper = create(App)
-    await button(wrapper, '体验工具 ↗').trigger('click')
-    await button(wrapper, '业务场景组合').trigger('click')
+    await button(wrapper, '用户中心预览').trigger('click')
     await vi.advanceTimersByTimeAsync(400)
     await flushPromises()
+    await wrapper.get('[data-page="custom:tasks"]').trigger('click')
     expect(wrapper.find('dialog[open]').exists()).toBe(false)
     expect(wrapper.find('.demo-scenes').exists()).toBe(true)
     expect(wrapper.get('[aria-label="任务清单"] h2').text()).toBe('任务清单')

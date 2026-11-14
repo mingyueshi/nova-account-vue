@@ -77,6 +77,8 @@ defineSlots<{
     adapter: AccountAdapter
     refresh: () => Promise<AccountSnapshot | undefined>
     appearance: Appearance
+    setAppearance: (value: Appearance, persist?: boolean) => void
+    storageError: string
   }): unknown
   /** Replaces the built-in profile page; the host owns drafts and unsaved guards for it. */
   profile?(props: {
@@ -85,7 +87,17 @@ defineSlots<{
     refresh: () => Promise<AccountSnapshot | undefined>
   }): unknown
   /** Replaces the auth card footer (default: simulated disclosure) with host content such as SSO buttons. */
-  authFooter?(): unknown
+  authFooter?(props: {
+    mode: AuthMode
+    resetStage: 'verify' | 'password'
+    busy: boolean
+    fill: (values: {
+      email?: string
+      password?: string
+      confirmPassword?: string
+      code?: string
+    }) => void
+  }): unknown
   tools?(props: {
     appearance: Appearance
     setAppearance: (value: Appearance, persist?: boolean) => void
@@ -230,7 +242,12 @@ defineExpose({
         @logout="logout"
       >
         <template v-if="$slots.page" #page="slotProps"
-          ><slot name="page" v-bind="slotProps" :appearance="theme.appearance"
+          ><slot
+            name="page"
+            v-bind="slotProps"
+            :appearance="theme.appearance"
+            :set-appearance="theme.setAppearance"
+            :storage-error="theme.storageError"
         /></template>
         <template #appearance
           ><NovaAppearance
@@ -264,7 +281,8 @@ defineExpose({
             @authenticated="authenticated"
             ><template v-if="$slots.captcha" #captcha="slotProps"
               ><slot name="captcha" v-bind="slotProps" /></template
-            ><template v-if="$slots.authFooter" #footer><slot name="authFooter" /></template
+            ><template v-if="$slots.authFooter" #footer="slotProps"
+              ><slot name="authFooter" v-bind="slotProps" /></template
           ></NovaAuthForm>
         </div>
       </main>

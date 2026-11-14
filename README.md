@@ -146,7 +146,7 @@ const messages: Partial<NovaMessages> = { 'auth.welcome': '登录你的账户' }
 
 `page` + `update:page` 支持受控导航，`initialPage` 仅设置非受控初始页，`pageChange` 反映实际页签变化。内部导航先执行 dirty guard；外部 page 更新视为宿主权威跳转，路由卸载、后退等仍需宿主自己的离开确认。
 
-宿主可以通过 `extraPages: AccountExtraPage[]` 和 `#page` 插槽，把自己的业务页面接入同一套账户导航与主内容区。扩展页 ID 使用 `custom:` 前缀，支持 `label`、`description`、`symbol` 和 `group`；同样参与 `page` / `pages` 受控导航和内置资料离页确认。`#page` 提供 `{ page, snapshot, adapter, refresh, appearance }`，可按当前 ID 显示对应内容。插槽在切换到内置页时保留挂载并隐藏；扩展业务页自己的草稿校验与离开保护由宿主实现。
+宿主可以通过 `extraPages: AccountExtraPage[]` 和 `#page` 插槽，把自己的业务页面接入同一套账户导航与主内容区。扩展页 ID 使用 `custom:` 前缀，支持 `label`、`description`、`symbol` 和 `group`；同样参与 `page` / `pages` 受控导航和内置资料离页确认。`#page` 提供 `{ page, snapshot, adapter, refresh, appearance, setAppearance, storageError }`，可按当前 ID 显示对应内容。插槽在切换到内置页时保留挂载并隐藏；扩展业务页自己的草稿校验与离开保护由宿主实现。
 
 宿主裁剪功能可直接传给 `NovaAccount`，或传给对应的独立组件：
 
@@ -190,16 +190,18 @@ const messages: Partial<NovaMessages> = { 'auth.welcome': '登录你的账户' }
 
 ## 独立演示
 
-登录或通过 **体验工具 → 用户中心预览** 进入账号体验后，业务场景与基础组件直接融入账户侧栏和主内容区。侧栏包含「业务场景」与「基础组件」分组，无需离开账号外壳；手机端使用分组页面选择器，避免横向寻找入口。右上 **体验工具 → 一键填入示例** 可快速体验登录，工具内也可配置外观、慢速/断网/验证失败/验证码过期/业务拒绝。
+登录或点击右上角 **用户中心预览** 进入账号体验后，业务场景、基础组件与演示配置都在账户侧栏和主内容区。手机端使用分组页面选择器。登录、注册和找回密码表单下方直接显示当前步骤的示例账号、密码与验证码，并可点击“填入示例”；用户名模式与 4 位验证码配置会同步更新说明。右上角不再提供工具弹窗。
 
-- **宿主集成演示**面板：全屏 / `layout="embedded"` 切换（附虚构宿主页面外壳）、`v-model:page` 受控跳转与统一事件日志（`authenticated` / `logout` / `pageChange` / `update:page` / `update:appearance`，倒序保留 8 条）、`identifier` 用户名模式（演示账号 `demo`，一键填入会同步切换）、`modes` 登录方式裁剪、`pages` 账户页裁剪、`twoStep` 开关、`initialUser` 会话恢复（重挂载外壳直接进入账户中心）、typed `messages` 文案覆盖与 `brand` 品牌名、受控 `appearance`、`storageKey` 持久化切换（重挂载生效）、`codeLength` 调整（4 位时演示码同步为 `2468`）、宿主 `passwordStrength` 强度评估、`#security` 插槽的 TOTP 形式二次认证与危险区注销确认、`#authFooter` 第三方登录占位、禁用本地存储以触发 `storageError`、多实例主题隔离视图（两个独立 `NovaTheme` 根并排）、独立视口预览窗口（请求所选尺寸，媒体查询按实际宽度响应；浏览器可能调整窗口大小）。
+“演示配置”分组包含 **演示设置**（语言、时区、模拟网络及验证结果）和 **组件接入**（布局、功能、插槽及事件回调）。两个配置入口始终保留，模拟业务失败不影响进入配置恢复正常；配置页可通过“返回登录页”体验调整后的登录流程。
+
+- **组件接入**页：全屏 / `layout="embedded"` 切换（附虚构宿主页面外壳）、`v-model:page` 受控跳转与统一事件日志（`authenticated` / `logout` / `pageChange` / `update:page` / `update:appearance`，倒序保留 8 条）、`identifier` 用户名模式（演示账号 `demo`，填写说明与示例填充会同步切换）、`modes` 登录方式裁剪、`pages` 账户页裁剪、`twoStep` 开关、`initialUser` 会话恢复（重挂载外壳直接进入账户中心）、typed `messages` 文案覆盖与 `brand` 品牌名、受控 `appearance`、`storageKey` 持久化切换（重挂载生效）、`codeLength` 调整（4 位时演示码同步为 `2468`）、宿主 `passwordStrength` 强度评估、`#security` 插槽的 TOTP 形式二次认证与危险区注销确认、`#authFooter` 第三方登录占位、禁用本地存储以触发 `storageError`、多实例主题隔离视图（两个独立 `NovaTheme` 根并排）、独立视口预览窗口（请求所选尺寸，媒体查询按实际宽度响应；浏览器可能调整窗口大小）。
 - 常见错误路径：面板内可让会话过期（下一次账户请求返回 401，随后自动清除本地会话并返回登录页）、模拟另一台设备修改资料（下一次操作返回 `REVISION_CONFLICT`）；**演示设置**可开启发送限流，首次发送成功后 20 秒内再发会返回带剩余秒数的提示。
 - **演示设置**中可把挑战方式切换为算术题，走宿主 `#captcha` 插槽的出题、错误提示与换一题流程；“滑块结果”的失败与过期同样适用于算术题。
 - **基础组件**侧栏分组：在账户内容区展示 `NovaField` 的 prefix/suffix 插槽、`as="textarea"`、`maxlength`、禁用与错误态，以及 `NovaButton` 各变体、加载反馈与防重复提交，`NovaDialog` 的确认、表单校验和长内容三种示例。前后缀共用输入边框，另有只读、禁用与可重试校验示例。输入字段、操作按钮、对话框作为账户内页面逐项浏览，沿用账户主题与导航。
 - **业务场景**侧栏分组：我的任务、内容编辑、社区互动、我的订单直接显示在账号内容区，交互说明与组件用法收在页尾的可展开区域。切换账户页会保留场景输入；从未保存的资料或偏好页离开时，沿用账户的确认流程。仅用库的基础组件组合出常见宿主形态——任务列表（搜索、状态数量、完成、空态与删除撤销）、编辑器（字数提示、并排预览、保存快照与未保存状态）、评论区（校验、发布、点赞与排序）及订单（搜索、状态筛选、商品与金额明细、详情弹窗、模拟支付后转待发货）。卡片均非库内置业务组件，数据为内存虚构。
 - 内建资料页支持**头像上传**：适配器实现可选的 `uploadAvatar` 能力即出现上传 / 移除控件（组件负责选文件转 data URL 与忙态），概览卡与资料页显示 `avatarUrl` 图片；类型 / 大小校验由适配器 / 服务端执行，演示适配器仅收图片且 ≤ 2 MB。
-- `#profile` 插槽可整体替换资料页（props 同 `#security`），演示通过宿主面板开关体验：头像上传 + 职位 / 电话 / 生日 / 性别 / 网址 / 兴趣标签等扩展字段（扩展字段仅存内存，真实接入由宿主扩展契约），未保存守卫由宿主实现。
-- 外壳 header 常驻**明暗快切按钮**（登录前后都可随时切换；跟随系统时先落到当前实际模式再翻转，品牌色保持不变，选择经 storage-key 持久化）；完整外观设置（品牌色等 26 套）仍在外观设置面板。接入方可直接复制 `#tools` 插槽里的这一模式。
+- `#profile` 插槽可整体替换资料页（props 同 `#security`），演示通过“组件接入”页开关体验：头像上传 + 职位 / 电话 / 生日 / 性别 / 网址 / 兴趣标签等扩展字段（扩展字段仅存内存，真实接入由宿主扩展契约），未保存守卫由宿主实现。
+- 外壳 header 常驻**明暗快切按钮**（登录前后都可随时切换；跟随系统时先落到当前实际模式再翻转，品牌色保持不变，选择经 storage-key 持久化）；完整外观设置（品牌色等 26 套）统一在用户中心的“外观设置”页。右上角提供直接进入用户中心的入口，示例填写说明位于认证表单下方。接入方可直接复制 `#tools` 插槽里的这一模式。
 - 合成邮箱 `demo@nova.example`，密码 `NovaDemo2026!`，验证码 `246810`；用户名模式下演示账号 `demo`。
 - 安全弹窗提供“填入示例”：新密码 `NovaNext2026!`，新邮箱 `novanext@nova.example`。
 - 模拟更改不影响登录固定凭据。验证码只在演示适配器返回，真实服务不得返回明文码。
@@ -233,3 +235,5 @@ demo-dist/                 静态演示站点
 ## 核验依据（2026-10-27）
 
 官方 registry 查询并锁定 Vue `3.5.44`、Tailwind `4.3.3`、Vite `8.3.5`；TypeScript 固定 `5.9.3`，适配本项目检查工具。官方文档：[Vue TypeScript](https://vuejs.org/guide/typescript/overview)、[Vue SSR](https://vuejs.org/guide/scaling-up/ssr)、[Tailwind 关闭 Preflight / prefix](https://tailwindcss.com/docs/preflight)、[Tailwind utilities](https://tailwindcss.com/docs/styling-with-utility-classes)。
+
+认证说明可通过 `NovaAuthForm` 的 `#footer="{ mode, resetStage, busy, fill }"` 或 `NovaAccount` 的同名作用域 `#authFooter` 定制。`resetStage` 为 `verify` / `password`，`fill` 仅更新展示字段；验证码签发、验证和提交仍走原有流程。库默认不包含示例凭据。

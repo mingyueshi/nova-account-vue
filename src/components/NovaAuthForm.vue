@@ -41,7 +41,17 @@ defineSlots<{
     cancel: () => void
     retry: () => Promise<void>
   }) => unknown
-  footer?: () => unknown
+  footer?: (props: {
+    mode: AuthMode
+    resetStage: 'verify' | 'password'
+    busy: boolean
+    fill: (values: {
+      email?: string
+      password?: string
+      confirmPassword?: string
+      code?: string
+    }) => void
+  }) => unknown
   terms?: () => unknown
 }>()
 const flow = useAuthFlow(() => props.adapter, {
@@ -417,7 +427,7 @@ defineExpose({ fill: flow.fill, cancel: flow.cancel, setMode })
       </button>
     </p>
     <div class="na:mt-7 na:text-center na:text-xs na:text-[var(--na-muted)]">
-      <slot name="footer"
+      <slot name="footer" :mode="mode" :reset-stage="resetStage" :busy="busy" :fill="flow.fill"
         ><span v-if="simulated">{{ t('demo.disclosure') }}</span></slot
       >
     </div>

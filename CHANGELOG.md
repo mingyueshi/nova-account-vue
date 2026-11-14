@@ -25,6 +25,7 @@
 
 ### Changed
 
+- Demo configuration now lives in the account sidebar under “演示设置” and “组件接入”; the header tools dialog and duplicate entries are removed. Login, registration and password reset show mode-specific sample credentials with inline fill actions. Typed `authFooter` / `footer` slot props expose the current mode, reset stage, busy state and fill callback; the account `page` slot also exposes `setAppearance` and `storageError`.
 - Dark mode switches the whole tinted surface set per accent (canvas, sidebar, surface, ink, muted, line, control), taken from each django-nova-admin palette's dark surfaces, instead of only swapping brand and soft. Light mode keeps neutral surfaces with a brand-only swap, matching the admin preview.
 - Dates use `Intl.DateTimeFormat`; default zone remains UTC for deterministic SSR. Display is localized instead of appending a literal UTC suffix. Set a zone explicitly for local time.
 - Appearance choices use native radio inputs. Consumers targeting old button / `aria-pressed` selectors must update them; `update:modelValue` is unchanged.

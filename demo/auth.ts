@@ -91,7 +91,7 @@ export function createDemoAuthAdapter(
     await delay(config.network === 'slow' ? 3000 : 350)
     assertActive(context)
     if (config.network === 'offline')
-      fail('NETWORK', '模拟网络不可用，请在体验工具恢复正常后重试。')
+      fail('NETWORK', '模拟网络不可用，请在用户中心的演示设置恢复正常后重试。')
     if (business && config.auth === 'fail') fail('REJECTED', '模拟请求被拒绝，状态未改变。')
     return config
   }

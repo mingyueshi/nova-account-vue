@@ -76,7 +76,7 @@ body,
   padding: 16px;
   border-style: dashed;
 }
-/* Tools-dialog controls for the host integration panel. */
+/* Controls shared by the account integration and simulation pages. */
 .demo-grid {
   display: flex;
   flex-wrap: wrap;
@@ -378,4 +378,136 @@ label.demo-check {
 .nova-demo .nova-appearance [data-appearance-choice='mode'] > svg {
   width: 24px;
   height: 24px;
+}
+
+/* Configuration lives in the same account workspace as the business examples. */
+.demo-config-page {
+  display: grid;
+  gap: 24px;
+  min-width: 0;
+}
+.demo-config-intro {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+}
+.demo-config-intro > p {
+  max-width: 65ch;
+  color: var(--na-muted);
+  font-size: 13px;
+}
+.demo-config-columns {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: start;
+  gap: 24px;
+}
+.demo-config-column {
+  display: grid;
+  min-width: 0;
+  gap: 24px;
+}
+.demo-config-section {
+  display: grid;
+  min-width: 0;
+  gap: 16px;
+  align-content: start;
+}
+.demo-config-section h2 {
+  margin: 0 0 4px;
+  font-size: 16px;
+  font-weight: 600;
+}
+.demo-config-section label {
+  display: grid;
+  gap: 8px;
+  font-size: 14px;
+}
+.demo-config-section label:has(input[type='checkbox']) {
+  display: flex;
+  align-items: start;
+  gap: 10px;
+}
+.demo-config-section input[type='checkbox'] {
+  width: 18px;
+  height: 18px;
+  margin: 3px 0 0;
+  flex-shrink: 0;
+}
+.demo-config-section select,
+.demo-config-section input[type='text'] {
+  min-height: 44px;
+  width: 100%;
+  min-width: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--na-control);
+  border-radius: 8px;
+  background: var(--na-surface);
+  color: var(--na-ink);
+}
+.demo-config-section .demo-note {
+  line-height: 1.8;
+}
+.demo-config-section > button {
+  justify-self: start;
+}
+.demo-auth-guide {
+  padding-top: 20px;
+  border-top: 1px solid var(--na-line);
+  text-align: left;
+}
+.demo-auth-guide-heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.demo-auth-guide-heading > strong {
+  color: var(--na-ink);
+  font-size: 13px;
+  font-weight: 600;
+}
+.demo-auth-guide-heading > button {
+  padding: 6px 8px;
+  font-size: 12px;
+}
+.demo-auth-guide dl {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+}
+.demo-auth-guide dl > div {
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr);
+  gap: 12px;
+  align-items: baseline;
+}
+.demo-auth-guide dt {
+  color: var(--na-muted);
+  font-size: 12px;
+}
+.demo-auth-guide dd {
+  margin: 0;
+  min-width: 0;
+  color: var(--na-ink);
+}
+.demo-auth-guide code {
+  font-size: 13px;
+  overflow-wrap: anywhere;
+  user-select: all;
+}
+.demo-auth-guide > p {
+  margin-top: 12px;
+  color: var(--na-muted);
+  font-size: 12px;
+  line-height: 1.8;
+}
+@container account-content (min-width: 1040px) {
+  .demo-config-columns {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }

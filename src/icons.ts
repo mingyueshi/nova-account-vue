@@ -76,6 +76,7 @@ const components: Record<string, Component> = {
   chevron: ChevronRight,
   calendar: CalendarDays,
   settings: Settings2,
+  integration: CodeXml,
   copy: Copy,
   save: Save,
   code: CodeXml,

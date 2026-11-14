@@ -103,3 +103,9 @@ See [contracts](docs/contracts.md), [fetch adapter skeleton](docs/adapter.md), [
 - `twoStep` defaults to `true`. Setting it to `false` removes the built-in action and cancels/closes its current dialog.
 
 These are presentation options, not server authorization. Aborting an operation does not prove server rollback.
+
+### Integrated demo controls
+
+The header offers a direct account preview entry. Runtime settings and integration controls live in the account sidebar as dedicated pages; their entries remain available when business pages are trimmed or simulated requests fail. Return to the sign-in page to try the configured authentication flow. Sample credentials and a local fill action appear beside the sign-in, registration and reset forms and follow the current mode and code length.
+
+The `NovaAuthForm` footer and `NovaAccount` authFooter slots receive `{ mode, resetStage, busy, fill }`. Reset stages are `verify` and `password`; filling fields does not issue or verify a code. The account page slot also exposes `setAppearance` and `storageError` for host-owned integration tools. No sample credentials enter the library bundle.
