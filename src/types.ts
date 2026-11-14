@@ -1,33 +1,7 @@
 /** Presentation contracts. Authorization and credential verification belong to the server. */
 export type ThemeMode = 'light' | 'dark' | 'system'
 /** The 26 accents mirror the django-nova-admin palette scheme one-to-one ('blue' is the admin default scheme). */
-export type Accent =
-  | 'blue'
-  | 'teal'
-  | 'indigo'
-  | 'violet'
-  | 'terracotta'
-  | 'graphite'
-  | 'midnight'
-  | 'forest'
-  | 'amber'
-  | 'ocean'
-  | 'slate'
-  | 'plum'
-  | 'coffee'
-  | 'glacier'
-  | 'rose'
-  | 'olive'
-  | 'ink'
-  | 'cinnabar'
-  | 'gilded'
-  | 'emerald'
-  | 'peacock'
-  | 'sunset'
-  | 'industrial'
-  | 'lilac'
-  | 'terminal'
-  | 'parchment'
+export type Accent = keyof typeof import('./palettes').lightPalettes
 export interface Appearance {
   mode: ThemeMode
   accent: Accent

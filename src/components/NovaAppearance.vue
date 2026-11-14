@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, useId } from 'vue'
 import { useNovaLocale } from '../locale'
+import { lightPalettes } from '../palettes'
 import type { Accent, Appearance, ThemeMode } from '../types'
 import NovaButton from './NovaButton.vue'
 import NovaIcon from './NovaIcon.vue'
@@ -13,34 +14,13 @@ const modes = computed<{ id: ThemeMode; label: string; icon: string }[]>(() => [
   { id: 'dark', label: t('appearance.dark'), icon: 'moon' },
   { id: 'system', label: t('appearance.system'), icon: 'system' },
 ])
-const accents = computed<{ id: Accent; label: string; color: string }[]>(() => [
-  { id: 'blue', label: t('accent.blue'), color: '#1d4ed8' },
-  { id: 'teal', label: t('accent.teal'), color: '#0f766e' },
-  { id: 'indigo', label: t('accent.indigo'), color: '#4338ca' },
-  { id: 'violet', label: t('accent.violet'), color: '#6d28d9' },
-  { id: 'terracotta', label: t('accent.terracotta'), color: '#9a3412' },
-  { id: 'graphite', label: t('accent.graphite'), color: '#3f3f46' },
-  { id: 'midnight', label: t('accent.midnight'), color: '#1e40af' },
-  { id: 'forest', label: t('accent.forest'), color: '#24613b' },
-  { id: 'amber', label: t('accent.amber'), color: '#8a4b0f' },
-  { id: 'ocean', label: t('accent.ocean'), color: '#0e647c' },
-  { id: 'slate', label: t('accent.slate'), color: '#475569' },
-  { id: 'plum', label: t('accent.plum'), color: '#803e73' },
-  { id: 'coffee', label: t('accent.coffee'), color: '#73513e' },
-  { id: 'glacier', label: t('accent.glacier'), color: '#245aa8' },
-  { id: 'rose', label: t('accent.rose'), color: '#9b3658' },
-  { id: 'olive', label: t('accent.olive'), color: '#536722' },
-  { id: 'ink', label: t('accent.ink'), color: '#465064' },
-  { id: 'cinnabar', label: t('accent.cinnabar'), color: '#b4342b' },
-  { id: 'gilded', label: t('accent.gilded'), color: '#8f5c06' },
-  { id: 'emerald', label: t('accent.emerald'), color: '#047857' },
-  { id: 'peacock', label: t('accent.peacock'), color: '#0c6da3' },
-  { id: 'sunset', label: t('accent.sunset'), color: '#ab2f6f' },
-  { id: 'industrial', label: t('accent.industrial'), color: '#b03a0a' },
-  { id: 'lilac', label: t('accent.lilac'), color: '#a1359e' },
-  { id: 'terminal', label: t('accent.terminal'), color: '#1f7a33' },
-  { id: 'parchment', label: t('accent.parchment'), color: '#7c5f33' },
-])
+const accents = computed(() =>
+  (Object.keys(lightPalettes) as Accent[]).map((id) => ({
+    id,
+    label: t(`accent.${id}`),
+    color: lightPalettes[id].brand,
+  })),
+)
 function update(value: Partial<Appearance>) {
   emit('update:modelValue', { ...props.modelValue, ...value })
 }

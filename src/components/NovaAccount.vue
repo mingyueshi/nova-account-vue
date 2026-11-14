@@ -29,6 +29,7 @@ const props = withDefaults(
       /** Additional host-owned pages displayed in the account sidebar. */
       extraPages?: AccountExtraPage[]
       /** Hide the two-step toggle when the host has no step-up implementation. */
+      avatarMaxBytes?: number
       twoStep?: boolean
       layout?: 'full' | 'embedded'
       codeLength?: number | null
@@ -237,6 +238,7 @@ defineExpose({
         :pages="pages"
         :extra-pages="extraPages"
         :two-step="twoStep"
+        :avatar-max-bytes="avatarMaxBytes"
         @update:page="emit('update:page', $event)"
         @page-change="emit('pageChange', $event)"
         @logout="logout"

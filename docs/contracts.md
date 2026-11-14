@@ -48,7 +48,7 @@ interface MutationContext extends RequestContext {
 `load(context)` 返回 `AccountSnapshot`，包括 revision、profile、email、notifications、devices、messages、security、activity。所有写操作返回完整新 snapshot：
 
 - `updateProfile({nickname,bio,avatar,avatarUrl?}, context)` / `updateNotifications({product,email,security}, context)`。
-- `uploadAvatar?({dataUrl}, context)` 可选能力：实现后内建资料页出现头像上传（组件负责选文件转 data URL、忙态与移除，`null` 清除）；类型 / 大小校验与存储由适配器 / 服务端执行。`Profile.avatarUrl?` 为服务端下发的图片 URL 或 data URL，空值渲染色块头像。
+- `uploadAvatar?({dataUrl}, context)` 可选能力：实现后内建资料页出现头像上传（组件负责选文件转 data URL、忙态与移除，`null` 清除）；组件在读取前检查图片 MIME 和 `avatarMaxBytes`（默认 2 MiB），避免过大的 data URL 分配；真实类型、内容、大小和存储仍由适配器 / 服务端验证。`Profile.avatarUrl?` 为服务端下发的图片 URL 或 data URL，空值渲染色块头像。
 - `changePassword({currentPassword,newPassword,confirmPassword}, context)`。
 - `requestEmailChangeCode({email,currentPassword}, context)` 返回 code metadata；`changeEmail({email,code}, context)`。
 - `revokeDevice(id, context)` / `revokeOtherDevices(context)`，服务端保护当前会话并执行真实撤销。
@@ -65,7 +65,7 @@ interface MutationContext extends RequestContext {
 
 ### `NovaAccount`
 
-Props：`adapter: NovaAdapter`（必填）、`initialUser?:SessionUser|null`、`appearance?:Appearance`、`storageKey?:string|false`（默认false）、`brand?:string`；支持下述 locale 配置、`page?:AccountPage` / `initialPage?:AccountPage`、`layout?:'full'|'embedded'`（默认 full）、`codeLength?:number|null`（默认 6）、`passwordStrength?:(password:string)=>PasswordStrength`。
+Props：`adapter: NovaAdapter`（必填）、`initialUser?:SessionUser|null`、`appearance?:Appearance`、`storageKey?:string|false`（默认false）、`brand?:string`；支持下述 locale 配置、`page?:AccountPage` / `initialPage?:AccountPage`、`layout?:'full'|'embedded'`（默认 full）、`codeLength?:number|null`（默认 6）、`passwordStrength?:(password:string)=>PasswordStrength`、`avatarMaxBytes?:number`（默认 2 MiB）。
 
 Events：`authenticated(AuthResult)`、`logout()`、`update:appearance(Appearance)`、`update:page(AccountPage)`、`pageChange(AccountPage)`。只有 adapter.logout 成功才回认证页；失败会保留用户状态并展示错误。
 
@@ -75,7 +75,7 @@ Exposed：`fill({email?,password?,code?,confirmPassword?})`；`fillSecurity(...)
 
 ### `NovaAuthForm`
 
-Props：`adapter:AuthAdapter`（必填）、`simulated?:boolean`、`codeLength?:number|null`、`passwordStrength?:(password:string)=>PasswordStrength`。Events：`authenticated(AuthResult)`、`reset()`、`mode-change(AuthMode)`。Slots：`captcha({challenge,submit,busy,error,cancel,retry})`、`terms`、`footer`。
+Props：`adapter:AuthAdapter`（必填）、`simulated?:boolean`、`codeLength?:number|null`、`passwordStrength?:(password:string)=>PasswordStrength`、`avatarMaxBytes?:number`（默认 2 MiB）。Events：`authenticated(AuthResult)`、`reset()`、`mode-change(AuthMode)`。Slots：`captcha({challenge,submit,busy,error,cancel,retry})`、`terms`、`footer`。
 
 `PasswordStrength = {score:0|1|2|3|4,label:string,hint?:string}`，仅在注册/重置的新密码非空时展示。库不提供默认强度算法，评估不改变允许提交的条件。验证码 maxlength 是展示限制，null 关闭，服务器仍决定码策略。
 
@@ -85,9 +85,9 @@ Exposed：`fill(...)`、`cancel()`、`setMode(AuthMode)`。宿主应提供服务
 
 ### `NovaAccountCenter`
 
-Props：`adapter:AccountAdapter`（必填）、`simulated?:boolean`、`page?:AccountPage`、`initialPage?:AccountPage`。Events：`logout()`、`update:page(AccountPage)`、`pageChange(AccountPage)`。Slots：`appearance`、`security({snapshot,adapter,refresh})`、`securityFormTools({fill})`。Exposed：`refresh()`、`fillSecurity(...)`。
+Props：`adapter:AccountAdapter`（必填）、`simulated?:boolean`、`page?:AccountPage`、`initialPage?:AccountPage`、`avatarMaxBytes?:number`（默认 2 MiB）。Events：`logout()`、`update:page(AccountPage)`、`pageChange(AccountPage)`。Slots：`appearance`、`security({snapshot,adapter,refresh})`、`securityFormTools({fill})`。Exposed：`refresh()`、`fillSecurity(...)`。
 
-无 page 时内部维护页签，initialPage 默认 overview。受控模式点击只请求 update:page，父级接受 prop 后才切页；pageChange 只在有效页签实际变化时发出。内部 dirty guard 通过后才请求切页；外部 page 更新是权威输入，不回声 update，也不拦截路由，宿主应在改变路由前完成离开确认。用户主动放弃时会清除草稿。adapter 更换会清除旧请求/草稿，受控 page 仍由父级决定。
+无 page 时内部维护页签，initialPage 默认 overview。受控模式点击只请求 update:page，父级接受 prop 后才切页；pageChange 只在有效页签实际变化时发出。内部 dirty guard 通过后才请求切页；外部 page 更新是权威输入，不回声 update，也不拦截路由，宿主应在改变路由前完成离开确认。权威切页保留内置资料 / 偏好草稿，refresh 也保留未保存字段；保存或主动放弃只重置对应草稿，退出前会提示所有剩余草稿。adapter 更换会清除旧请求/草稿，受控 page 仍由父级决定。
 
 ### `NovaTheme` / `NovaAppearance`
 

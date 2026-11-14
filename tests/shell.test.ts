@@ -25,6 +25,28 @@ async function create(service: NovaAdapter) {
 }
 
 describe('account shell session lifecycle', () => {
+  it('aborts an in-flight account load before calling the logout adapter', async () => {
+    let signal!: AbortSignal
+    const service = adapter(
+      vi.fn(async () => {
+        expect(signal.aborted).toBe(true)
+      }),
+    )
+    service.account.load = vi.fn(async (context) => {
+      signal = context.signal
+      await new Promise(() => {})
+      throw new Error('unreachable')
+    })
+    const wrapper = await create(service)
+    await wrapper
+      .findAll('button')
+      .find((item) => item.text() === 'Sign out')!
+      .trigger('click')
+    await flushPromises()
+    expect(signal.aborted).toBe(true)
+    expect(service.auth.logout).toHaveBeenCalledOnce()
+    expect(wrapper.emitted('logout')).toHaveLength(1)
+  })
   it('keeps the account visible on logout failure and retries only on user action', async () => {
     const logout = vi
       .fn()

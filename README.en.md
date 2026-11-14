@@ -64,7 +64,7 @@ The integrated icon demo includes 55 searchable icons, size/stroke/color control
 
 ## Optional dynamic charts
 
-Import `NovaChart` and `NovaChartOption` from `nova-account/charts`. This separate entry uses Apache ECharts 6.1.0, matching the backend chart lab; the base account entry does not load the chart engine. Registered features: line, bar, pie/donut, tooltip, legend, range zoom and SVG rendering.
+Import `NovaChart` and `NovaChartOption` from `nova-account/charts`. This separate entry uses Apache ECharts 6.1.0, matching the backend chart lab; ECharts is an optional peer (`^6.1.0`), so the base account entry neither loads nor installs the chart engine. Run `npm install echarts@6.1.0` before importing the chart entry. Registered features: line, bar, pie/donut, tooltip, legend, range zoom and SVG rendering.
 
 ```vue
 <NovaChart :option="option" label="Completed tasks" :height="320" :active="visible" />
@@ -79,7 +79,7 @@ The account demo includes live activity aggregation, task/order trends, date fil
 - Default language: `zh-CN`. Built-in `en-US` and typed partial `messages` overrides apply to all library components, validation and accessibility labels. Existing built-in field validation errors update when the locale or messages change. Host adapter errors, user content and custom slots are translated by the host.
 - Configure locale and dates on `NovaAccount` or `NovaTheme`, or call `provideNovaLocale(() => options)` in component setup. No global locale singleton or vue-i18n dependency is required.
 - `timeZone` defaults to UTC for deterministic SSR. Use `dateTimeOptions` for Intl options or `formatTime` for a host formatter; server and client must use matching settings.
-- `page` / `update:page` provide controlled navigation; `initialPage` initializes uncontrolled mode. `pageChange` reports committed changes. External prop changes are authoritative; implement host router leave guards for forced route changes or unmounts.
+- `page` / `update:page` provide controlled navigation; `initialPage` initializes uncontrolled mode. `pageChange` reports committed changes. External prop changes are authoritative and preserve built-in profile/preference drafts. Save or explicit discard resets the corresponding draft. Refresh preserves unsaved drafts; replacing the adapter clears them. Implement host router leave guards for unmounts.
 - `layout` defaults to `full`; `embedded` retains header / footer and uses natural page height. Standalone components should be placed inside `NovaTheme`.
 - `NovaField` supports input / textarea, native input attributes, `maxlength`, descriptions and prefix / suffix slots. Code length defaults to 6 and is configurable through `codeLength`; `null` removes the limit.
 - Optional `passwordStrength(password)` returns `{ score: 0..4, label, hint? }` for new-password presentation. It does not enforce password policy or block submission.
@@ -99,7 +99,7 @@ See [contracts](docs/contracts.md), [fetch adapter skeleton](docs/adapter.md), [
 
 - `identifier="username"` trims the account name without changing case and keeps the adapter wire field named `email`. Email mode retains lowercase normalization. Runtime identifier changes cancel the old flow and clear credentials. `useAuthFlow` accepts a ref or getter as well as a literal identifier.
 - `modes` limits the password, code, register, and reset flows. If password is unavailable initially, the first supplied mode is selected. Removing the active flow cancels it and selects the first remaining mode. Back-to-login uses an available login flow; exposed `setMode` rejects disabled flows. An empty list hides the built-in form while keeping the footer slot.
-- `pages` limits sidebar entries, overview shortcuts, and rendered pages. Invalid initial/current pages fall back to the first visible page in the component's canonical navigation order. An empty list renders no account page. Controlled fallback does not emit `update:page`; `pageChange` reports actual displayed page changes. Runtime removal is an authoritative host navigation, so hosts should confirm before removing an edited page if drafts must be retained.
+- `pages` limits sidebar entries, overview shortcuts, and rendered pages. Invalid initial/current pages fall back to the first visible page in the component's canonical navigation order. An empty list renders no account page. Controlled fallback does not emit `update:page`; `pageChange` reports actual displayed page changes. Runtime removal is an authoritative host navigation; hidden drafts survive until save, explicit discard, adapter replacement or unmount.
 - `twoStep` defaults to `true`. Setting it to `false` removes the built-in action and cancels/closes its current dialog.
 
 These are presentation options, not server authorization. Aborting an operation does not prove server rollback.
@@ -109,3 +109,41 @@ These are presentation options, not server authorization. Aborting an operation 
 The header offers a direct account preview entry. Runtime settings and integration controls live in the account sidebar as dedicated pages; their entries remain available when business pages are trimmed or simulated requests fail. Return to the sign-in page to try the configured authentication flow. Sample credentials and a local fill action appear beside the sign-in, registration and reset forms and follow the current mode and code length.
 
 The `NovaAuthForm` footer and `NovaAccount` authFooter slots receive `{ mode, resetStage, busy, fill }`. Reset stages are `verify` and `password`; filling fields does not issue or verify a code. The account page slot also exposes `setAppearance` and `storageError` for host-owned integration tools. No sample credentials enter the library bundle.
+
+## Style isolation
+
+The distributed CSS is precompiled and self-contained. Import `nova-account/style.css` explicitly; consumers do not need Tailwind.
+
+- Utilities use the `na:` prefix. Tailwind Preflight and document-wide resets are excluded.
+- Theme defaults and generated initialization rules are scoped to `.nova-account`; internal Tailwind properties use `--na-tw-*` and layers use `nova-*` names.
+- Override `--na-*` tokens on your own component root. Separate roots can have independent modes and accents. Native dialogs remain inside the themed subtree.
+- The 26 accents mirror django-nova-admin: neutral light surfaces and accent-tinted dark surfaces. `violet` replaces the earlier `iris` accent; invalid stored values fall back safely.
+- Host global styles, especially `!important`, can still override component styles. This is not Shadow DOM isolation.
+
+## Exports and contracts
+
+| Category             | Exports                                                                                                                                                       |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Shell and theme      | `NovaAccount`, `NovaTheme`                                                                                                                                    |
+| Account presentation | `NovaAuthForm`, `NovaAccountCenter`, `NovaAppearance`, `NovaCaptcha`                                                                                          |
+| Base components      | `NovaButton`, `NovaField`, `NovaDialog`, `NovaIcon`, `NOVA_ICON_NAMES`                                                                                        |
+| Reactive flows       | `useAuthFlow`, `useAccount`, `useAppearance`, `parseAppearance`                                                                                               |
+| Localization         | `provideNovaLocale`, `useNovaLocale`, `zhCN`, `enUS`                                                                                                          |
+| Errors and outcomes  | `NovaError`, `NOVA_ERROR_CODES`, types `NovaErrorCode`, `NovaRequestResult`                                                                                   |
+| Contracts            | `NovaAdapter`, `AuthAdapter`, `AccountAdapter`, `RequestContext`, `MutationContext`, `NovaLocaleOptions`, `NovaMessages`, snapshot, user and appearance types |
+| Optional chart entry | `nova-account/charts`: `NovaChart`, `NovaChartOption`                                                                                                         |
+
+The `profile` slot replaces the built-in profile page; the host owns its drafts and leave guards. An adapter with `uploadAvatar` enables the built-in avatar uploader. Before reading the file, the component checks image MIME and `avatarMaxBytes` (default 2 MiB); the server must still validate actual content, type and size. Host `id` and `aria-describedby` values are supported by `NovaField`.
+
+## Synthetic demo credentials
+
+| Field               | Value                                      |
+| ------------------- | ------------------------------------------ |
+| Email               | `demo@nova.example`                        |
+| Username mode       | `demo`                                     |
+| Sign-in password    | `NovaDemo2026!`                            |
+| Email code          | `246810` (or `2468` with four-digit codes) |
+| Sample new password | `NovaNext2026!`                            |
+| Sample new email    | `novanext@nova.example`                    |
+
+All demo data is synthetic and held in memory; no real account is created and no email is sent. Mock password changes do not alter the fixed sign-in credentials. Authentication forms show the appropriate values and a local fill action for each step. Security dialogs provide their own sample fill action. Filling does not accept terms, issue a code or pass verification. Only the optional appearance preference is persisted.

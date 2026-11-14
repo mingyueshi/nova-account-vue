@@ -667,7 +667,7 @@ function onStorageChange(
                   <div role="group" aria-label="受控页面导航" class="demo-stack">
                     <p class="demo-note">
                       受控导航 v-model:page。当前页面：{{ pageLabels[page] }}。宿主赋值 page
-                      属权威跳转，不经过组件内未保存守卫；组件内页签会先弹出确认。实际页签变化见下方“事件日志”的
+                      属权威跳转，不经过组件内未保存守卫，但保留内置资料与偏好草稿；组件内页签会先弹出确认。实际页签变化见下方“事件日志”的
                       pageChange 条目。
                     </p>
                     <div class="demo-grid">

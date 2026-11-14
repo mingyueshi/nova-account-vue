@@ -677,13 +677,19 @@ test('avatar upload on the profile page and the #profile slot editor', async ({ 
   await preview(page)
   await navigate(page, 'profile')
   const fileInput = page.locator('input[type="file"]')
-  // The demo adapter rejects non-images with an inline alert.
+  // Client validation rejects non-images and oversize files before reading a data URL.
   await fileInput.setInputFiles({
     name: 'notes.txt',
     mimeType: 'text/plain',
     buffer: Buffer.from('hello'),
   })
-  await expect(page.locator('main').getByRole('alert')).toContainText('仅支持图片文件')
+  await expect(page.locator('main').getByRole('alert')).toContainText('请选择图片文件')
+  await fileInput.setInputFiles({
+    name: 'oversize.png',
+    mimeType: 'image/png',
+    buffer: Buffer.alloc(2 * 1024 * 1024 + 1),
+  })
+  await expect(page.locator('main').getByRole('alert')).toContainText('图片不能超过 2097152 字节')
   // A valid image flows through uploadAvatar into the snapshot previews.
   const png = Buffer.from(
     'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
@@ -709,6 +715,29 @@ test('avatar upload on the profile page and the #profile slot editor', async ({ 
   await expect(page.locator('.demo-scene-tag').filter({ hasText: '前端' })).toBeVisible()
   await page.getByRole('button', { name: '移除标签 前端' }).click()
   await expect(page.locator('.demo-scene-tag').filter({ hasText: '前端' })).toHaveCount(0)
+})
+
+test('password changes validate locally, focus the invalid field and recover after correction', async ({
+  page,
+}) => {
+  await preview(page)
+  await navigate(page, 'security')
+  await page.getByRole('button', { name: '修改', exact: true }).click()
+  const dialog = page.getByRole('dialog', { name: '修改密码', exact: true })
+  const confirm = dialog.getByRole('button', { name: '确认演示操作', exact: true })
+  await confirm.click()
+  await expect(dialog.getByLabel('当前密码', { exact: true })).toBeFocused()
+  await expect(dialog.locator('[aria-invalid="true"]')).toHaveCount(3)
+  await dialog.getByLabel('当前密码', { exact: true }).fill('NovaDemo2026!')
+  await dialog.getByLabel('新密码', { exact: true }).fill('NovaNext2026!')
+  await dialog.getByLabel('确认新密码', { exact: true }).fill('Different2026!')
+  await confirm.click()
+  await expect(dialog.getByText('两次输入的密码不一致。', { exact: true })).toBeVisible()
+  await expect(dialog.getByLabel('确认新密码', { exact: true })).toBeFocused()
+  expect((await new AxeBuilder({ page }).include('dialog[open]').analyze()).violations).toEqual([])
+  await dialog.getByLabel('确认新密码', { exact: true }).fill('NovaNext2026!')
+  await confirm.click()
+  await expect(dialog).not.toBeVisible()
 })
 
 test('header quick toggle switches light/dark anytime and preserves the accent', async ({

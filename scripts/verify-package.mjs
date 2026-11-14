@@ -25,6 +25,8 @@ assert(files.includes('dist/charts.js') && files.includes('dist/charts.d.ts'))
 for (const file of ['LICENSE', 'README.en.md', 'CHANGELOG.md', 'THIRD_PARTY_NOTICES.md'])
   assert(files.includes(file), `missing package document: ${file}`)
 assert.equal(packageJson.license, 'MIT')
+assert(!packageJson.dependencies.echarts, 'ECharts must not be a hard dependency')
+assert.equal(packageJson.peerDependenciesMeta.echarts.optional, true)
 assert(files.includes('dist/nova-account.css'))
 assert(
   !files.some((file) => /^(demo|src|tests|examples|node_modules)\//.test(file)),
@@ -43,8 +45,15 @@ assert(
 )
 const css = readFileSync(join(root, 'dist/nova-account.css'), 'utf8')
 assert(css.includes('.nova-account'), 'compiled scoped foundation is required')
+assert(
+  css.includes('data-accent=teal') && css.includes('#06201e'),
+  'compiled CSS must contain generated light and dark palettes',
+)
 assert(css.includes('na\\:flex'), 'compiled prefixed Tailwind utilities are required')
-assert(!/@tailwind|@source/.test(css), 'consumer must not need a Tailwind compilation step')
+assert(
+  !/@tailwind|@source|@nova-palettes/.test(css),
+  'consumer must not need a Tailwind compilation step',
+)
 assert(!/@import/.test(css), 'the CSS export must be self-contained')
 assert(!/(?:^|})\s*(?:html|body)\s*\{/.test(css), 'no document-level Preflight reset')
 assert(!css.includes(':root'), 'library theme variables must be scoped to .nova-account')
@@ -97,10 +106,7 @@ assert(html.includes('Tarball SSR verified'))
 const icon = await renderToString(createSSRApp({render: () => h(library.NovaIcon, {name:'security',label:'Account security'})}))
 assert(icon.includes('<svg') && icon.includes('Account security') && !icon.includes('aria-hidden'))
 assert(library.NOVA_ICON_NAMES.includes('security'))
-const charts = await import('nova-account/charts')
-assert(!('NovaChart' in library), 'charts must remain an optional entry')
-const chart = await renderToString(createSSRApp({render: () => h(charts.NovaChart, {option:{series:[{type:'bar',data:[1]}]},label:'SSR chart'})}))
-assert(chart.includes('SSR chart') && chart.includes('320px'))
+assert.throws(() => createRequire(import.meta.url).resolve('echarts/core'), { code: 'MODULE_NOT_FOUND' }, 'base-only install must not contain ECharts')
 assert.equal(typeof globalThis.window, 'undefined')
 console.log('PASS tarball ESM exports, explicit compiled CSS, external Vue and SSR')
 `,
@@ -110,9 +116,6 @@ writeFileSync(
   `
 import { NovaAccount, NovaAuthForm, NovaButton, NovaTheme, NovaError, useAuthFlow, type AuthAdapter, type NovaAdapter, type Appearance, type NovaMessages, type NovaErrorCode, type NovaRequestResult } from 'nova-account'
 import { h } from 'vue'
-import { NovaChart, type NovaChartOption } from 'nova-account/charts'
-const chartOption: NovaChartOption = {series:[{type:'line',data:[1,2,3]}]}
-h(NovaChart, {option:chartOption,label:'Activity'})
 const unavailable = async (): Promise<never> => { throw new NovaError('ADAPTER_NOT_CONFIGURED', 'Configure a server adapter') }
 const auth: AuthAdapter = {challenge:unavailable,verifyCaptcha:unavailable,sendCode:unavailable,login:unavailable,register:unavailable,verifyResetCode:unavailable,resetPassword:unavailable,logout:unavailable}
 const theme: Appearance = {mode:'system',accent:'teal'}
@@ -160,6 +163,46 @@ writeFileSync(
   ),
 )
 process.stdout.write(run('node', ['verify.mjs'], consumer))
+process.stdout.write(run(join(consumer, 'node_modules/.bin/tsc'), ['--noEmit'], consumer))
+console.log('PASS base-only ESM / SSR / strict TypeScript consumer without ECharts')
+run(
+  'npm',
+  [
+    'install',
+    '--no-audit',
+    '--no-fund',
+    '--ignore-scripts',
+    `echarts@${packageJson.devDependencies.echarts}`,
+  ],
+  consumer,
+)
+writeFileSync(
+  join(consumer, 'verify-charts.mjs'),
+  `
+import assert from 'node:assert/strict'
+import { createSSRApp, h } from 'vue'
+import { renderToString } from '@vue/server-renderer'
+import * as library from 'nova-account'
+const charts = await import('nova-account/charts')
+assert(!('NovaChart' in library), 'charts must remain an optional entry')
+const chart = await renderToString(createSSRApp({render: () => h(charts.NovaChart, {option:{series:[{type:'bar',data:[1]}]},label:'SSR chart'})}))
+assert(chart.includes('SSR chart') && chart.includes('320px'))
+const localizedChart = await renderToString(createSSRApp({render: () => h(library.NovaTheme, {locale:'en-US'}, {default: () => h(charts.NovaChart, {option:{},label:'SSR chart',description:'Optional entry'})})}))
+assert(localizedChart.includes('SSR chart. Optional entry'), 'chart and account entries must share the locale context')
+
+console.log('PASS optional chart entry with explicitly installed ECharts')
+`,
+)
+writeFileSync(
+  join(consumer, 'consumer.ts'),
+  readFileSync(join(consumer, 'consumer.ts'), 'utf8') +
+    `
+import { NovaChart, type NovaChartOption } from 'nova-account/charts'
+const chartOption: NovaChartOption = {series:[{type:'line',data:[1,2,3]}]}
+h(NovaChart, {option:chartOption,label:'Activity'})
+`,
+)
+process.stdout.write(run('node', ['verify-charts.mjs'], consumer))
 process.stdout.write(run(join(consumer, 'node_modules/.bin/tsc'), ['--noEmit'], consumer))
 const dependencyTree = JSON.parse(run('npm', ['ls', 'vue', '--json'], consumer))
 assert(dependencyTree.dependencies?.vue?.version === packageJson.devDependencies.vue)

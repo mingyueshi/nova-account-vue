@@ -27,6 +27,7 @@ RELEASE-MANIFEST.sha256
 # Local agent caches
 .mimosa/
 .video_agent/
+.v2c/
 # Browser verification artifacts
 output/
 playwright-report/

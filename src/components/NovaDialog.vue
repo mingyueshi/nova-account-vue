@@ -11,12 +11,14 @@ const heading = ref<HTMLElement>()
 const id = useId()
 let previousFocus: HTMLElement | null = null
 let mounted = false
+const nativeModal = ref(false)
 function sync() {
   const el = dialog.value
   if (!mounted || !el) return
   if (props.open && !el.open) {
     previousFocus = el.ownerDocument.activeElement as HTMLElement | null
-    if (typeof el.showModal === 'function') el.showModal()
+    nativeModal.value = typeof el.showModal === 'function'
+    if (nativeModal.value) el.showModal()
     else el.setAttribute('open', '')
     nextTick(() => heading.value?.focus())
   } else if (!props.open && el.open) {
@@ -42,7 +44,7 @@ onBeforeUnmount(() => {
   <dialog
     ref="dialog"
     :aria-labelledby="id"
-    aria-modal="true"
+    :aria-modal="nativeModal ? 'true' : undefined"
     class="nova-dialog na:m-auto na:max-h-[calc(100dvh-2rem)] na:w-[calc(100%-2rem)] na:max-w-md na:overflow-y-auto na:rounded-2xl na:border na:border-[var(--na-line)] na:bg-[var(--na-surface)] na:p-6 na:text-[var(--na-ink)]"
     @cancel.prevent="emit('close')"
     @close="onNativeClose"

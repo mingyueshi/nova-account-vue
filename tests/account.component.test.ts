@@ -242,7 +242,7 @@ describe('restricted account pages', () => {
   })
   it('reconciles a removed page and does not revive it when the list expands', async () => {
     const wrapper = await restricted({ pages: ['profile', 'security'] })
-    await wrapper.get('input[autocomplete="nickname"]').setValue('Discarded draft')
+    await wrapper.get('input[autocomplete="nickname"]').setValue('Retained draft')
     await wrapper.setProps({ pages: ['security'] })
     expect(wrapper.get('h1').text()).toBe('账号安全')
     expect(wrapper.emitted('update:page')).toBeUndefined()
@@ -250,7 +250,7 @@ describe('restricted account pages', () => {
     expect(wrapper.get('h1').text()).toBe('账号安全')
     await wrapper.get('[data-page="profile"]').trigger('click')
     expect((wrapper.get('input[autocomplete="nickname"]').element as HTMLInputElement).value).toBe(
-      'Nova',
+      'Retained draft',
     )
   })
   it('falls back for an unavailable controlled page without echoing updates', async () => {

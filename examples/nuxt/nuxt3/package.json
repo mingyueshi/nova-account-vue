@@ -9,7 +9,7 @@
     "smoke": "node ../smoke.mjs"
   },
   "dependencies": {
-    "nova-account": "file:../../../nova-account-0.1.0-dev.1.tgz",
+    "nova-account": "file:../../../nova-account-0.1.0-dev.2.tgz",
     "nuxt": "3.21.11",
     "vue": "3.5.44"
   },

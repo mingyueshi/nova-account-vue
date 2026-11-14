@@ -33,7 +33,8 @@
     "**/*.css"
   ],
   "peerDependencies": {
-    "vue": "^3.5.0"
+    "vue": "^3.5.0",
+    "echarts": "^6.1.0"
   },
   "scripts": {
     "dev": "vite --config vite.demo.config.ts",
@@ -49,7 +50,8 @@
     "test:coverage": "vitest run --coverage",
     "test:e2e": "playwright test",
     "size": "node scripts/check-size.mjs",
-    "verify:nuxt": "node scripts/verify-nuxt.mjs"
+    "verify:nuxt": "node scripts/verify-nuxt.mjs",
+    "check:licenses": "node scripts/check-licenses.mjs"
   },
   "devDependencies": {
     "@axe-core/playwright": "4.14.0",
@@ -76,7 +78,8 @@
     "vite-plugin-dts": "5.1.2",
     "vitest": "5.0.5",
     "vue": "3.5.44",
-    "vue-tsc": "3.3.13"
+    "vue-tsc": "3.3.13",
+    "echarts": "6.1.0"
   },
   "engines": {
     "node": ">=22.12.0"
@@ -91,7 +94,11 @@
   },
   "license": "MIT",
   "dependencies": {
-    "@lucide/vue": "1.72.0",
-    "echarts": "6.1.0"
+    "@lucide/vue": "1.72.0"
+  },
+  "peerDependenciesMeta": {
+    "echarts": {
+      "optional": true
+    }
   }
 }

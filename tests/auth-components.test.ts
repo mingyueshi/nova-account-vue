@@ -28,6 +28,72 @@ function adapter(kind: 'slider' | 'custom' = 'slider'): AuthAdapter {
 }
 
 describe('authentication components', () => {
+  it('only submits completed pointer input and resets the slider for a new challenge', async () => {
+    const wrapper = mount(NovaCaptcha, {
+      props: { challenge: { id: 'pointer', kind: 'slider', expiresAt: Date.now() + 100_000 } },
+    })
+    wrappers.push(wrapper)
+    const slider = wrapper.get('input[type="range"]')
+    await slider.setValue(40)
+    await slider.trigger('pointerup')
+    expect(wrapper.emitted('submit')).toBeUndefined()
+    await slider.trigger('keydown', { key: 'Enter' })
+    expect(wrapper.get('[role="alert"]').text()).not.toBe('')
+    await slider.setValue(100)
+    await slider.trigger('pointerup')
+    expect(wrapper.emitted('submit')).toEqual([[{ value: 100 }]])
+    await wrapper.setProps({
+      challenge: { id: 'replacement', kind: 'slider', expiresAt: Date.now() + 100_000 },
+    })
+    expect(slider.element).toHaveProperty('value', '0')
+    expect(wrapper.get('[role="alert"]').text()).toBe('')
+  })
+
+  it('blocks verification and retry while busy, moves focus to status, then allows explicit retry', async () => {
+    const wrapper = mount(NovaCaptcha, {
+      attachTo: document.body,
+      props: {
+        challenge: { id: 'busy', kind: 'slider', expiresAt: Date.now() + 100_000 },
+        simulated: true,
+      },
+    })
+    wrappers.push(wrapper)
+    const slider = wrapper.get('input[type="range"]')
+    expect(document.activeElement).toBe(slider.element)
+    await slider.setValue(100)
+    await wrapper.setProps({ busy: true, error: 'Verification failed' })
+    await flushPromises()
+    expect(document.activeElement).toBe(wrapper.get('[role="status"]').element)
+    await slider.trigger('keydown', { key: 'Enter' })
+    await wrapper.get('button').trigger('click')
+    expect(wrapper.emitted('submit')).toBeUndefined()
+    expect(wrapper.emitted('retry')).toBeUndefined()
+    await wrapper.setProps({ busy: false })
+    await wrapper.get('button').trigger('click')
+    expect(wrapper.emitted('retry')).toHaveLength(1)
+    expect(wrapper.get('[role="status"]').text()).toContain('仅模拟交互')
+    await wrapper.setProps({ simulated: false })
+    expect(wrapper.get('[role="status"]').text()).not.toContain('仅模拟交互')
+  })
+
+  it('keeps password visibility and single-login keyboard navigation local to the form', async () => {
+    const service = adapter()
+    const wrapper = mount(NovaAuthForm, { props: { adapter: service, modes: ['password'] } })
+    wrappers.push(wrapper)
+    wrapper.vm.fill({ password: 'Secret draft' })
+    await flushPromises()
+    const toggle = () =>
+      wrapper.findAll('button').find((item) => /显示密码|隐藏密码/.test(item.text()))!
+    await toggle().trigger('click')
+    expect(wrapper.get('input[autocomplete="current-password"]').attributes('type')).toBe('text')
+    await toggle().trigger('click')
+    expect(wrapper.get('input[autocomplete="current-password"]').attributes('type')).toBe(
+      'password',
+    )
+    expect(wrapper.find('[role="tablist"]').exists()).toBe(false)
+    expect(service.challenge).not.toHaveBeenCalled()
+  })
+
   it('focuses the first invalid field, then the global error when the adapter rejects submission', async () => {
     const service = adapter()
     service.login = vi.fn(async () => {

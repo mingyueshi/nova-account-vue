@@ -1,35 +1,9 @@
 import { useNovaLocale } from '../locale'
+import { lightPalettes } from '../palettes'
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import type { Accent, Appearance, ThemeMode } from '../types'
 const modes: ThemeMode[] = ['light', 'dark', 'system']
-const accents: Accent[] = [
-  'blue',
-  'teal',
-  'indigo',
-  'violet',
-  'terracotta',
-  'graphite',
-  'midnight',
-  'forest',
-  'amber',
-  'ocean',
-  'slate',
-  'plum',
-  'coffee',
-  'glacier',
-  'rose',
-  'olive',
-  'ink',
-  'cinnabar',
-  'gilded',
-  'emerald',
-  'peacock',
-  'sunset',
-  'industrial',
-  'lilac',
-  'terminal',
-  'parchment',
-]
+const accents = Object.keys(lightPalettes) as Accent[]
 export function parseAppearance(value: unknown): Appearance | null {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null
   const candidate = value as Record<string, unknown>

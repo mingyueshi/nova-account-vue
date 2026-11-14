@@ -118,11 +118,15 @@ const submitLabel = computed(() =>
         : t('auth.continue')
       : t('auth.login'),
 )
-const strength = computed(() =>
-  mode.value !== 'password' && fields.password && props.passwordStrength
-    ? props.passwordStrength(fields.password)
-    : null,
-)
+const strength = computed(() => {
+  if (mode.value === 'password' || !fields.password || !props.passwordStrength) return null
+  try {
+    return props.passwordStrength(fields.password)
+  } catch {
+    // This optional presenter must not break credential editing or submission.
+    return null
+  }
+})
 const inputBlocked = computed(() => busy.value || challengeOpen.value)
 watch(
   delivery,
@@ -173,7 +177,8 @@ async function tabKey(event: KeyboardEvent) {
         : (index + (event.key === 'ArrowLeft' ? -1 : 1) + tabs.length) % tabs.length
   setMode(tabs[next]!)
   await nextTick()
-  form.value?.parentElement
+  form.value
+    ?.closest('section')
     ?.querySelector<HTMLButtonElement>('[role="tab"][aria-selected="true"]')
     ?.focus()
 }
@@ -230,7 +235,7 @@ defineExpose({ fill: flow.fill, cancel: flow.cancel, setMode })
         type="button"
         role="tab"
         :aria-selected="mode === tab"
-        :aria-controls="`${id}-form`"
+        :aria-controls="`${id}-panel`"
         :tabindex="mode === tab ? 0 : -1"
         class="na:relative na:flex-1 na:border-0 na:border-b-2 na:bg-transparent na:px-1 na:py-3 na:text-sm na:transition-colors"
         :class="
@@ -243,163 +248,175 @@ defineExpose({ fill: flow.fill, cancel: flow.cancel, setMode })
         {{ tab === 'password' ? t('auth.passwordLogin') : t('auth.codeLogin') }}
       </button>
     </div>
-    <form
+    <div
       v-if="activeMode"
-      :id="`${id}-form`"
-      ref="form"
-      novalidate
-      class="na:grid na:gap-5"
-      :aria-labelledby="isLogin && loginTabs.length > 1 ? `${id}-${mode}-tab` : `${id}-title`"
-      :aria-busy="busy"
-      @submit.prevent="submit"
+      :id="`${id}-panel`"
+      :role="isLogin && loginTabs.length > 1 ? 'tabpanel' : undefined"
+      :aria-labelledby="isLogin && loginTabs.length > 1 ? `${id}-${mode}-tab` : undefined"
     >
-      <NovaField
-        v-if="mode !== 'reset' || resetStage === 'verify'"
-        v-model="fields.email"
-        :label="isUsername ? t('auth.account') : t('auth.email')"
-        :type="isUsername ? 'text' : 'email'"
-        :autocomplete="isUsername ? 'username' : 'email'"
-        :placeholder="isUsername ? t('auth.accountPlaceholder') : t('auth.emailPlaceholder')"
-        :disabled="inputBlocked"
-        :error="fieldErrors.email"
-      />
-      <template
-        v-if="
-          mode === 'password' ||
-          mode === 'register' ||
-          (mode === 'reset' && resetStage === 'password')
-        "
+      <form
+        :id="`${id}-form`"
+        ref="form"
+        novalidate
+        class="na:grid na:gap-5"
+        :aria-labelledby="isLogin && loginTabs.length > 1 ? `${id}-${mode}-tab` : `${id}-title`"
+        :aria-busy="busy"
+        @submit.prevent="submit"
       >
-        <div class="na:relative na:grid na:gap-2">
-          <NovaField
-            v-model="fields.password"
-            :label="mode === 'reset' ? t('auth.newPassword') : t('auth.password')"
-            :type="showPassword ? 'text' : 'password'"
-            :autocomplete="mode === 'password' ? 'current-password' : 'new-password'"
-            :placeholder="t('auth.passwordPlaceholder')"
-            :disabled="inputBlocked"
-            :error="fieldErrors.password"
-          />
-          <div class="na:flex na:items-center na:justify-between na:gap-3 na:text-xs">
-            <button
-              type="button"
-              class="na:border-0 na:bg-transparent na:p-0 na:text-[var(--na-muted)] na:hover:text-[var(--na-brand)]"
-              :aria-pressed="showPassword"
-              @click="showPassword = !showPassword"
-            >
-              {{ showPassword ? t('auth.hidePassword') : t('auth.showPassword') }}
-            </button>
-            <button
-              v-if="mode === 'password' && canReset"
-              type="button"
-              class="na:border-0 na:bg-transparent na:p-0 na:text-[var(--na-brand)]"
-              @click="switchView('reset')"
-            >
-              {{ t('auth.forgot') }}
-            </button>
+        <NovaField
+          v-if="mode !== 'reset' || resetStage === 'verify'"
+          v-model="fields.email"
+          :label="isUsername ? t('auth.account') : t('auth.email')"
+          :type="isUsername ? 'text' : 'email'"
+          :autocomplete="isUsername ? 'username' : 'email'"
+          :placeholder="isUsername ? t('auth.accountPlaceholder') : t('auth.emailPlaceholder')"
+          :disabled="inputBlocked"
+          :error="fieldErrors.email"
+        />
+        <template
+          v-if="
+            mode === 'password' ||
+            mode === 'register' ||
+            (mode === 'reset' && resetStage === 'password')
+          "
+        >
+          <div class="na:relative na:grid na:gap-2">
+            <NovaField
+              v-model="fields.password"
+              :label="mode === 'reset' ? t('auth.newPassword') : t('auth.password')"
+              :type="showPassword ? 'text' : 'password'"
+              :autocomplete="mode === 'password' ? 'current-password' : 'new-password'"
+              :placeholder="t('auth.passwordPlaceholder')"
+              :disabled="inputBlocked"
+              :error="fieldErrors.password"
+            />
+            <div class="na:flex na:items-center na:justify-between na:gap-3 na:text-xs">
+              <button
+                type="button"
+                class="na:border-0 na:bg-transparent na:p-0 na:text-[var(--na-muted)] na:hover:text-[var(--na-brand)]"
+                :aria-pressed="showPassword"
+                @click="showPassword = !showPassword"
+              >
+                {{ showPassword ? t('auth.hidePassword') : t('auth.showPassword') }}
+              </button>
+              <button
+                v-if="mode === 'password' && canReset"
+                type="button"
+                class="na:border-0 na:bg-transparent na:p-0 na:text-[var(--na-brand)]"
+                @click="switchView('reset')"
+              >
+                {{ t('auth.forgot') }}
+              </button>
+            </div>
           </div>
-        </div>
-        <div v-if="strength" class="na:grid na:gap-1 na:text-xs na:text-[var(--na-muted)]">
-          <label :for="`${id}-strength`">{{ t('auth.strength') }}: {{ strength.label }}</label>
-          <meter :id="`${id}-strength`" min="0" max="4" :value="strength.score" class="na:w-full" />
-          <p v-if="strength.hint">{{ strength.hint }}</p>
-        </div>
-        <NovaField
-          v-if="mode === 'reset'"
-          v-model="fields.confirmPassword"
-          :label="t('auth.confirmPassword')"
-          :type="showPassword ? 'text' : 'password'"
-          autocomplete="new-password"
-          :placeholder="t('auth.confirmPlaceholder')"
-          :disabled="inputBlocked"
-          :error="fieldErrors.confirmPassword"
-        />
-      </template>
-      <div
-        v-if="
-          mode === 'code' || mode === 'register' || (mode === 'reset' && resetStage === 'verify')
-        "
-        class="na:grid na:gap-2"
-      >
-        <NovaField
-          v-model="fields.code"
-          :label="t('auth.code')"
-          autocomplete="one-time-code"
-          inputmode="numeric"
-          :maxlength="codeLength ?? undefined"
-          :placeholder="t('auth.codePlaceholder')"
-          :disabled="inputBlocked"
-          :error="fieldErrors.code"
-        />
-        <div class="na:flex na:items-center na:justify-between na:gap-3">
-          <span class="na:text-xs na:text-[var(--na-muted)]" role="status">{{
-            codeExpired ? t('auth.codeExpired') : delivery ? t('auth.codeSent') : ''
-          }}</span>
-          <NovaButton
-            variant="ghost"
-            :disabled="inputBlocked || resendSeconds > 0"
-            @click="requestCode"
-            >{{
-              resendSeconds > 0
-                ? t('auth.retryAfter', { seconds: resendSeconds })
-                : delivery
-                  ? t('auth.resend')
-                  : t('auth.requestCode')
-            }}</NovaButton
+          <div v-if="strength" class="na:grid na:gap-1 na:text-xs na:text-[var(--na-muted)]">
+            <label :for="`${id}-strength`">{{ t('auth.strength') }}: {{ strength.label }}</label>
+            <meter
+              :id="`${id}-strength`"
+              min="0"
+              max="4"
+              :value="strength.score"
+              class="na:w-full"
+            />
+            <p v-if="strength.hint">{{ strength.hint }}</p>
+          </div>
+          <NovaField
+            v-if="mode === 'reset'"
+            v-model="fields.confirmPassword"
+            :label="t('auth.confirmPassword')"
+            :type="showPassword ? 'text' : 'password'"
+            autocomplete="new-password"
+            :placeholder="t('auth.confirmPlaceholder')"
+            :disabled="inputBlocked"
+            :error="fieldErrors.confirmPassword"
+          />
+        </template>
+        <div
+          v-if="
+            mode === 'code' || mode === 'register' || (mode === 'reset' && resetStage === 'verify')
+          "
+          class="na:grid na:gap-2"
+        >
+          <NovaField
+            v-model="fields.code"
+            :label="t('auth.code')"
+            autocomplete="one-time-code"
+            inputmode="numeric"
+            :maxlength="codeLength ?? undefined"
+            :placeholder="t('auth.codePlaceholder')"
+            :disabled="inputBlocked"
+            :error="fieldErrors.code"
+          />
+          <div class="na:flex na:items-center na:justify-between na:gap-3">
+            <span class="na:text-xs na:text-[var(--na-muted)]" role="status">{{
+              codeExpired ? t('auth.codeExpired') : delivery ? t('auth.codeSent') : ''
+            }}</span>
+            <NovaButton
+              variant="ghost"
+              :disabled="inputBlocked || resendSeconds > 0"
+              @click="requestCode"
+              >{{
+                resendSeconds > 0
+                  ? t('auth.retryAfter', { seconds: resendSeconds })
+                  : delivery
+                    ? t('auth.resend')
+                    : t('auth.requestCode')
+              }}</NovaButton
+            >
+          </div>
+          <p
+            v-if="simulated && delivery?.demoCode"
+            class="na:text-xs na:text-[var(--na-muted)]"
+            role="status"
           >
+            {{ t('auth.demoCode', { code: delivery.demoCode }) }}
+          </p>
+        </div>
+        <div v-if="mode === 'register'" class="na:grid na:gap-2">
+          <label
+            class="na:flex na:items-start na:gap-3 na:text-xs na:leading-relaxed na:text-[var(--na-muted)]"
+          >
+            <input
+              v-model="fields.consent"
+              type="checkbox"
+              :disabled="inputBlocked"
+              :aria-invalid="!!fieldErrors.consent"
+              :aria-describedby="`${id}-consent-error`"
+              class="na:mt-0.5 na:h-4 na:w-4 na:shrink-0 na:accent-[var(--na-brand)]"
+            />
+            <span
+              ><slot name="terms">{{ t('auth.terms') }}</slot></span
+            >
+          </label>
+          <p :id="`${id}-consent-error`" class="na:text-xs na:text-[var(--na-error)]" role="alert">
+            {{ fieldErrors.consent }}
+          </p>
         </div>
         <p
-          v-if="simulated && delivery?.demoCode"
-          class="na:text-xs na:text-[var(--na-muted)]"
+          v-if="error"
+          ref="errorSummary"
+          role="alert"
+          tabindex="-1"
+          class="na:rounded-lg na:border na:border-[var(--na-error)] na:p-3 na:text-sm na:text-[var(--na-error)]"
+        >
+          {{ error }}
+        </p>
+        <p
+          v-if="notice && (!simulated || !delivery)"
           role="status"
+          class="na:text-sm na:text-[var(--na-muted)]"
         >
-          {{ t('auth.demoCode', { code: delivery.demoCode }) }}
+          {{ notice }}
         </p>
-      </div>
-      <div v-if="mode === 'register'" class="na:grid na:gap-2">
-        <label
-          class="na:flex na:items-start na:gap-3 na:text-xs na:leading-relaxed na:text-[var(--na-muted)]"
+        <NovaButton
+          type="submit"
+          variant="primary"
+          :disabled="inputBlocked"
+          class="na:mt-1 na:w-full"
+          >{{ busy ? t('common.processing') : submitLabel }}</NovaButton
         >
-          <input
-            v-model="fields.consent"
-            type="checkbox"
-            :disabled="inputBlocked"
-            :aria-invalid="!!fieldErrors.consent"
-            :aria-describedby="`${id}-consent-error`"
-            class="na:mt-0.5 na:h-4 na:w-4 na:shrink-0 na:accent-[var(--na-brand)]"
-          />
-          <span
-            ><slot name="terms">{{ t('auth.terms') }}</slot></span
-          >
-        </label>
-        <p :id="`${id}-consent-error`" class="na:text-xs na:text-[var(--na-error)]" role="alert">
-          {{ fieldErrors.consent }}
-        </p>
-      </div>
-      <p
-        v-if="error"
-        ref="errorSummary"
-        role="alert"
-        tabindex="-1"
-        class="na:rounded-lg na:border na:border-[var(--na-error)] na:p-3 na:text-sm na:text-[var(--na-error)]"
-      >
-        {{ error }}
-      </p>
-      <p
-        v-if="notice && (!simulated || !delivery)"
-        role="status"
-        class="na:text-sm na:text-[var(--na-muted)]"
-      >
-        {{ notice }}
-      </p>
-      <NovaButton
-        type="submit"
-        variant="primary"
-        :disabled="inputBlocked"
-        class="na:mt-1 na:w-full"
-        >{{ busy ? t('common.processing') : submitLabel }}</NovaButton
-      >
-    </form>
+      </form>
+    </div>
     <p
       v-if="isLogin && canRegister"
       class="na:mt-7 na:text-center na:text-sm na:text-[var(--na-muted)]"

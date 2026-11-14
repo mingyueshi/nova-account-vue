@@ -1,5 +1,16 @@
 # Nova Account Vue 开发版验证
 
+## 2026-11-14 缺陷逐项复核
+
+基于 `905f1bb` 的本机工作区修复；逐项判定和兼容契约说明见 [复核记录](docs/review-2026-11-14.md)。未提交、推送或部署。
+
+- Node 22.19.0：`npm run check` 通过，20 个文件、232 项测试；行覆盖率 95.74%，分支 88.37%。NovaCaptcha 函数 92.30%、分支 88.46%，NovaAuthForm 分支 85.07%，新增单文件门槛通过。
+- 账户 JS **连同共享 chunk** 39,122 bytes gzip、CSS 5,930 bytes；账户图之外的图表增量 2,033 bytes，均在预算内。单独图表加共享 locale 10,721 bytes，不含外置 ECharts。
+- `npm run verify:package`：无 ECharts 的账户 ESM/SSR/严格 TypeScript 消费通过，显式安装后图表入口及跨入口语言上下文通过。`npm run verify:nuxt`：最终库的 Nuxt 3/4 typecheck、build、SSR route 与 CSS smoke 全部通过。
+- Chrome 既有 45 项回归通过，含 52 套外观 axe 与 320–2560px 布局；新增密码弹窗空值、不一致、错误焦点及修正后提交用例通过。完整 46 项运行中该新增用例曾因测试按钮名与实际文案不符超时，修正定位器后单独复测 1/1 通过，未把该中间运行记为一次 46/46 通过。
+- `npm audit --audit-level=high` 通过：高危/严重 0，另有 13 项 moderate 报告；未作超出本轮范围的依赖大版本升级。运行时 27 个依赖的许可证清单检查通过（含可选图表链）。新增 CI 与 Dependabot 配置未远端执行。
+- `.v2c/plugin_root` 已由 `.gitignore` 实际匹配。最终格式及 `git diff --check` 通过。本轮未重跑 Firefox/WebKit，也未接入真实认证后端。
+
 ## 2026-11-14 演示配置整合
 
 - 将演示设置与组件接入迁入用户中心分组导航，移除右上角工具弹窗及重复入口。登录、注册和重置密码直接显示当前步骤的示例值与填写操作，随用户名模式、验证码长度和语言更新；填写不自动同意条款或通过验证。

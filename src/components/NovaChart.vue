@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { onMounted, onBeforeUnmount, ref, watch } from 'vue'
+import { useNovaLocale } from '../locale'
+const { t } = useNovaLocale()
 import { init, use, type EChartsType } from 'echarts/core'
 import { LineChart, BarChart, PieChart } from 'echarts/charts'
 import {
@@ -40,7 +42,6 @@ const props = withDefaults(
     active: true,
     description: '',
     themeKey: '',
-    errorLabel: 'Chart unavailable. View the data table.',
   },
 )
 const emit = defineEmits<{ ready: []; error: [message: string] }>()
@@ -161,7 +162,7 @@ onBeforeUnmount(() => {
     ref="root"
     class="nova-chart"
     role="img"
-    :aria-label="description ? `${label}。${description}` : label"
+    :aria-label="description ? t('chart.description', { label, description }) : label"
     style="margin: 0; min-width: 0; width: 100%"
   >
     <div
@@ -169,6 +170,6 @@ onBeforeUnmount(() => {
       aria-hidden="true"
       :style="{ height: `${height}px`, width: '100%', minWidth: 0 }"
     />
-    <figcaption v-if="error" role="alert">{{ errorLabel }}</figcaption>
+    <figcaption v-if="error" role="alert">{{ errorLabel ?? t('chart.unavailable') }}</figcaption>
   </figure>
 </template>

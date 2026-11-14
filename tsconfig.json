@@ -20,7 +20,9 @@
     "demo/**/*.vue",
     "tests/**/*.ts",
     "vite*.ts",
-    "playwright.config.ts"
+    "playwright.config.ts",
+    "scripts/**/*.ts",
+    "examples/adapters/**/*.ts"
   ],
-  "exclude": ["node_modules", "dist", "examples"]
+  "exclude": ["node_modules", "dist", "examples/nuxt"]
 }

@@ -40,7 +40,7 @@ import { NovaIcon, NOVA_ICON_NAMES } from 'nova-account'
 
 ## 动态图表（可选入口）
 
-与 `django-nova-admin` 的图表实验室使用同版本 Apache ECharts 6.1.0。基础账户入口不引入 ECharts；需要图表的页面显式导入独立入口。演示在账户概览中汇总当前活动记录，并在「业务场景 → 数据概览」提供任务/订单、7/30 天、折线/柱状、期间构成、模拟回放、空/全零状态与 CSV 导出。数据明细与图表、汇总使用同一份筛选记录。
+与 `django-nova-admin` 的图表实验室使用同版本 Apache ECharts 6.1.0。基础账户入口不引入或安装 ECharts；ECharts 是可选 peer（`^6.1.0`），需要图表时先运行 `npm install echarts@6.1.0` 并显式导入独立入口。演示在账户概览中汇总当前活动记录，并在「业务场景 → 数据概览」提供任务/订单、7/30 天、折线/柱状、期间构成、模拟回放、空/全零状态与 CSV 导出。数据明细与图表、汇总使用同一份筛选记录。
 
 ```vue
 <script setup lang="ts">
@@ -144,7 +144,7 @@ const messages: Partial<NovaMessages> = { 'auth.welcome': '登录你的账户' }
 
 日期使用 `Intl.DateTimeFormat`，默认时区 UTC，避免服务器与浏览器时区差异导致 hydration 不一致；中文接入通常显式设置 `Asia/Shanghai`。服务端与客户端需传入相同配置；无效日期显示占位符，无效 Intl 配置回退到 UTC 日期。
 
-`page` + `update:page` 支持受控导航，`initialPage` 仅设置非受控初始页，`pageChange` 反映实际页签变化。内部导航先执行 dirty guard；外部 page 更新视为宿主权威跳转，路由卸载、后退等仍需宿主自己的离开确认。
+`page` + `update:page` 支持受控导航，`initialPage` 仅设置非受控初始页，`pageChange` 反映实际页签变化。内部导航先执行 dirty guard；外部 page 更新视为宿主权威跳转，不拦截但保留内置资料/偏好草稿；保存或明确取消才重置对应草稿。宿主 refresh 保留未保存草稿，切换 adapter 则清空。路由卸载、后退等仍需宿主自己的离开确认。
 
 宿主可以通过 `extraPages: AccountExtraPage[]` 和 `#page` 插槽，把自己的业务页面接入同一套账户导航与主内容区。扩展页 ID 使用 `custom:` 前缀，支持 `label`、`description`、`symbol` 和 `group`；同样参与 `page` / `pages` 受控导航和内置资料离页确认。`#page` 提供 `{ page, snapshot, adapter, refresh, appearance, setAppearance, storageError }`，可按当前 ID 显示对应内容。插槽在切换到内置页时保留挂载并隐藏；扩展业务页自己的草稿校验与离开保护由宿主实现。
 
@@ -152,7 +152,7 @@ const messages: Partial<NovaMessages> = { 'auth.welcome': '登录你的账户' }
 
 - `identifier="username"` 将账号作为文本收集，去掉首尾空白但保留大小写，仍通过 adapter 的 `email` 字段传递；邮箱模式保留原有小写规范化。`identifier` 动态变化会取消旧验证流程并清除密码、验证码；`useAuthFlow` 也支持 ref/getter 配置。
 - `modes` 限制可用的 `password` / `code` / `register` / `reset` 流程。默认密码登录若不可用则选择数组首项；当前流程被移除时取消旧请求并回退。返回登录使用第一个可用登录方式，`setMode` 不接受禁用项。`modes=[]` 不显示内置表单，仍可使用宿主 footer / SSO 插槽。
-- `pages` 同时限制侧栏、概览快捷入口和显示页面。当前页或 `initialPage` 不可用时，按组件固有导航顺序选择第一个可见页；`pages=[]` 不显示账户页面。受控 `page` 不会因回退产生 `update:page` 回声，宿主可依据 `pageChange` 同步实际显示页。动态裁剪页面视为宿主权威切换，需保留草稿时先在宿主确认。
+- `pages` 同时限制侧栏、概览快捷入口和显示页面。当前页或 `initialPage` 不可用时，按组件固有导航顺序选择第一个可见页；`pages=[]` 不显示账户页面。受控 `page` 不会因回退产生 `update:page` 回声，宿主可依据 `pageChange` 同步实际显示页。动态裁剪页面视为宿主权威切换，隐藏的草稿在该组件实例内保留；卸载前仍需宿主确认。
 - `twoStep` 默认 `true`；设为 `false` 隐藏内置两步验证操作，并关闭及取消已打开的对应操作。
 
 这些配置只控制展示和流程，不构成服务端授权；已发出的请求被取消不代表服务器回滚。
@@ -180,7 +180,8 @@ const messages: Partial<NovaMessages> = { 'auth.welcome': '登录你的账户' }
 | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | 组合外壳   | `NovaAccount`, `NovaTheme`                                                                                                                             |
 | 业务展示   | `NovaAuthForm`, `NovaAccountCenter`, `NovaAppearance`, `NovaCaptcha`                                                                                   |
-| 基础组件   | `NovaButton`, `NovaField`, `NovaDialog`                                                                                                                |
+| 基础组件   | `NovaButton`, `NovaField`, `NovaDialog`, `NovaIcon`, `NOVA_ICON_NAMES`                                                                                 |
+| 可选图表   | `nova-account/charts`：`NovaChart`, `NovaChartOption`                                                                                                  |
 | 响应式流程 | `useAuthFlow`, `useAccount`, `useAppearance`, `parseAppearance`                                                                                        |
 | 语言与时间 | `provideNovaLocale`, `useNovaLocale`, `zhCN`, `enUS`                                                                                                   |
 | 错误与结果 | `NovaError`, `NOVA_ERROR_CODES`；类型 `NovaErrorCode`, `NovaRequestResult`                                                                             |
@@ -199,7 +200,7 @@ const messages: Partial<NovaMessages> = { 'auth.welcome': '登录你的账户' }
 - **演示设置**中可把挑战方式切换为算术题，走宿主 `#captcha` 插槽的出题、错误提示与换一题流程；“滑块结果”的失败与过期同样适用于算术题。
 - **基础组件**侧栏分组：在账户内容区展示 `NovaField` 的 prefix/suffix 插槽、`as="textarea"`、`maxlength`、禁用与错误态，以及 `NovaButton` 各变体、加载反馈与防重复提交，`NovaDialog` 的确认、表单校验和长内容三种示例。前后缀共用输入边框，另有只读、禁用与可重试校验示例。输入字段、操作按钮、对话框作为账户内页面逐项浏览，沿用账户主题与导航。
 - **业务场景**侧栏分组：我的任务、内容编辑、社区互动、我的订单直接显示在账号内容区，交互说明与组件用法收在页尾的可展开区域。切换账户页会保留场景输入；从未保存的资料或偏好页离开时，沿用账户的确认流程。仅用库的基础组件组合出常见宿主形态——任务列表（搜索、状态数量、完成、空态与删除撤销）、编辑器（字数提示、并排预览、保存快照与未保存状态）、评论区（校验、发布、点赞与排序）及订单（搜索、状态筛选、商品与金额明细、详情弹窗、模拟支付后转待发货）。卡片均非库内置业务组件，数据为内存虚构。
-- 内建资料页支持**头像上传**：适配器实现可选的 `uploadAvatar` 能力即出现上传 / 移除控件（组件负责选文件转 data URL 与忙态），概览卡与资料页显示 `avatarUrl` 图片；类型 / 大小校验由适配器 / 服务端执行，演示适配器仅收图片且 ≤ 2 MB。
+- 内建资料页支持**头像上传**：适配器实现可选的 `uploadAvatar` 能力即出现上传 / 移除控件（组件负责选文件转 data URL 与忙态），概览卡与资料页显示 `avatarUrl` 图片；读取前检查图片 MIME 和体积，`avatarMaxBytes` 默认 2 MiB，可由宿主调整；适配器 / 服务端仍须校验真实类型、内容和大小。
 - `#profile` 插槽可整体替换资料页（props 同 `#security`），演示通过“组件接入”页开关体验：头像上传 + 职位 / 电话 / 生日 / 性别 / 网址 / 兴趣标签等扩展字段（扩展字段仅存内存，真实接入由宿主扩展契约），未保存守卫由宿主实现。
 - 外壳 header 常驻**明暗快切按钮**（登录前后都可随时切换；跟随系统时先落到当前实际模式再翻转，品牌色保持不变，选择经 storage-key 持久化）；完整外观设置（品牌色等 26 套）统一在用户中心的“外观设置”页。右上角提供直接进入用户中心的入口，示例填写说明位于认证表单下方。接入方可直接复制 `#tools` 插槽里的这一模式。
 - 合成邮箱 `demo@nova.example`，密码 `NovaDemo2026!`，验证码 `246810`；用户名模式下演示账号 `demo`。

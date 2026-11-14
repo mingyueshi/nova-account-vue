@@ -1,8 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import { readFileSync } from 'node:fs'
 import postcss from 'postcss'
-import { scopeNovaCss } from '../scripts/scope-css'
-const source = readFileSync('src/styles/index.css', 'utf8')
+import { scopeNovaCss, novaPaletteCss } from '../scripts/scope-css'
+import { lightPalettes } from '../src/palettes'
+const source = readFileSync('src/styles/index.css', 'utf8').replace(
+  '@nova-palettes;',
+  novaPaletteCss(),
+)
 function tokens(selector: string) {
   const output: Record<string, string> = {}
   postcss.parse(source).walkRules((rule) => {
@@ -49,34 +53,7 @@ describe('precompiled style isolation', () => {
     expect(output.css).toContain('.nova-account ::backdrop')
   })
   for (const mode of ['light', 'dark'])
-    for (const accent of [
-      'blue',
-      'teal',
-      'indigo',
-      'violet',
-      'terracotta',
-      'graphite',
-      'midnight',
-      'forest',
-      'amber',
-      'ocean',
-      'slate',
-      'plum',
-      'coffee',
-      'glacier',
-      'rose',
-      'olive',
-      'ink',
-      'cinnabar',
-      'gilded',
-      'emerald',
-      'peacock',
-      'sunset',
-      'industrial',
-      'lilac',
-      'terminal',
-      'parchment',
-    ]) {
+    for (const accent of Object.keys(lightPalettes)) {
       it(`${mode}/${accent}: key text and primary button contrast >= 4.5`, () => {
         const theme = {
           ...tokens('.nova-account'),

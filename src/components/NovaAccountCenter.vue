@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { useNovaLocale } from '../locale'
+import type { NovaMessageKey } from '../locales'
 import { computed, nextTick, onMounted, onUnmounted, reactive, ref, useId, watch } from 'vue'
 import type {
   AccountAdapter,
@@ -28,8 +29,10 @@ const props = withDefaults(
     extraPages?: AccountExtraPage[]
     /** Hide the two-step row when the host has no step-up implementation. */
     twoStep?: boolean
+    /** Client-side allocation limit before reading an avatar; server validation is still required. */
+    avatarMaxBytes?: number
   }>(),
-  { twoStep: true },
+  { twoStep: true, avatarMaxBytes: 2 * 1024 * 1024 },
 )
 const emit = defineEmits<{
   logout: []
@@ -186,33 +189,59 @@ const preferenceOptions = computed<
 const panel =
   'na:rounded-2xl na:border na:border-[var(--na-line)] na:bg-[var(--na-surface)] na:p-5 na:sm:p-7'
 const muted = 'na:text-sm na:leading-6 na:text-[var(--na-muted)]'
-const dirty = computed(() => {
-  if (!snapshot.value) return false
-  if (page.value === 'profile')
-    return (
-      profile.nickname !== snapshot.value.profile.nickname ||
-      profile.bio !== snapshot.value.profile.bio ||
-      profile.avatar !== snapshot.value.profile.avatar
-    )
-  if (page.value === 'notifications')
-    return preferenceOptions.value.some(
-      (option) => notifications[option.key] !== snapshot.value!.notifications[option.key],
-    )
-  return false
-})
-function syncDrafts() {
-  if (!snapshot.value) return
-  const { nickname, bio, avatar } = snapshot.value.profile
-  Object.assign(profile, { nickname, bio, avatar })
-  Object.assign(notifications, snapshot.value.notifications)
+function profileChanged(reference: AccountSnapshot | null) {
+  return (
+    !!reference &&
+    (profile.nickname !== reference.profile.nickname ||
+      profile.bio !== reference.profile.bio ||
+      profile.avatar !== reference.profile.avatar)
+  )
 }
+function notificationsChanged(reference: AccountSnapshot | null) {
+  return (
+    !!reference &&
+    preferenceOptions.value.some(
+      (option) => notifications[option.key] !== reference.notifications[option.key],
+    )
+  )
+}
+const profileDirty = computed(() => profileChanged(snapshot.value))
+const notificationsDirty = computed(() => notificationsChanged(snapshot.value))
+const dirty = computed(() =>
+  page.value === 'profile'
+    ? profileDirty.value
+    : page.value === 'notifications'
+      ? notificationsDirty.value
+      : false,
+)
+const hasDrafts = computed(() => profileDirty.value || notificationsDirty.value)
+function syncDrafts(target: 'all' | 'profile' | 'notifications' = 'all') {
+  if (!snapshot.value) return
+  if (target !== 'notifications') {
+    const { nickname, bio, avatar } = snapshot.value.profile
+    Object.assign(profile, { nickname, bio, avatar })
+  }
+  if (target !== 'profile') Object.assign(notifications, snapshot.value.notifications)
+}
+// Compare with the previous snapshot: clean fields follow server changes, local drafts survive.
+function syncCleanFields<T extends object>(draft: T, previous: T | undefined, current: T) {
+  for (const key of Object.keys(draft) as (keyof T)[])
+    if (!previous || draft[key] === previous[key]) draft[key] = current[key]
+}
+watch(
+  snapshot,
+  (current, previous) => {
+    if (!current) return
+    syncCleanFields(profile, previous?.profile, current.profile)
+    syncCleanFields(notifications, previous?.notifications, current.notifications)
+  },
+  { flush: 'sync' },
+)
 async function refresh() {
-  const result = await load()
-  if (result) syncDrafts()
-  return result
+  return load()
 }
 function beforeUnload(event: BeforeUnloadEvent) {
-  if (dirty.value) {
+  if (hasDrafts.value) {
     event.preventDefault()
     event.returnValue = ''
   }
@@ -251,7 +280,7 @@ const navigationGroups = computed(() => {
 function requestNavigation(target: AccountPage | 'logout') {
   if (target !== 'logout' && !isPageAvailable(target)) return
   if (target === page.value) return
-  if (dirty.value) {
+  if (target === 'logout' ? hasDrafts.value : dirty.value) {
     queued.value = target
     return
   }
@@ -274,13 +303,13 @@ function discardAndNavigate() {
   if (queued.value) {
     const target = queued.value
     queued.value = null
-    syncDrafts()
+    syncDrafts(target === 'logout' ? 'all' : page.value === 'profile' ? 'profile' : 'notifications')
     navigate(target)
   }
 }
 function discardDraft() {
   cancel()
-  syncDrafts()
+  syncDrafts(page.value === 'profile' ? 'profile' : 'notifications')
 }
 async function saveProfile() {
   if (!dirty.value) return
@@ -288,7 +317,7 @@ async function saveProfile() {
     (context) => props.adapter.updateProfile({ ...profile }, context),
     props.simulated ? t('profile.demoSaved') : t('profile.saved'),
   )
-  if (result) syncDrafts()
+  if (result) syncDrafts('profile')
 }
 /** Optional adapter capability: an avatar uploader appears in the profile page when present. */
 const canUploadAvatar = computed(() => typeof props.adapter.uploadAvatar === 'function')
@@ -344,6 +373,14 @@ async function uploadAvatar(file: File | null) {
       async (context) => {
         context.signal.addEventListener('abort', finish, { once: true })
         try {
+          if (file) {
+            const limit =
+              Number.isFinite(props.avatarMaxBytes) && props.avatarMaxBytes > 0
+                ? props.avatarMaxBytes
+                : 2 * 1024 * 1024
+            if (!file.type.startsWith('image/')) throw new Error(t('profile.avatarTypeError'))
+            if (file.size > limit) throw new Error(t('profile.avatarSizeError', { size: limit }))
+          }
           const dataUrl = file ? await readAvatar(file, context.signal) : null
           if (context.signal.aborted) throw new DOMException('Cancelled', 'AbortError')
           return await adapter.uploadAvatar!({ dataUrl }, context)
@@ -372,7 +409,7 @@ async function saveNotifications() {
     (context) => props.adapter.updateNotifications({ ...notifications }, context),
     props.simulated ? t('notifications.demoSaved') : t('notifications.saved'),
   )
-  if (result) syncDrafts()
+  if (result) syncDrafts('notifications')
 }
 const messageFilter = ref<'all' | 'unread'>('all')
 const visibleMessages = computed(
@@ -388,6 +425,7 @@ async function markRead(messageId: string) {
   await mutate((context) => props.adapter.markMessageRead(messageId, context), t('messages.marked'))
 }
 function openMessage(messageId: string) {
+  if (!snapshot.value?.messages.some((message) => message.id === messageId)) return
   modalEpoch++
   selectedMessageId.value = messageId
   if (!readerWide.value) modal.value = 'message'
@@ -435,6 +473,8 @@ const securityValues = reactive<SecurityValues>({
   email: '',
   code: '',
 })
+const securityForm = ref<HTMLFormElement>()
+const securityErrors = reactive<Partial<Record<keyof SecurityValues, NovaMessageKey>>>({})
 const codeSent = ref(false)
 const demoCode = ref('')
 const modalTitle = computed(
@@ -449,6 +489,7 @@ const modalTitle = computed(
     })[modal.value ?? 'message'],
 )
 function clearSecurity() {
+  for (const key of Object.keys(securityErrors)) delete securityErrors[key as keyof SecurityValues]
   Object.assign(securityValues, {
     currentPassword: '',
     newPassword: '',
@@ -512,6 +553,24 @@ async function sendEmailCode() {
   }
 }
 async function submitSecurity() {
+  if (busy.value) return
+  for (const key of Object.keys(securityErrors)) delete securityErrors[key as keyof SecurityValues]
+  if (modal.value === 'password') {
+    for (const field of ['currentPassword', 'newPassword'] as const) {
+      if (!securityValues[field] || securityValues[field].length > 1024)
+        securityErrors[field] = 'flow.passwordInvalid'
+    }
+    if (
+      !securityValues.confirmPassword ||
+      securityValues.confirmPassword !== securityValues.newPassword
+    )
+      securityErrors.confirmPassword = 'flow.passwordMismatch'
+    if (Object.keys(securityErrors).length) {
+      await nextTick()
+      securityForm.value?.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus()
+      return
+    }
+  }
   const epoch = modalEpoch
   const input = { ...securityValues }
   const action = modal.value
@@ -548,13 +607,23 @@ async function submitSecurity() {
     )
   if (result && epoch === modalEpoch) closeModal()
 }
+watch(
+  selectedMessage,
+  (message) => {
+    if (!message && selectedMessageId.value) {
+      if (modal.value === 'message') closeModal()
+      else selectedMessageId.value = ''
+    }
+  },
+  { flush: 'sync' },
+)
 watch(page, (target) => {
   // All pages share the first snapshot. Do not abort its load during navigation.
   if (snapshot.value) cancel()
   if (modal.value !== null) closeModal()
   queued.value = null
   notice.value = ''
-  syncDrafts()
+  // Host page changes are authoritative, but drafts survive until save/discard or adapter replacement.
   if (target) emit('pageChange', target)
   void nextTick(() => {
     if (content.value) content.value.scrollTop = 0
@@ -647,6 +716,7 @@ defineExpose({ refresh, fillSecurity })
             ><span
               v-if="tab.id === 'messages' && unread"
               class="na:rounded-full na:bg-[var(--na-soft)] na:px-1.5 na:text-xs na:text-[var(--na-brand)]"
+              role="img"
               :aria-label="t('account.unreadCount', { count: unread })"
               >{{ unread }}</span
             >
@@ -1370,11 +1440,18 @@ defineExpose({ refresh, fillSecurity })
           {{ error }}
         </p></template
       >
-      <form v-else class="na:space-y-4" @submit.prevent="submitSecurity">
+      <form
+        v-else-if="modal && modal !== 'message'"
+        ref="securityForm"
+        class="na:space-y-4"
+        novalidate
+        @submit.prevent="submitSecurity"
+      >
         <p v-if="simulated" :class="muted" class="na:mt-0">{{ t('security.formDemo') }}</p>
         <template v-if="modal === 'password' || modal === 'email' || modal === 'twoStep'">
           <NovaField
             v-model="securityValues.currentPassword"
+            :error="securityErrors.currentPassword ? t(securityErrors.currentPassword) : undefined"
             :label="t('security.currentPassword')"
             type="password"
             autocomplete="off"
@@ -1383,11 +1460,15 @@ defineExpose({ refresh, fillSecurity })
           <template v-if="modal === 'password'"
             ><NovaField
               v-model="securityValues.newPassword"
+              :error="securityErrors.newPassword ? t(securityErrors.newPassword) : undefined"
               :label="t('auth.newPassword')"
               type="password"
               autocomplete="off"
               :disabled="busy" /><NovaField
               v-model="securityValues.confirmPassword"
+              :error="
+                securityErrors.confirmPassword ? t(securityErrors.confirmPassword) : undefined
+              "
               :label="t('auth.confirmPassword')"
               type="password"
               autocomplete="off"
@@ -1427,6 +1508,8 @@ defineExpose({ refresh, fillSecurity })
             <NovaField
               v-model="securityValues.code"
               :label="t('security.confirmationCode')"
+              :maxlength="6"
+              inputmode="numeric"
               autocomplete="off"
               :disabled="busy"
           /></template>

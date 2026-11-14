@@ -13,7 +13,7 @@ npm ci
 npm run build
 npm pack
 cd examples/nuxt/nuxt3 # 或 ../nuxt4
-npm install ../../../nova-account-0.1.0-dev.1.tgz
+npm install ../../../nova-account-0.1.0-dev.2.tgz
 npm run typecheck
 npm run build
 npm run smoke

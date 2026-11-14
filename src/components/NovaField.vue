@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { useId, useSlots } from 'vue'
+import { computed, useAttrs, useId, useSlots } from 'vue'
 defineOptions({ inheritAttrs: false })
 const props = withDefaults(
   defineProps<{
+    id?: string
     modelValue: string
     label: string
     as?: 'input' | 'textarea'
@@ -17,7 +18,16 @@ const props = withDefaults(
 )
 const emit = defineEmits<{ 'update:modelValue': [value: string] }>()
 defineSlots<{ prefix?(): unknown; suffix?(): unknown }>()
-const id = useId()
+const generatedId = useId()
+const id = computed(() => props.id ?? generatedId)
+const attrs = useAttrs()
+const describedBy = () =>
+  [
+    attrs['aria-describedby'],
+    props.error ? `${id.value}-error` : props.hint ? `${id.value}-hint` : undefined,
+  ]
+    .filter(Boolean)
+    .join(' ') || undefined
 const slots = useSlots()
 const affixed = () => !!(slots.prefix || slots.suffix)
 </script>
@@ -46,7 +56,7 @@ const affixed = () => !!(slots.prefix || slots.suffix)
         :autocomplete="autocomplete"
         :disabled="disabled"
         :aria-invalid="!!error || undefined"
-        :aria-describedby="error ? `${id}-error` : hint ? `${id}-hint` : undefined"
+        :aria-describedby="describedBy()"
         class="na:min-h-12 na:w-full na:min-w-0 na:py-3 na:text-base na:text-[var(--na-ink)] na:placeholder:text-[var(--na-muted)] na:disabled:opacity-50"
         :class="
           affixed()

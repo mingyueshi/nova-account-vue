@@ -1,8 +1,10 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount, type VueWrapper } from '@vue/test-utils'
+import { h, ref } from 'vue'
 import { init } from 'echarts/core'
 import NovaChart from '../src/components/NovaChart.vue'
+import NovaTheme from '../src/components/NovaTheme.vue'
 import ChartGallery from '../demo/ChartGallery.vue'
 import { chartCsv, createActivityRows } from '../demo/charts/data'
 
@@ -84,6 +86,36 @@ function button(wrapper: VueWrapper, label: string) {
 }
 
 describe('optional chart adapter', () => {
+  it('follows reactive root locale and message overrides while allowing a host error label', async () => {
+    vi.mocked(init).mockImplementation(() => {
+      throw new Error('Unavailable renderer')
+    })
+    const errorLabel = ref<string>()
+    const wrapper = mount(NovaTheme, {
+      props: { locale: 'zh-CN' },
+      slots: {
+        default: () =>
+          h(NovaChart, {
+            label: 'Activity',
+            description: 'Three events',
+            option: {},
+            errorLabel: errorLabel.value,
+          }),
+      },
+    })
+    wrappers.push(wrapper)
+    paint()
+    await flushPromises()
+    expect(wrapper.get('[role="alert"]').text()).toContain('图表暂不可用')
+    await wrapper.setProps({ locale: 'en-US' })
+    expect(wrapper.get('figure').attributes('aria-label')).toBe('Activity. Three events')
+    expect(wrapper.get('[role="alert"]').text()).toContain('Chart unavailable')
+    await wrapper.setProps({ messages: { 'chart.unavailable': 'Host translation' } })
+    expect(wrapper.get('[role="alert"]').text()).toBe('Host translation')
+    errorLabel.value = 'Custom data fallback'
+    await flushPromises()
+    expect(wrapper.get('[role="alert"]').text()).toBe('Custom data fallback')
+  })
   it('waits for measurable content, updates data and disposes observers and engine', async () => {
     width = 0
     const wrapper = chart()
@@ -153,7 +185,7 @@ describe('optional chart adapter', () => {
     const wrapper = chart()
     paint()
     await flushPromises()
-    expect(wrapper.get('[role="alert"]').text()).toContain('Chart unavailable')
+    expect(wrapper.get('[role="alert"]').text()).toContain('图表暂不可用')
     expect(wrapper.emitted('error')).toEqual([['Renderer failed']])
     await wrapper.setProps({ themeKey: 'retry' })
     paint()
