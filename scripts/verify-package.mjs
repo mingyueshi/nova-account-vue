@@ -27,7 +27,11 @@ try {
   for (const file of ['LICENSE', 'README.en.md', 'CHANGELOG.md', 'THIRD_PARTY_NOTICES.md'])
     assert(files.includes(file), `missing package document: ${file}`)
   assert.equal(packageJson.license, 'MIT')
-  assert(!packageJson.dependencies.echarts, 'ECharts must not be a hard dependency')
+  assert(
+    !packageJson.dependencies?.['@lucide/vue'],
+    'bundled Lucide must not be a runtime dependency',
+  )
+  assert(!packageJson.dependencies?.echarts, 'ECharts must not be a hard dependency')
   assert.equal(packageJson.peerDependenciesMeta.echarts.optional, true)
   assert(files.includes('dist/nova-account.css'))
   assert(
@@ -113,6 +117,11 @@ import { renderToString } from '@vue/server-renderer'
 import * as library from 'nova-account'
 for (const name of ['NovaAccount','NovaTheme','NovaAuthForm','NovaAccountCenter','NovaAppearance','NovaButton','NovaIcon','NOVA_ICON_NAMES','NovaField','NovaDialog','NovaCaptcha','useAppearance','useAuthFlow','useAccount','NovaError','NOVA_ERROR_CODES','provideNovaLocale','useNovaLocale','zhCN','enUS']) assert(name in library, 'missing export ' + name)
 assert(!('createDemoAdapter' in library))
+const requireHost = createRequire(import.meta.url)
+assert.throws(() => requireHost('nova-account'), {code:'ERR_REQUIRE_ESM',message:/await import/})
+assert.throws(() => requireHost('nova-account/charts'), {code:'ERR_REQUIRE_ESM',message:/await import/})
+assert.throws(() => requireHost.resolve('@lucide/vue'), {code:'MODULE_NOT_FOUND'}, 'bundled icons must not force an installed icon dependency')
+
 const resolved = fileURLToPath(import.meta.resolve('nova-account'))
 assert(realpathSync(resolved).startsWith(process.cwd() + '/node_modules/nova-account/'))
 assert.equal(createRequire(resolved).resolve('vue'), createRequire(import.meta.url).resolve('vue'), 'library and host must resolve the same Vue runtime')

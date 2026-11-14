@@ -28,8 +28,9 @@ const props = withDefaults(
       pages?: AccountPage[]
       /** Additional host-owned pages displayed in the account sidebar. */
       extraPages?: AccountExtraPage[]
-      /** Hide the two-step toggle when the host has no step-up implementation. */
+      /** Client-side avatar allocation limit in bytes; forwarded to the built-in profile uploader. */
       avatarMaxBytes?: number
+      /** Hide the two-step toggle when the host has no step-up implementation. */
       twoStep?: boolean
       layout?: 'full' | 'embedded'
       codeLength?: number | null

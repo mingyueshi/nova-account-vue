@@ -1,5 +1,7 @@
 import { test, expect, type Page } from '@playwright/test'
 import AxeBuilder from '@axe-core/playwright'
+import { lightPalettes } from '../../src/palettes'
+import { zhCN } from '../../src/locales'
 
 async function navigate(page: Page, id: string) {
   const mobile = page.locator('[data-mobile-account-nav] select')
@@ -173,6 +175,22 @@ test('an invalid code sign-in focuses the global error and permits an explicit r
   await expect(page.getByRole('heading', { name: '账户概览', exact: true })).toBeVisible()
 })
 
+test('mark-read keeps keyboard focus through a slow mutation and restores the message action', async ({
+  page,
+}) => {
+  const config = await settings(page)
+  await config.getByRole('combobox', { name: '网络响应', exact: true }).selectOption('slow')
+  await navigate(page, 'messages')
+  const article = page.locator('.nova-message-list article').first()
+  const action = article.getByRole('button', { name: '标为已读', exact: true })
+  const open = article.locator('[data-message-open]')
+  await action.focus()
+  await action.press('Enter')
+  await expect(page.getByText('正在处理…', { exact: true })).toBeFocused()
+  await expect(open).toBeFocused()
+  await expect(action).toHaveCount(0)
+})
+
 test('dirty navigation: native focus containment, Escape, discard, and focus return', async ({
   page,
 }) => {
@@ -211,17 +229,20 @@ test('dirty navigation: native focus containment, Escape, discard, and focus ret
 test('cancel a slow challenge and switch mode without a stale dialog or sign-in', async ({
   page,
 }) => {
+  await page.clock.install()
+  await page.reload()
   const dialog = await settings(page)
   await dialog.getByRole('combobox', { name: '网络响应', exact: true }).selectOption('slow')
   await dialog.getByRole('button', { name: '返回登录页', exact: true }).click()
   await fillLogin(page)
+  await page.clock.pauseAt(new Date(Date.now() + 1000))
   await page.getByRole('button', { name: '登录', exact: true }).click()
   await expect(page.getByRole('dialog', { name: '安全验证', exact: true })).toBeVisible()
   await page.keyboard.press('Escape')
   await page.getByRole('tab', { name: '验证码登录', exact: true }).click()
-  // Wait for the actual slow adapter response using the demo's known latency.
+  // Advance the controlled clock through the cancelled adapter response.
   await expect(page.getByText('正在载入验证…', { exact: true })).not.toBeVisible()
-  await page.waitForTimeout(3200)
+  await page.clock.runFor(3200)
   await expect(page.getByRole('tab', { name: '验证码登录', exact: true })).toHaveAttribute(
     'aria-selected',
     'true',
@@ -324,34 +345,49 @@ test('English locale, appearance radio keyboard control and appearance-only pers
   await expect(page.getByLabel('密码', { exact: true })).toHaveValue('')
 })
 
-test('axe: auth, error, register, challenge, account pages, and all 52 appearance previews', async ({
-  page,
-}, testInfo) => {
-  test.slow()
-  const scan = async () => {
-    // Assess the selected theme after CSS color transitions have settled.
-    await page.locator('.nova-demo').evaluate(async (root) => {
-      await Promise.all(
-        root
-          .getAnimations({ subtree: true })
-          .map((animation) => animation.finished.catch(() => {})),
-      )
+async function scanAxe(page: Page) {
+  // Assess the selected theme after CSS color transitions have settled.
+  await page.locator('.nova-demo').evaluate(async (root) => {
+    await Promise.all(
+      root.getAnimations({ subtree: true }).map((animation) => animation.finished.catch(() => {})),
+    )
+  })
+  const results = await new AxeBuilder({ page })
+    .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+    .analyze()
+  expect(results.violations).toEqual([])
+}
+
+for (const mode of ['浅色', '深色']) {
+  for (const accent of Object.keys(lightPalettes) as (keyof typeof lightPalettes)[]) {
+    test(`axe appearance: ${mode} / ${accent}`, async ({ page }, testInfo) => {
+      await preview(page)
+      await navigate(page, 'appearance')
+      await chooseRadio(page, mode)
+      await chooseRadio(page, zhCN[`accent.${accent}`])
+      await scanAxe(page)
+      await testInfo.attach(`appearance-${mode}-${accent}`, {
+        body: await page.screenshot(),
+        contentType: 'image/png',
+      })
     })
-    const results = await new AxeBuilder({ page })
-      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
-      .analyze()
-    expect(results.violations).toEqual([])
   }
-  await scan()
+}
+
+test('axe: auth, error, register, challenge, account pages, and all appearance previews', async ({
+  page,
+}) => {
+  test.slow()
+  await scanAxe(page)
   await page.getByRole('button', { name: '登录', exact: true }).click()
-  await scan()
+  await scanAxe(page)
   await page.getByRole('button', { name: '注册', exact: true }).click()
-  await scan()
+  await scanAxe(page)
   await page.getByRole('button', { name: '← 返回登录', exact: true }).click()
   await fillLogin(page)
   await page.getByRole('button', { name: '登录', exact: true }).click()
   await expect(page.getByRole('slider')).toBeEnabled()
-  await scan()
+  await scanAxe(page)
   await verify(page)
   for (const tab of [
     'overview',
@@ -363,45 +399,10 @@ test('axe: auth, error, register, challenge, account pages, and all 52 appearanc
     'appearance',
   ]) {
     await navigate(page, tab)
-    await scan()
+    await scanAxe(page)
   }
   for (const mode of ['浅色', '深色']) {
     await chooseRadio(page, mode)
-    for (const accent of [
-      '默认蓝',
-      '医疗青',
-      '专业靛',
-      '文教紫',
-      '零售陶',
-      '石墨黑',
-      '午夜蓝',
-      '松林绿',
-      '暖琥珀',
-      '深海青',
-      '雾岩灰',
-      '暮梅紫',
-      '摩卡棕',
-      '冰川蓝',
-      '胭脂红',
-      '苔原绿',
-      '极夜黑',
-      '朱砂红',
-      '鎏金黄',
-      '翡翠绿',
-      '孔雀蓝',
-      '霞光紫',
-      '工业橙',
-      '兰花紫',
-      '终端绿',
-      '宣纸黄',
-    ]) {
-      await chooseRadio(page, accent)
-      await scan()
-      await testInfo.attach(`appearance-${mode}-${accent}`, {
-        body: await page.screenshot(),
-        contentType: 'image/png',
-      })
-    }
     for (const id of [
       'settings',
       'integration',
@@ -417,7 +418,7 @@ test('axe: auth, error, register, challenge, account pages, and all 52 appearanc
     ]) {
       await navigate(page, `custom:${id}`)
       if (id === 'charts') await page.locator('.demo-chart-main .nova-chart svg').waitFor()
-      await scan()
+      await scanAxe(page)
     }
     await navigate(page, 'appearance')
   }
@@ -437,11 +438,11 @@ test('axe: auth, error, register, challenge, account pages, and all 52 appearanc
   ]) {
     await navigate(page, `custom:${id}`)
     if (id === 'charts') await page.locator('.demo-chart-main .nova-chart svg').waitFor()
-    await scan()
+    await scanAxe(page)
   }
   await navigate(page, 'custom:dialogs')
   await page.getByRole('button', { name: '打开示例对话框', exact: true }).click()
-  await scan()
+  await scanAxe(page)
   await page
     .getByRole('dialog', { name: '确认保存更改？', exact: true })
     .getByRole('button', { name: '取消', exact: true })

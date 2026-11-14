@@ -1,5 +1,21 @@
 # Nova Account Vue 开发版验证
 
+## 2026-11-14 运行时输入与依赖追加复核
+
+- 补齐快照边界校验、翻译覆盖类型防护、邮箱格式校验和消息焦点恢复。纠正 prop 注释，明确内部图标解析函数与独立头像枚举；Lucide 移到开发依赖并保留打包许可检查；ESM-only 提供明确的 require 错误指引。加入已验证的开发 Node/npm 元数据。
+- `npm run check`：21 个文件、256 项单元/组件/SSR 测试及 12 项打包回归通过；行覆盖率 97.00%、分支 90.20%；lint、格式、类型、构建与体积预算通过。邮箱去空格最后调整后，账户组件 29/29 及库重建通过。
+- Mac Chrome 完整回归 99/99，通过拆分后的 52 个外观 axe 用例、可控时钟迟到响应、慢速标已读焦点，以及既有业务、图表和布局检查。未重跑 Firefox/WebKit。
+- 独立 tarball 消费者验证：没有 Lucide / ECharts 仍可使用基础账户 ESM/SSR/严格 TS；图表在显式安装 ECharts 后通过；两个 require 入口均给出动态 import 指引。Nuxt 3/4 类型、构建、SSR、CSS 通过。许可清单检查通过。
+- 最终账户 JS 含共享 chunk 40,087 bytes gzip / 40 KiB，CSS 5,930 bytes / 6 KiB，图表增量 2,033 bytes / 4 KiB。当前仍 private，未新增或执行自动 registry 发布/provenance；不把浏览器缓存缺失当作缺陷。逐项依据见复核记录。
+
+## 2026-11-14 追加 scope 与打包新鲜度复核
+
+- 基于 `c555fee`，保留此前头像 prop 文档修正；外观恢复补通知、非组件 scope 补浏览器生命周期，并补齐组件 API 与双语说明。逐项结论见 [复核记录](docs/review-2026-11-14.md)。
+- `npm run check`：21 个文件、240 项测试与 12 项 Node 打包回归通过；总体行覆盖率 96.65%、分支 89.30%。AccountCenter 行 96.10%、语句 94.65%、函数 85.23%、分支 89.29%，新增单文件门槛通过。
+- 打包测试覆盖源码变化、回拨时间戳、新增输入、配置变化、缺失/篡改 charts.js、完整但过期产物被 npm pack 拒绝，以及原有声明中间态/失败构建/并发隔离。正常根目录 npm pack --dry-run 通过，包含 charts.js、charts.d.ts 与构建回执。
+- `verify:package` 的私有构建、安装文件比对、账户无 ECharts、显式图表、ESM/SSR/严格 TypeScript 通过；`verify:nuxt` 的 Nuxt 3/4 typecheck/build/SSR/CSS 通过。Chrome 定向 4/4（外观持久化、码登录、登录退出事件、限流），未重跑完整浏览器矩阵。
+- 账户 JS 连共享 chunk 39,240 bytes gzip / 40 KiB，CSS 5,930 bytes / 6 KiB，图表增量 2,033 bytes / 4 KiB。最后将清理注册提前至资源启动前，相关 34 项测试、重建和 prepack 检查通过。本轮未发布或部署，未提交 Git。
+
 ## 2026-11-14 图表声明打包完整性
 
 基于 `ad652b9` 的本地修复，未提交、推送或部署。详细机制和入口见 [安装包构建与声明完整性](docs/package-build.md)。

@@ -78,6 +78,7 @@ export interface Profile {
   id: string
   nickname: string
   bio: string
+  /** Avatar preset identifiers; independent of appearance Accent names. */
   avatar: 'iris' | 'teal' | 'sun' | 'graphite'
   /** Server-issued avatar image URL or data URL; absent/empty renders the color chip. */
   avatarUrl?: string

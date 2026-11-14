@@ -1,14 +1,64 @@
 import { describe, expect, it, vi } from 'vitest'
-import { createDemoAccountAdapter, DEMO_ACCOUNT_VALUES } from '../demo/account'
+import {
+  createDemoAccountAdapter,
+  createInitialAccount,
+  DEMO_ACCOUNT_VALUES,
+} from '../demo/account'
 import { useAccount } from '../src/composables/useAccount'
 import { effectScope, shallowRef } from 'vue'
-import type { AccountAdapter, MutationContext, RequestContext } from '../src/types'
+import type { AccountAdapter, AccountSnapshot, MutationContext, RequestContext } from '../src/types'
 
 let sequence = 0
 function context(revision = '0'): MutationContext {
   return { revision, signal: new AbortController().signal, requestId: `test-${++sequence}` }
 }
 const instant = () => Promise.resolve()
+
+describe('malformed snapshot isolation', () => {
+  for (const key of [
+    'revision',
+    'email',
+    'profile',
+    'notifications',
+    'devices',
+    'messages',
+    'security',
+    'activity',
+  ] as const)
+    it(`rejects invalid ${key} on load without exposing it to rendering`, async () => {
+      const adapter = createDemoAccountAdapter({ wait: instant })
+      const invalid = { ...createInitialAccount(Date.now()), [key]: null }
+      const scope = effectScope()
+      const account = scope.run(() =>
+        useAccount({ ...adapter, load: async () => invalid as unknown as AccountSnapshot }),
+      )!
+      try {
+        expect(await account.load()).toBeUndefined()
+        expect(account.snapshot.value).toBeNull()
+        expect(account.error.value).toContain('账户数据格式无效')
+        expect(account.unread.value).toBe(0)
+      } finally {
+        scope.stop()
+      }
+    })
+  it('retains the last valid snapshot after a malformed mutation and tolerates direct invalid message assignment', async () => {
+    const scope = effectScope()
+    const account = scope.run(() => useAccount(createDemoAccountAdapter({ wait: instant })))!
+    try {
+      await account.load()
+      const previous = account.snapshot.value
+      await account.mutate(
+        async () => ({ ...previous!, messages: [null] }) as unknown as AccountSnapshot,
+      )
+      expect(account.snapshot.value).toBe(previous)
+      expect(account.error.value).toContain('账户数据格式无效')
+      account.snapshot.value = { ...previous!, messages: null } as unknown as AccountSnapshot
+      expect(account.unread.value).toBe(0)
+    } finally {
+      scope.stop()
+    }
+  })
+})
 function deferred() {
   let resolve!: () => void
   const promise = new Promise<void>((done) => {

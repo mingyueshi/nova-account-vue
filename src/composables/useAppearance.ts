@@ -1,6 +1,6 @@
 import { useNovaLocale } from '../locale'
 import { lightPalettes } from '../palettes'
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, getCurrentInstance, getCurrentScope, onScopeDispose, onMounted, ref } from 'vue'
 import type { Accent, Appearance, ThemeMode } from '../types'
 const modes: ThemeMode[] = ['light', 'dark', 'system']
 const accents = Object.keys(lightPalettes) as Accent[]
@@ -12,7 +12,7 @@ export function parseAppearance(value: unknown): Appearance | null {
     return null
   return { mode: candidate.mode as ThemeMode, accent: candidate.accent as Accent }
 }
-/** Per-instance; browser APIs are used after mount only. Storage is explicitly opt-in. */
+/** Per-scope; components initialize after mount, standalone browser scopes initialize immediately. */
 export function useAppearance(
   options: {
     initial?: Appearance
@@ -20,6 +20,8 @@ export function useAppearance(
     onChange?: (value: Appearance) => void
   } = {},
 ) {
+  if (!getCurrentScope())
+    throw new Error('useAppearance requires component setup or an active effectScope.')
   const { t } = useNovaLocale()
   const appearance = ref<Appearance>(
     parseAppearance(options.initial) ?? { mode: 'light', accent: 'blue' },
@@ -38,18 +40,20 @@ export function useAppearance(
   const changed = (event: MediaQueryListEvent) => {
     systemDark.value = event.matches
   }
-  onMounted(() => {
+  function start() {
+    if (active || typeof window === 'undefined') return
     active = true
     if (typeof window.matchMedia === 'function') {
       media = window.matchMedia('(prefers-color-scheme: dark)')
       systemDark.value = media.matches
       media.addEventListener('change', changed)
     }
+    let restored: Appearance | undefined
     if (options.storageKey) {
       try {
         const stored = window.localStorage.getItem(options.storageKey)
         if (stored !== null)
-          appearance.value = parseAppearance(JSON.parse(stored)) ?? {
+          restored = parseAppearance(JSON.parse(stored)) ?? {
             mode: 'light',
             accent: 'blue',
           }
@@ -57,11 +61,18 @@ export function useAppearance(
         storageError.value = t('appearance.storageError')
       }
     }
-  })
-  onBeforeUnmount(() => {
+    if (
+      restored &&
+      (restored.mode !== appearance.value.mode || restored.accent !== appearance.value.accent)
+    )
+      setAppearance(restored, false)
+  }
+  onScopeDispose(() => {
     active = false
     media?.removeEventListener('change', changed)
   })
+  if (getCurrentInstance()) onMounted(start)
+  else start()
   function setAppearance(value: Appearance, persist = true) {
     const validated = parseAppearance(value)
     if (!validated) return

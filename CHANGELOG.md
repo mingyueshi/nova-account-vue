@@ -25,6 +25,11 @@
 
 ### Changed
 
+- Bundle Lucide exclusively as a development dependency while retaining license inventory checks. ESM-only require conditions provide actionable import guidance; no CommonJS implementation is added. Pin the development Node/npm versions through .nvmrc and packageManager.
+
+- `useAuthFlow` and `useAppearance` require component setup or an active effect scope; browser store scopes now start their timers/listeners without component mount hooks and stop them on scope disposal. Unscoped calls fail explicitly; SSR remains free of browser resources.
+- Builds record source/configuration/lockfile/script and output hashes; prepack rejects complete but stale or modified output as well as incomplete declarations. Isolated packaging uses the same receipt-producing build path.
+
 - Package and Nuxt consumer verification now build private source snapshots before packing, instead of reading shared `dist` while declaration bundling may still be in progress. Added `pack:library`, prepack declaration completeness checks, byte comparisons against installed artifacts, and regressions for mixed declarations, failed builds and concurrent package builds.
 
 - ECharts is now an optional peer (`^6.1.0`) with an exact development pin. Account-only consumers do not install it; chart consumers install ECharts explicitly. Palette types, validation, swatches and generated CSS share `src/palettes.ts`. Size checks include shared JS chunks.
@@ -38,6 +43,11 @@
 - Countdown timers pause while the document is hidden and refresh when it becomes visible.
 
 ### Fixed
+
+- Validate account snapshot structure before load/mutate replaces state; malformed data surfaces INVALID_RESPONSE and retains the last valid snapshot. Guard unread derivation and fall back from non-string message overrides. Correct avatar/two-step prop comments and clarify avatar versus accent identifiers.
+- Validate replacement email syntax before requesting a code and preserve keyboard focus while marking messages read, including removal from the unread filter. Use a controlled clock for cancelled slow challenges and split the 52 appearance axe cases into individually named tests.
+
+- Restored appearance notifies the host once when it differs from initial state, without rewriting storage; controlled prop updates remain silent. Update full component contracts and both README lifecycle/packaging guides. Add account-center coverage thresholds and regressions for before-unload, activity pagination and individual device revocation.
 
 - Close a message reader if a refreshed snapshot removes its selected message; never render device confirmation controls for the message state.
 - Check avatar image MIME and size before allocating a data URL (`avatarMaxBytes`, default 2 MiB); retain adapter/server validation. Password-change dialogs validate empty/oversize passwords and confirmation mismatch locally and focus the first invalid field.

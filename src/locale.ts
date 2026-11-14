@@ -18,7 +18,8 @@ function createLocale(options: MaybeRefOrGetter<NovaLocaleOptions>) {
   const locale = computed(() => settings.value.locale ?? 'zh-CN')
   function t(key: NovaMessageKey, values: Record<string, string | number> = {}) {
     const messages = locale.value === 'en-US' ? enUS : zhCN
-    const message = settings.value.messages?.[key] ?? messages[key]
+    const override = settings.value.messages?.[key]
+    const message = typeof override === 'string' ? override : (messages[key] ?? String(key))
     return message.replace(/\{(\w+)\}/g, (placeholder, name: string) =>
       String(values[name] ?? placeholder),
     )

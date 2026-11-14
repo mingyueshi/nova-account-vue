@@ -418,11 +418,35 @@ const visibleMessages = computed(
     [],
 )
 const selectedMessageId = ref('')
+const messageBusy = ref<HTMLElement>()
 const selectedMessage = computed(() =>
   snapshot.value?.messages.find((message) => message.id === selectedMessageId.value),
 )
-async function markRead(messageId: string) {
-  await mutate((context) => props.adapter.markMessageRead(messageId, context), t('messages.marked'))
+async function markRead(messageId: string, event?: Event) {
+  const origin = event?.currentTarget as HTMLElement | undefined
+  const transfer = !!origin && origin === origin.ownerDocument.activeElement
+  const pending = mutate(
+    (context) => props.adapter.markMessageRead(messageId, context),
+    t('messages.marked'),
+  )
+  let status: HTMLElement | undefined
+  if (transfer) {
+    await nextTick()
+    status = messageBusy.value
+    status?.focus({ preventScroll: true })
+  }
+  const result = await pending
+  if (!transfer || page.value !== 'messages' || modal.value) return
+  const active = origin!.ownerDocument.activeElement
+  if (active !== status && active !== origin && active !== origin!.ownerDocument.body) return
+  await nextTick()
+  const target =
+    !result && origin?.isConnected
+      ? origin
+      : Array.from(content.value?.querySelectorAll<HTMLElement>('[data-message-open]') ?? []).find(
+          (button) => button.dataset.messageOpen === messageId,
+        )
+  ;(target ?? heading.value)?.focus({ preventScroll: true })
 }
 function openMessage(messageId: string) {
   if (!snapshot.value?.messages.some((message) => message.id === messageId)) return
@@ -538,8 +562,18 @@ watch(
   { flush: 'sync' },
 )
 async function sendEmailCode() {
+  if (busy.value || modal.value !== 'email') return
+  delete securityErrors.email
+  const email = securityValues.email.trim()
+  if (email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    securityErrors.email = 'flow.emailInvalid'
+    await nextTick()
+    securityForm.value?.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus()
+    return
+  }
+  securityValues.email = email
   const epoch = modalEpoch
-  const input = { email: securityValues.email, currentPassword: securityValues.currentPassword }
+  const input = { email, currentPassword: securityValues.currentPassword }
   const result = await request((context) => props.adapter.requestEmailChangeCode(input, context))
   if (
     result &&
@@ -778,6 +812,15 @@ defineExpose({ refresh, fillSecurity })
         </div>
         <p v-if="notice" role="status" class="na:mb-5 na:text-sm na:text-[var(--na-brand)]">
           {{ notice }}
+        </p>
+        <p
+          v-if="busy && page === 'messages'"
+          ref="messageBusy"
+          role="status"
+          tabindex="-1"
+          :class="muted"
+        >
+          {{ t('common.processing') }}
         </p>
         <p v-if="!snapshot && busy" role="status" :class="muted">{{ t('account.loading') }}</p>
         <template v-if="snapshot">
@@ -1330,6 +1373,7 @@ defineExpose({ refresh, fillSecurity })
                   ><button
                     type="button"
                     :disabled="busy"
+                    :data-message-open="message.id"
                     class="na:min-w-36 na:flex-1 na:border-0 na:bg-transparent na:p-0 na:text-left"
                     @click="openMessage(message.id)"
                   >
@@ -1354,7 +1398,7 @@ defineExpose({ refresh, fillSecurity })
                     v-if="!message.read"
                     variant="ghost"
                     :disabled="busy"
-                    @click="markRead(message.id)"
+                    @click="markRead(message.id, $event)"
                     >{{ t('messages.mark') }}</NovaButton
                   >
                 </article>
@@ -1477,6 +1521,7 @@ defineExpose({ refresh, fillSecurity })
           <template v-if="modal === 'email'"
             ><NovaField
               v-model="securityValues.email"
+              :error="securityErrors.email ? t(securityErrors.email) : undefined"
               :label="t('security.newEmail')"
               type="email"
               autocomplete="off"

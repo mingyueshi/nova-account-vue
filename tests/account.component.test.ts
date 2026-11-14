@@ -33,6 +33,130 @@ function button(wrapper: VueWrapper, label: string) {
 }
 
 describe('NovaAccountCenter', () => {
+  it('rejects invalid replacement emails locally and permits a corrected address', async () => {
+    const base = createDemoAccountAdapter({ wait: () => Promise.resolve() })
+    const requestCode = vi.fn(base.requestEmailChangeCode)
+    const wrapper = await create(true, { ...base, requestEmailChangeCode: requestCode })
+    await wrapper.get('[data-page="security"]').trigger('click')
+    await button(wrapper, '更换').trigger('click')
+    wrapper.vm.fillSecurity({ ...DEMO_ACCOUNT_VALUES, email: 'bad-email' })
+    await flushPromises()
+    await button(wrapper, '获取演示码').trigger('click')
+    expect(requestCode).not.toHaveBeenCalled()
+    expect(wrapper.get('dialog[open] [role="alert"]').text()).toContain('有效的邮箱地址')
+    expect(document.activeElement).toBe(wrapper.get('dialog[open] input[type="email"]').element)
+    wrapper.vm.fillSecurity({ ...DEMO_ACCOUNT_VALUES, email: ` ${DEMO_ACCOUNT_VALUES.email} ` })
+    await flushPromises()
+    await button(wrapper, '获取演示码').trigger('click')
+    await flushPromises()
+    expect(requestCode).toHaveBeenCalledOnce()
+    expect(requestCode).toHaveBeenCalledWith(
+      expect.objectContaining({ email: DEMO_ACCOUNT_VALUES.email }),
+      expect.anything(),
+    )
+  })
+
+  it.each([false, true])(
+    'keeps keyboard focus during mark-read and after unread filtering (%s)',
+    async (unreadOnly) => {
+      const base = createDemoAccountAdapter({ wait: () => Promise.resolve() })
+      let finish!: () => void
+      const wrapper = await create(true, {
+        ...base,
+        markMessageRead: async (id, context) => {
+          await new Promise<void>((resolve) => {
+            finish = resolve
+          })
+          return base.markMessageRead(id, context)
+        },
+      })
+      await wrapper.get('[data-page="messages"]').trigger('click')
+      if (unreadOnly) await button(wrapper, '未读 4').trigger('click')
+      const action = button(wrapper, '标为已读')
+      const article = action.element.closest('article')!
+      const reader = article.querySelector('[data-message-open]')!
+      ;(action.element as HTMLElement).focus()
+      await action.trigger('click')
+      expect(document.activeElement?.getAttribute('role')).toBe('status')
+      finish()
+      await flushPromises()
+      expect(document.activeElement).toBe(unreadOnly ? wrapper.get('h1').element : reader)
+    },
+  )
+  it('prevents unload only for dirty drafts, including hidden drafts, and removes the listener', async () => {
+    const remove = vi.spyOn(window, 'removeEventListener')
+    const wrapper = await create()
+    const unload = () => {
+      const event = new Event('beforeunload', { cancelable: true })
+      window.dispatchEvent(event)
+      return event.defaultPrevented
+    }
+    expect(unload()).toBe(false)
+    await wrapper.get('[data-page="profile"]').trigger('click')
+    await wrapper.get('input[autocomplete="nickname"]').setValue('Unsaved')
+    expect(unload()).toBe(true)
+    await wrapper.setProps({ page: 'overview' })
+    expect(unload()).toBe(true)
+    await wrapper.setProps({ page: 'profile' })
+    await button(wrapper, '取消').trigger('click')
+    expect(unload()).toBe(false)
+    wrapper.unmount()
+    wrappers.splice(wrappers.indexOf(wrapper), 1)
+    expect(remove).toHaveBeenCalledWith('beforeunload', expect.any(Function))
+  })
+
+  it('paginates and filters security activity, clamps refreshed pages and shows an empty category', async () => {
+    const base = createDemoAccountAdapter({ wait: () => Promise.resolve() })
+    const state = createInitialAccount(Date.now())
+    state.activity = Array.from({ length: 9 }, (_, i) => ({
+      id: `event-${i}`,
+      at: new Date().toISOString(),
+      title: `Event ${i}`,
+      description: 'Activity',
+      category: i < 8 ? ('credentials' as const) : ('devices' as const),
+    }))
+    const wrapper = await create(true, { ...base, load: async () => structuredClone(state) })
+    await wrapper.get('[data-page="security"]').trigger('click')
+    const activity = wrapper.get('.nova-security-activity')
+    expect(activity.findAll('li')).toHaveLength(4)
+    await activity.get('[aria-label="下一页安全活动"]').trigger('click')
+    expect(activity.text()).toContain('Event 4')
+    await activity.get('[aria-label="上一页安全活动"]').trigger('click')
+    expect(activity.text()).toContain('Event 0')
+    await activity.get('[aria-label="下一页安全活动"]').trigger('click')
+    state.activity = state.activity.slice(0, 1)
+    await wrapper.vm.refresh()
+    await flushPromises()
+    expect(activity.text()).toContain('1 / 1')
+    expect(activity.get('[aria-label="下一页安全活动"]').attributes('disabled')).toBeDefined()
+    await activity
+      .findAll('button')
+      .find((item) => item.text() === '设备')!
+      .trigger('click')
+    expect(activity.text()).toContain('暂时没有此类安全活动')
+    await activity
+      .findAll('button')
+      .find((item) => item.text() === '凭据')!
+      .trigger('click')
+    expect(activity.text()).toContain('Event 0')
+  })
+
+  it('cancels then confirms revoking a single device without revoking the current session', async () => {
+    const base = createDemoAccountAdapter({ wait: () => Promise.resolve() })
+    const revoke = vi.fn(base.revokeDevice)
+    const wrapper = await create(true, { ...base, revokeDevice: revoke })
+    await wrapper.get('[data-page="devices"]').trigger('click')
+    await wrapper.get('button[aria-label="退出 iPhone · Safari"]').trigger('click')
+    await button(wrapper, '取消').trigger('click')
+    expect(revoke).not.toHaveBeenCalled()
+    await wrapper.get('button[aria-label="退出 iPhone · Safari"]').trigger('click')
+    await wrapper.get('dialog[open] form').trigger('submit')
+    await flushPromises()
+    expect(revoke).toHaveBeenCalledWith('phone', expect.objectContaining({ revision: '0' }))
+    expect(wrapper.findAll('main article')).toHaveLength(2)
+    expect(wrapper.get('main').text()).toContain('Mac · Chrome')
+    expect(wrapper.find('dialog[open]').exists()).toBe(false)
+  })
   it('renders profile drafts as text and guards unsaved navigation', async () => {
     const wrapper = await create()
     await wrapper.get('[data-page="profile"]').trigger('click')

@@ -36,7 +36,7 @@ import { NovaIcon, NOVA_ICON_NAMES } from 'nova-account'
 </template>
 ```
 
-`size` 默认 20，`strokeWidth` 默认 2，`color` 默认 `currentColor`。装饰图标默认 `aria-hidden`；传入 `label` 时使用有名称的 `img` 语义。`NOVA_ICON_NAMES` 列出内置名称；未知名称显示 `fallback`（默认 ◇）。图标的 ISC 与 Feather MIT 许可见 [第三方许可](THIRD_PARTY_NOTICES.md)。
+`size` 默认 20，`strokeWidth` 默认 2，`color` 默认 `currentColor`。装饰图标默认 `aria-hidden`；传入 `label` 时使用有名称的 `img` 语义。`NOVA_ICON_NAMES` 列出内置名称；未知名称显示 `fallback`（默认 ◇）。内置图标已打入库包，消费者无需安装 Lucide；上例若传入额外图标组件，需在宿主显式安装 `@lucide/vue`。图标的 ISC 与 Feather MIT 许可见 [第三方许可](THIRD_PARTY_NOTICES.md)。
 
 ## 动态图表（可选入口）
 
@@ -63,7 +63,7 @@ const option: NovaChartOption = {
 
 ## 开发
 
-本轮本机验证环境 Node `24.21.0` / npm `11.19.0`；同时检查最低 Node `22.12.0`。锁文件固定依赖；仓库不包含 `.npmrc`、凭据、缓存、依赖目录或构建产物。
+开发环境通过 `.nvmrc` 固定 Node `22.19.0`，`packageManager` 固定 npm `10.9.3`；CI 另配置 Node `22.12.0` / `24`。锁文件固定依赖；仓库不包含 `.npmrc`、凭据、缓存、依赖目录或构建产物。
 
 ```sh
 git clone https://github.com/mingyueshi/nova-account-vue.git
@@ -80,7 +80,7 @@ npm run dev            # Vite演示开发；demo CSP禁止业务网络连接
 
 `dist/` 是组件库，不是网站；`demo-dist/` 才是可离线托管的演示站点。运行构建不需要在线 CDN、字体、账户或邮件服务。开发态 CSP 的 `connect-src 'none'` 可能阻止 HMR websocket；这是演示隐私约束，刷新即可查看改动。
 
-`private: true` 故意阻止误发布。使用 `npm run pack:library` 生成本地安装包，本交付不执行 `npm publish`。打包先复制构建输入，在独立目录完整构建并检查声明；不会把并发构建中的 `dist/` 打进去。直接 `npm pack` 的 prepack 只检查已有声明，不负责构建，不能替代此隔离流程。细节见 [打包验证](docs/package-build.md)。
+`private: true` 故意阻止误发布。使用 `npm run pack:library` 生成本地安装包，本交付不执行 `npm publish`。打包先复制构建输入，在独立目录完整构建并检查声明；不会把并发构建中的 `dist/` 打进去。直接 `npm pack` 的 prepack 检查已有声明、构建输入及所有产物的内容哈希；源码/配置变化、缺失或被修改的产物都会拒绝打包并提示重建。`npm run build` 生成这份构建回执；检查不负责自动构建，也不能替代隔离打包流程。细节见 [打包验证](docs/package-build.md)。
 
 ## 接入（不要求宿主安装 Tailwind）
 
@@ -162,7 +162,7 @@ const messages: Partial<NovaMessages> = { 'auth.welcome': '登录你的账户' }
 
 `useAccount().requestResult(operation)` 返回 `success` / `busy` / `cancelled` / `error` 可区分结果。原有 `request` / `load` / `mutate` 保留 `T | undefined` 兼容行为，忙碌调用不会执行或自动排队。
 
-发行物**仅 ESM**，没有 CommonJS `require` 导出；请使用 ESM 导入或支持 ESM 的构建工具。
+发行物**仅 ESM**，不提供 CommonJS 实现；`require` 条件入口会抛出带 `await import(...)` 用法的明确错误。
 
 ### 样式隔离
 
@@ -239,3 +239,17 @@ demo-dist/                 静态演示站点
 官方 registry 查询并锁定 Vue `3.5.44`、Tailwind `4.3.3`、Vite `8.3.5`；TypeScript 固定 `5.9.3`，适配本项目检查工具。官方文档：[Vue TypeScript](https://vuejs.org/guide/typescript/overview)、[Vue SSR](https://vuejs.org/guide/scaling-up/ssr)、[Tailwind 关闭 Preflight / prefix](https://tailwindcss.com/docs/preflight)、[Tailwind utilities](https://tailwindcss.com/docs/styling-with-utility-classes)。
 
 认证说明可通过 `NovaAuthForm` 的 `#footer="{ mode, resetStage, busy, fill }"` 或 `NovaAccount` 的同名作用域 `#authFooter` 定制。`resetStage` 为 `verify` / `password`，`fill` 仅更新展示字段；验证码签发、验证和提交仍走原有流程。库默认不包含示例凭据。
+
+## Composable 与完整 API
+
+`useAuthFlow` 和 `useAppearance` 需要组件 setup 或活动的 effectScope（可用于 Pinia setup store）。组件在 mounted 后启用浏览器资源，独立 scope 在浏览器中立即启动；scope.stop() / store.$dispose() 会停止倒计时、移除监听并取消旧请求。SSR 不启动浏览器资源；无 scope 调用会明确抛错。`useAccount` 保留无 scope 的手动 cancel/clear 用法。不要跨 SSR 请求共享 store 或 adapter。
+
+storage 恢复的外观与初值不同时，onChange / update:appearance 通知宿主一次，不回写 storage；宿主 prop 同步保持静默，系统明暗变化保持 mode:system。
+
+外壳完整 Props 包括 adapter、initialUser、appearance、storageKey、brand、locale/messages/timeZone/dateTimeOptions/formatTime、page/initialPage/pages/extraPages、layout、identifier/modes、twoStep、codeLength、passwordStrength 和 avatarMaxBytes。完整插槽为 brand、footer、tools、captcha、security、securityFormTools、overview、page、profile、authFooter。详见 [组件契约](docs/contracts.md)，其中列出各组件默认值、作用域参数与责任边界。
+
+验证依据、目录结构和接入状态以本仓库为准。中英文 README 都提供开发/隔离打包、可选图表、路由与功能裁剪、样式隔离、导出、头像和演示凭据；详细 API 使用同一份契约。
+
+图表事件为 `@ready`（引擎实例创建）与 `@error="message => …"`（初始化或绘制失败），属于组件事件而非模块导出。`resolveNovaIcon` 是内部解析函数，不是公共入口；宿主使用 `NovaIcon` 和 `NOVA_ICON_NAMES`。`Profile.avatar` 的 iris/teal/sun/graphite 是独立头像标识，不受 Accent 的 iris→violet 迁移影响。
+
+非法快照会被 load/mutate 拒绝并显示 INVALID_RESPONSE，保留最后有效快照；宿主仍负责业务授权及完整响应验证。非法的非字符串消息覆盖会回退到当前内置词典，空字符串仍有效。

@@ -1,5 +1,16 @@
 import { useNovaLocale } from '../locale'
-import { computed, onMounted, onScopeDispose, reactive, ref, shallowRef, toValue, watch } from 'vue'
+import {
+  computed,
+  getCurrentInstance,
+  getCurrentScope,
+  onMounted,
+  onScopeDispose,
+  reactive,
+  ref,
+  shallowRef,
+  toValue,
+  watch,
+} from 'vue'
 import type { MaybeRefOrGetter } from 'vue'
 import { NovaError, NOVA_ERROR_CODES } from '../types'
 import type {
@@ -22,11 +33,13 @@ export interface AuthFlowOptions {
   now?: () => number
 }
 
-/** Per-component presentation flow. An aborted HTTP request is not proof of server rollback. */
+/** Per-scope presentation flow. An aborted HTTP request is not proof of server rollback. */
 export function useAuthFlow(
   adapter: AuthAdapter | (() => AuthAdapter),
   options: AuthFlowOptions = {},
 ) {
+  if (!getCurrentScope())
+    throw new Error('useAuthFlow requires component setup or an active effectScope.')
   const { t } = useNovaLocale()
   const getAdapter = () => (typeof adapter === 'function' ? adapter() : adapter)
   const now = options.now ?? Date.now
@@ -112,10 +125,11 @@ export function useAuthFlow(
     tick()
     if (!document.hidden) timer = setInterval(tick, 1000)
   }
-  onMounted(() => {
+  function start() {
+    if (disposed || typeof document === 'undefined') return
     visibilityChanged()
     document.addEventListener('visibilitychange', visibilityChanged)
-  })
+  }
   onScopeDispose(() => {
     disposed = true
     clearInterval(timer)
@@ -125,6 +139,8 @@ export function useAuthFlow(
     fields.email = ''
     clearCredentials()
   })
+  if (getCurrentInstance()) onMounted(start)
+  else start()
 
   function abortPending() {
     generation += 1

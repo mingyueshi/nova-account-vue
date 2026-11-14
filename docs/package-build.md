@@ -22,7 +22,7 @@ npm run verify:nuxt
 
 `verify:package` 在首次安装与添加 ECharts 后，都逐字节比较安装的所有 dist 文件与该次构建，再执行账户无 ECharts、图表显式安装、ESM、SSR 和严格 TypeScript 验证。Nuxt 3/4 同样对比私有构建，包括 charts.d.ts。两个入口不会互相覆盖 tarball。
 
-直接 `npm pack` 保留为已有 dist 的低层命令，prepack 会拒绝未汇总或残留中间声明的目录。生成交付安装包请使用 pack:library；不要并发打包可变的共享 dist，也不要用 ignore-scripts 绕过检查。
+直接 `npm pack` 保留为已有 dist 的低层命令，prepack 会拒绝未汇总或残留中间声明的目录，并验证 dist/.nova-build.json 中源码、构建配置、锁文件、脚本及全部产物的内容哈希。源码新增/修改、产物缺失（包括 charts.js）或篡改均会拒绝打包；回执缺失时也要求重建。使用 npm run build 生成回执，文件时间戳不作为判断依据。生成交付安装包请使用 pack:library；不要并发打包可变的共享 dist，也不要用 ignore-scripts 绕过检查。
 
 ## 回归检查
 
@@ -34,3 +34,19 @@ npm run verify:nuxt
 - 两个真实 Vite 构建/打包同时执行，另一个进程持续覆盖共享图表声明；两份包仍必须完整、互相隔离，包内图表声明与各自完整构建一致。
 
 独立消费验证使用真实 tarball 安装，不能以工作区组件测试或只验证源码类型替代。
+
+## 新鲜度检查
+
+`npm run build` 完成 Vite 构建和声明检查后生成内容哈希回执，同时生成面向 CommonJS 调用者的 `require.cjs` 错误指引。构建失败先移除旧回执；构建期间输入变化也会失败，不给混合状态签发回执。`.nvmrc`、package.json、锁文件和构建脚本也在输入校验范围内。
+
+私有打包使用相同的构建路径，之后才执行内部 ignore-scripts 打包，避免递归调用钩子。直接在根目录 pack 仍不可与共享 dist 构建并发；交付应使用隔离管线。
+
+新增回归覆盖完整但过期的 dist、回拨时间戳后修改源码、新增源码/配置变化、缺失及篡改 charts.js，以及 npm pack 拒绝后不产生 tarball。原有声明中间态、失败构建及并发隔离回归保留。
+
+npm 的 prepack 在 pack / publish 生命周期执行，依据 [npm scripts 文档](https://docs.npmjs.com/cli/v11/using-npm/scripts/#life-cycle-operation-order)。仓库仍 private:true，本轮不执行发布。
+
+## 发布阶段与 CI
+
+当前交付仍是隔离构建的本地 tarball。本轮不增加自动 registry 发布，也不声称拥有 npm provenance。启用发布前需明确版本/公开范围、npm 组织和 trusted publisher、受保护的发布入口以及 provenance 核验；内部构建哈希回执不等同 npm 的 provenance 声明。
+
+CI 已缓存 npm 依赖。未增加浏览器二进制缓存：Playwright 官方指出恢复耗时可能接近下载，Linux 系统依赖仍需另装，见 [官方 CI 建议](https://playwright.dev/docs/ci#caching-browsers)。这属于可选性能权衡，并非运行缺陷。

@@ -21,6 +21,19 @@ const DateProbe = defineComponent({
 })
 
 describe('per-root locale and time display', () => {
+  it.each([42, false, {}, ['invalid']])(
+    'ignores a non-string host translation %j without breaking rendering',
+    async (value) => {
+      const wrapper = mount(NovaTheme, {
+        props: { locale: 'en-US', messages: { 'auth.welcome': value } as never },
+        slots: { default: () => h(NovaAuthForm, { adapter: createDemoAuthAdapter() }) },
+      })
+      wrappers.push(wrapper)
+      expect(wrapper.get('h1').text()).toBe('Welcome back')
+      await wrapper.setProps({ messages: { 'auth.welcome': '' } })
+      expect(wrapper.get('h1').text()).toBe('')
+    },
+  )
   it('has a complete English dictionary and substitutes host text as plain text', () => {
     expect(Object.keys(enUS).sort()).toEqual(Object.keys(zhCN).sort())
     const wrapper = mount(NovaTheme, {

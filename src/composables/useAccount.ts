@@ -1,4 +1,6 @@
 import { useNovaLocale } from '../locale'
+import { isAccountSnapshot } from '../snapshot'
+import { NovaError, NOVA_ERROR_CODES } from '../types'
 import { computed, getCurrentScope, onScopeDispose, shallowRef, ref, watch } from 'vue'
 import type {
   AccountAdapter,
@@ -62,7 +64,7 @@ export function useAccount(adapter: AccountAdapter | (() => AccountAdapter)) {
   }
   async function load() {
     const epoch = generation + 1
-    const result = await request((context) => getAdapter().load(context))
+    const result = await request(async (context) => validate(await getAdapter().load(context)))
     if (!result || epoch !== generation) return undefined
     snapshot.value = result
     return result
@@ -74,7 +76,9 @@ export function useAccount(adapter: AccountAdapter | (() => AccountAdapter)) {
     if (!snapshot.value) return undefined
     const revision = snapshot.value.revision
     const epoch = generation + 1
-    const result = await request((context) => operation({ ...context, revision }))
+    const result = await request(async (context) =>
+      validate(await operation({ ...context, revision })),
+    )
     if (!result || epoch !== generation) return undefined
     if (result) {
       snapshot.value = result
@@ -87,6 +91,11 @@ export function useAccount(adapter: AccountAdapter | (() => AccountAdapter)) {
     snapshot.value = null
     notice.value = ''
   }
+  function validate(value: unknown): AccountSnapshot {
+    if (!isAccountSnapshot(value))
+      throw new NovaError(NOVA_ERROR_CODES.INVALID_RESPONSE, t('account.snapshotInvalid'))
+    return value
+  }
   // The exported composable must isolate adapters itself, not rely on a component watcher.
   watch(getAdapter, clear, { flush: 'sync' })
   if (getCurrentScope()) onScopeDispose(clear)
@@ -95,7 +104,11 @@ export function useAccount(adapter: AccountAdapter | (() => AccountAdapter)) {
     busy,
     error,
     notice,
-    unread: computed(() => snapshot.value?.messages.filter((message) => !message.read).length ?? 0),
+    unread: computed(() =>
+      Array.isArray(snapshot.value?.messages)
+        ? snapshot.value.messages.filter((message) => message?.read === false).length
+        : 0,
+    ),
     request,
     requestResult,
     load,

@@ -37,6 +37,9 @@ function check(name, parent) {
   for (const dependency of Object.keys(pkg.dependencies ?? {})) check(dependency, path)
 }
 // Optional chart peers are part of the runtime inventory when installed for development.
-for (const name of Object.keys({ ...manifest.dependencies, ...manifest.peerDependencies }))
+for (const name of new Set([
+  '@lucide/vue',
+  ...Object.keys({ ...manifest.dependencies, ...manifest.peerDependencies }),
+]))
   check(name, join(root, 'package.json'))
 console.log(`PASS ${seen.size} runtime dependency licenses, including optional chart support`)

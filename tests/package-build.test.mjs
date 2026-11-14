@@ -10,12 +10,18 @@ import {
   rmSync,
   symlinkSync,
   writeFileSync,
+  utimesSync,
 } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import test from 'node:test'
-import { assertPackageDeclarations, createLibraryPackage } from '../scripts/package-library.mjs'
+import {
+  assertPackageDeclarations,
+  assertFreshBuild,
+  writeBuildReceipt,
+  createLibraryPackage,
+} from '../scripts/package-library.mjs'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 // Exact chart entry captured in the failing tarball while index.d.ts was already bundled.
@@ -40,6 +46,61 @@ function declarationsFixture(t) {
   writeFileSync(join(directory, 'dist/index.d.ts'), 'export declare const account: string;')
   return directory
 }
+function freshFixture(t) {
+  const directory = declarationsFixture(t)
+  mkdirSync(join(directory, 'src'))
+  writeFileSync(join(directory, 'src/index.ts'), 'export const version = 1')
+  writeFileSync(join(directory, 'dist/charts.d.ts'), 'export declare const chart: string;')
+  const manifest = JSON.parse(readFileSync(join(directory, 'package.json'), 'utf8'))
+  Object.assign(manifest, {
+    name: 'nova-freshness-fixture',
+    version: '0.0.0',
+    type: 'module',
+    scripts: { prepack: 'node scripts/package-library.mjs --check' },
+  })
+  manifest.exports['./charts'].import = './dist/charts.js'
+  writeFileSync(join(directory, 'package.json'), JSON.stringify(manifest))
+  writeFileSync(join(directory, 'dist/charts.js'), 'export const chart = 1')
+  mkdirSync(join(directory, 'scripts'))
+  cpSync(join(root, 'scripts/package-library.mjs'), join(directory, 'scripts/package-library.mjs'))
+  symlinkSync(join(root, 'node_modules'), join(directory, 'node_modules'), 'junction')
+  writeBuildReceipt(directory)
+  assertFreshBuild(directory)
+  return directory
+}
+test('rejects changed source even when its timestamp is backdated', (t) => {
+  const directory = freshFixture(t)
+  const source = join(directory, 'src/index.ts')
+  writeFileSync(source, 'export const version = 2')
+  utimesSync(source, new Date(0), new Date(0))
+  assert.throws(() => assertFreshBuild(directory), /Build inputs changed/)
+})
+test('rejects newly added source and changed build configuration', (t) => {
+  const directory = freshFixture(t)
+  writeFileSync(join(directory, 'src/new.ts'), 'export const added = true')
+  assert.throws(() => assertFreshBuild(directory), /Build inputs changed/)
+  rmSync(join(directory, 'src/new.ts'))
+  writeFileSync(join(directory, 'vite.config.ts'), 'export default {}')
+  assert.throws(() => assertFreshBuild(directory), /Build inputs changed/)
+})
+for (const change of ['remove', 'tamper'])
+  test(`rejects a ${change}d chart JS despite intact declarations`, (t) => {
+    const directory = freshFixture(t)
+    const chart = join(directory, 'dist/charts.js')
+    if (change === 'remove') rmSync(chart)
+    else writeFileSync(chart, 'export const stale = true')
+    assert.throws(() => assertFreshBuild(directory), /Build outputs changed/)
+  })
+test('npm pack refuses complete but stale dist without producing a tarball', (t) => {
+  const directory = freshFixture(t)
+  writeFileSync(join(directory, 'src/index.ts'), 'export const changed = true')
+  assert.throws(
+    () =>
+      execFileSync('npm', ['pack', '--json'], { cwd: directory, encoding: 'utf8', stdio: 'pipe' }),
+    (error) => /Build inputs changed/.test(error.stdout + error.stderr),
+  )
+  assert(!readdirSync(directory).some((name) => name.endsWith('.tgz')))
+})
 test('rejects the captured mixed declaration state before npm pack can publish it', (t) => {
   const directory = declarationsFixture(t)
   writeFileSync(join(directory, 'dist/charts.d.ts'), intermediate)
@@ -97,6 +158,7 @@ test('a failed isolated build cannot fall back to stale dist and cleans its stag
   writeFileSync(join(directory, 'package.json'), JSON.stringify(manifest))
   mkdirSync(join(directory, 'src'))
   mkdirSync(join(directory, 'scripts'))
+  cpSync(join(root, 'scripts/package-library.mjs'), join(directory, 'scripts/package-library.mjs'))
   writeFileSync(join(directory, 'tsconfig.json'), '{}')
   writeFileSync(
     join(directory, 'vite.config.ts'),

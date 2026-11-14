@@ -17,6 +17,12 @@ export default defineConfig({
         functions: 70,
         branches: 75,
         'src/composables/**': { lines: 95, statements: 90, functions: 85, branches: 80 },
+        'src/components/NovaAccountCenter.vue': {
+          lines: 95,
+          statements: 93,
+          functions: 85,
+          branches: 88,
+        },
         'src/components/NovaCaptcha.vue': {
           lines: 95,
           statements: 95,

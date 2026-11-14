@@ -61,21 +61,28 @@ interface MutationContext extends RequestContext {
 
 ## 组件 API
 
-包仅提供 ESM import 导出，没有 CommonJS require 入口。Vue 是 peer dependency，消费者必须显式引入 `nova-account/style.css`。
+包仅提供 ESM import 导出，没有 CommonJS 实现；require 条件入口仅抛出带 await import(...) 用法的错误。Vue 是 peer dependency，消费者必须显式引入 `nova-account/style.css`。
 
 ### `NovaAccount`
 
-Props：`adapter: NovaAdapter`（必填）、`initialUser?:SessionUser|null`、`appearance?:Appearance`、`storageKey?:string|false`（默认false）、`brand?:string`；支持下述 locale 配置、`page?:AccountPage` / `initialPage?:AccountPage`、`layout?:'full'|'embedded'`（默认 full）、`codeLength?:number|null`（默认 6）、`passwordStrength?:(password:string)=>PasswordStrength`、`avatarMaxBytes?:number`（默认 2 MiB）。
+Props：`adapter: NovaAdapter`（必填）、`initialUser?:SessionUser|null`、`appearance?:Appearance`、`storageKey?:string|false`（默认false）、`brand?:string`；支持下述 locale 配置、`page?:AccountPage` / `initialPage?:AccountPage`、`layout?:'full'|'embedded'`（默认 full）、`codeLength?:number|null`（默认 6）、`passwordStrength?:(password:string)=>PasswordStrength`、`avatarMaxBytes?:number`（默认 2 MiB）。此外支持 `identifier?:'email'|'username'`（默认 email）、`modes?:AuthMode[]`（默认四种流程）、`pages?:AccountPage[]`（默认所有账户页）、`extraPages?:AccountExtraPage[]`（默认无扩展页）、`twoStep?:boolean`（默认 true）。
 
 Events：`authenticated(AuthResult)`、`logout()`、`update:appearance(Appearance)`、`update:page(AccountPage)`、`pageChange(AccountPage)`。只有 adapter.logout 成功才回认证页；失败会保留用户状态并展示错误。
 
-Slots：`brand`、`tools({appearance,setAppearance,storageError,signedIn})`、`captcha`（透传）、`security`（透传）、`securityFormTools`（透传）、`footer`。
+Slots：`brand()`、`footer()`（外壳页尾）、`tools({appearance,setAppearance,storageError,signedIn})`、`captcha({challenge,submit,busy,error,cancel,retry})`、`security({snapshot,adapter,refresh})`、`securityFormTools({fill})`，以及：
+
+- `overview({snapshot,adapter,refresh,appearance})`：默认概览下方补充内容。
+- `page({page,snapshot,adapter,refresh,appearance,setAppearance,storageError})`：扩展页面内容；切到内置页时保留挂载并隐藏。
+- `profile({snapshot,adapter,refresh})`：整体替换内置资料页，宿主管理草稿与离开确认。
+- `authFooter({mode,resetStage,busy,fill})`：认证卡片页尾；`resetStage` 为 verify/password，`fill` 仅填展示字段，不签发验证码或通过验证。
+
+`AccountExtraPage` 使用 `custom:` 前缀 id、label、description，可选 group/symbol。`pages` 限定内置与扩展页可见性；空列表不显示账户页面。
 
 Exposed：`fill({email?,password?,code?,confirmPassword?})`；`fillSecurity(...)`；`preview(SessionUser)` **仅在simulated时展示**。这些仅是展示操作，不应代替服务端认证。
 
 ### `NovaAuthForm`
 
-Props：`adapter:AuthAdapter`（必填）、`simulated?:boolean`、`codeLength?:number|null`、`passwordStrength?:(password:string)=>PasswordStrength`、`avatarMaxBytes?:number`（默认 2 MiB）。Events：`authenticated(AuthResult)`、`reset()`、`mode-change(AuthMode)`。Slots：`captcha({challenge,submit,busy,error,cancel,retry})`、`terms`、`footer`。
+Props：`adapter:AuthAdapter`（必填）、`simulated?:boolean`（默认 false）、`codeLength?:number|null`（默认 6）、`passwordStrength?:(password:string)=>PasswordStrength`、`identifier?:'email'|'username'`（默认 email）、`modes?:AuthMode[]`（默认 password/code/register/reset）。Events：`authenticated(AuthResult)`、`reset()`、`mode-change(AuthMode)`。Slots：`captcha({challenge,submit,busy,error,cancel,retry})`、`terms()`、`footer({mode,resetStage,busy,fill})`。
 
 `PasswordStrength = {score:0|1|2|3|4,label:string,hint?:string}`，仅在注册/重置的新密码非空时展示。库不提供默认强度算法，评估不改变允许提交的条件。验证码 maxlength 是展示限制，null 关闭，服务器仍决定码策略。
 
@@ -85,7 +92,9 @@ Exposed：`fill(...)`、`cancel()`、`setMode(AuthMode)`。宿主应提供服务
 
 ### `NovaAccountCenter`
 
-Props：`adapter:AccountAdapter`（必填）、`simulated?:boolean`、`page?:AccountPage`、`initialPage?:AccountPage`、`avatarMaxBytes?:number`（默认 2 MiB）。Events：`logout()`、`update:page(AccountPage)`、`pageChange(AccountPage)`。Slots：`appearance`、`security({snapshot,adapter,refresh})`、`securityFormTools({fill})`。Exposed：`refresh()`、`fillSecurity(...)`。
+Props：`adapter:AccountAdapter`（必填）、`simulated?:boolean`、`page?:AccountPage`、`initialPage?:AccountPage`、`pages?:AccountPage[]`、`extraPages?:AccountExtraPage[]`、`twoStep?:boolean`（默认 true）、`avatarMaxBytes?:number`（默认 2 MiB）。Events：`logout()`、`update:page(AccountPage)`、`pageChange(AccountPage)`。Slots：`appearance()`、`overview({snapshot,adapter,refresh})`、`page({page,snapshot,adapter,refresh})`、`profile({snapshot,adapter,refresh})`、`security({snapshot,adapter,refresh})`、`securityFormTools({fill})`。Exposed：`refresh()`、`fillSecurity(...)`。
+
+`avatarMaxBytes` 仅由 `NovaAccount`（透传）和 `NovaAccountCenter` 支持，作用于内置资料页的头像上传；`NovaAuthForm` 不支持此 prop。自定义 `profile` 插槽的上传限制由宿主实现。
 
 无 page 时内部维护页签，initialPage 默认 overview。受控模式点击只请求 update:page，父级接受 prop 后才切页；pageChange 只在有效页签实际变化时发出。内部 dirty guard 通过后才请求切页；外部 page 更新是权威输入，不回声 update，也不拦截路由，宿主应在改变路由前完成离开确认。权威切页保留内置资料 / 偏好草稿，refresh 也保留未保存字段；保存或主动放弃只重置对应草稿，退出前会提示所有剩余草稿。adapter 更换会清除旧请求/草稿，受控 page 仍由父级决定。
 
@@ -106,7 +115,7 @@ SSR采用确定性初始light（或显式传入mode）；system和storage在onMo
 ### 基础组件
 
 - `NovaButton`：variant primary/secondary/ghost，type，disabled，busy；普通 attrs/listeners透传。
-- `NovaField`：string v-model，label，as（input/textarea，默认input），type，maxlength，error，hint，autocomplete，disabled；prefix/suffix slots；label/error id每实例生成；attrs作用于实际input/textarea。原生 maxlength 以 UTF-16 code units 计数。
+- `NovaField`：string v-model，label，as（input/textarea，默认input），type，maxlength，error，hint，autocomplete，disabled；prefix/suffix slots；支持宿主 id，未传时按实例生成；宿主 aria-describedby 与提示/错误 id 合并；attrs作用于实际input/textarea。原生 maxlength 以 UTF-16 code units 计数。
 - `NovaDialog`：open/title，close event，default/footer slots；原生dialog焦点约束、Esc请求关闭、回焦。无浏览器的SSR不调用DOM。
 - `NovaCaptcha`：challenge,busy,error,simulated；submit(response),retry事件。键盘End只移动，Enter明确提交；控件不是安全校验器。
 
@@ -119,3 +128,24 @@ SSR采用确定性初始light（或显式传入mode）；system和storage在onMo
 每个 composable/factory 创建独立状态；禁止在 Nuxt 模块级放置每用户 adapter 或账户状态。一个 SSR 请求创建一个真实 adapter。只有 `useAppearance` 可以在挂载后使用 localStorage，且只序列化经过两字段白名单校验的 mode/accent。用户输入经 Vue 插值渲染，无 `v-html` / `innerHTML`。
 
 真实请求取消/超时可能是“结果未知”，UI不代表服务器未提交；接入方必须提供操作查询/核实机制以及服务端幂等处理。不能把模拟适配器的可预测挑战/验证码或abort行为移植为生产安全实现。
+
+### 图标与可选图表
+
+- `NovaIcon`：`name?`、`icon?:Component`、`size?:number`（20）、`strokeWidth?:number`（2）、`color?:string`（currentColor）、`label?:string`、`fallback?:string`（◇）；具名图标使用 img 语义，装饰图标隐藏。
+- `NovaChart`（`nova-account/charts`）：`option:NovaChartOption`、`label:string` 必填；`description?:string`、`height?:number`（320）、`active?:boolean`（true）、`colorTokens?:string[]`、`themeKey?:string`、`errorLabel?:string`；事件 `ready()`、`error(message:string)`，无公开插槽。使用根 locale，ECharts 是可选 peer，需显式安装。
+
+### Composable 的作用域
+
+`useAuthFlow` / `useAppearance` 必须在组件 setup 或活动的 `effectScope.run()` 中创建（包括 Pinia setup store 的 scope）。组件在 mounted 后启用浏览器资源；非组件 scope 在浏览器中立即启用，scope.stop() / store.$dispose() 释放计时器、监听与请求。无 scope 调用会立即抛出明确错误。SSR 不启用浏览器资源；每次请求创建并停止独立 scope，不在模块顶层共享状态。
+
+`useAccount` 仍支持无 scope 的手动控制，调用方负责 cancel/clear；在活动 scope 内自动清理。`useAuthFlow` 暴露的 tick() 可供确定性时钟测试使用；隐藏页面暂停计时器，重新可见时按当前时间校准。
+
+外观从 storage 恢复后，如与初值不同，会通知 onChange（NovaTheme 的 update:modelValue / NovaAccount 的 update:appearance）一次，不重写 storage；来自宿主 prop 的同步仍保持静默。跟随系统只改变解析后的明暗，不改变 mode:system 本身。
+
+作用域释放依据 [Vue effectScope/onScopeDispose](https://vuejs.org/api/reactivity-advanced.html#effectscope)。
+
+### 运行时边界与枚举
+
+load/mutate 验证快照的必需结构及字段类型，非法 payload 不会写入 snapshot，返回 INVALID_RESPONSE 并保留旧有效状态；不把非法 messages 伪装成有效的空列表。unread 派生值另外检查数组和 read 标志，防止宿主直接改写暴露的 ref 导致异常。非字符串 messages 覆盖退回当前内置文案，空字符串依然允许。换绑邮箱发码前校验邮箱形态；最终所有权和安全策略归服务端。
+
+Profile.avatar 使用 iris/teal/sun/graphite，表示头像预设，与 Accent 品牌配色是不同类型，不能按 accent 更名迁移头像。resolveNovaIcon 是内部模块函数，不承诺公共导出；公共图标 API 为 NovaIcon / NOVA_ICON_NAMES。NovaChart 的 ready 在引擎实例创建时触发，error 携带底层错误字符串；二者通过组件事件绑定。

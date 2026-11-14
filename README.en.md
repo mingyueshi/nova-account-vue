@@ -6,7 +6,7 @@ Vue 3 + TypeScript account presentation components with injected business adapte
 
 ## Develop and verify
 
-Requires Node >=22.12 and Vue ^3.5. This is an **ESM-only** package; no CommonJS entry is distributed.
+Requires Node >=22.12 and Vue ^3.5. This is an **ESM-only** package; the require condition throws a descriptive error directing CommonJS callers to `await import(...)`, rather than providing a CommonJS implementation. Development pins are Node 22.19.0 (`.nvmrc`) and npm 10.9.3 (`packageManager`); CI also targets Node 22.12.0 and 24.
 
 ```sh
 npm ci
@@ -20,7 +20,7 @@ npm run test:e2e        # temporary loopback demo, keyboard flows, viewports and
 
 GitHub Actions configurations run those checks on pushes and pull requests. Adding the configurations does not mean remote CI has run; see [QA.md](QA.md) for recorded local evidence and remaining acceptance work.
 
-The package is private and has not been published to npm. Run `npm run pack:library`, then install the generated tarball in the consumer. It builds a private source snapshot and checks bundled declarations before packing, so concurrent builds cannot change the package. Direct `npm pack` only checks existing declarations through prepack; it does not build an isolated snapshot. Both consumer verification scripts use the isolated pipeline. See [package verification](docs/package-build.md). Import the stylesheet explicitly; the consumer does not need Tailwind.
+The package is private and has not been published to npm. Run `npm run pack:library`, then install the generated tarball in the consumer. It builds a private source snapshot and checks bundled declarations before packing, so concurrent builds cannot change the package. Direct `npm pack` checks declarations and a content-hash receipt covering source, build configuration and all output files. It refuses stale, missing or modified outputs. Run `npm run build` to create the receipt; prepack does not rebuild or replace the isolated packaging pipeline. Both consumer verification scripts use the isolated pipeline. See [package verification](docs/package-build.md). Import the stylesheet explicitly; the consumer does not need Tailwind.
 
 ```vue
 <script setup lang="ts">
@@ -61,7 +61,7 @@ import { NovaIcon } from 'nova-account'
 </template>
 ```
 
-The integrated icon demo includes 55 searchable icons, size/stroke/color controls and component/SVG copying. No CDN is required. [Third-party notices](THIRD_PARTY_NOTICES.md) include the Lucide ISC and derived Feather MIT licenses.
+The integrated icon demo includes 55 searchable icons, size/stroke/color controls and component/SVG copying. Built-in icons are bundled, so account consumers do not install Lucide. Hosts importing extra icons such as Camera install `@lucide/vue` themselves. No CDN is required. [Third-party notices](THIRD_PARTY_NOTICES.md) include the Lucide ISC and derived Feather MIT licenses.
 
 ## Optional dynamic charts
 
@@ -148,3 +148,17 @@ The `profile` slot replaces the built-in profile page; the host owns its drafts 
 | Sample new email    | `novanext@nova.example`                    |
 
 All demo data is synthetic and held in memory; no real account is created and no email is sent. Mock password changes do not alter the fixed sign-in credentials. Authentication forms show the appropriate values and a local fill action for each step. Security dialogs provide their own sample fill action. Filling does not accept terms, issue a code or pass verification. Only the optional appearance preference is persisted.
+
+## Composable lifecycle and full API
+
+Create `useAuthFlow` and `useAppearance` in component setup or an active `effectScope` (including Pinia setup stores). Components activate browser resources after mount; standalone browser scopes activate immediately. `scope.stop()` / `store.$dispose()` clears timers, removes listeners and cancels pending requests. SSR starts no browser resources. Calls without a scope throw an explicit error. `useAccount` retains manual, unscoped `cancel` / `clear` usage. Do not share stores or adapters across SSR requests.
+
+When stored appearance differs from its initial value, restoration calls `onChange` / emits `update:appearance` once without writing storage. Host prop synchronization stays silent. System appearance changes keep `mode:system` unchanged.
+
+Full shell props: adapter, initialUser, appearance, storageKey, brand, locale/messages/timeZone/dateTimeOptions/formatTime, page/initialPage/pages/extraPages, layout, identifier/modes, twoStep, codeLength, passwordStrength and avatarMaxBytes. Slots: brand, footer, tools, captcha, security, securityFormTools, overview, page, profile and authFooter. The [shared component contracts](docs/contracts.md) specify defaults, scoped slot parameters and host responsibilities; the form has no avatarMaxBytes prop.
+
+The Chinese and English guides both cover development and isolated packaging, optional charts, routing and feature selection, style isolation, exports, avatars and synthetic demo credentials. Detailed API references use the same contract document. The demo additionally includes task editing, comments, orders and base-component workspaces. Real host acceptance still needs email/challenge binding, credential storage, session/CSRF enforcement, rate limiting, device revocation and reconciliation after unknown outcomes. Screen-reader and mobile-keyboard checks remain separate from automated smoke tests.
+
+Chart events are `@ready` when the engine instance is created and `@error` with a string when initialization or drawing fails. These are component events, not module exports. `resolveNovaIcon` is internal; use `NovaIcon` and `NOVA_ICON_NAMES`. Profile avatar identifiers (iris/teal/sun/graphite) are separate from Accent names; the accent rename does not migrate avatar data.
+
+Malformed snapshots are rejected by load/mutate as INVALID_RESPONSE while retaining the last valid snapshot. Hosts still own authorization and business-response validation. Non-string translation overrides fall back to the current built-in dictionary; empty strings remain valid overrides.
