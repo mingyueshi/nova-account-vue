@@ -11,7 +11,8 @@ Requires Node >=22.12 and Vue ^3.5. This is an **ESM-only** package; no CommonJS
 ```sh
 npm ci
 npm run check           # lint, formatting, strict types, coverage, builds, size budgets
-npm run verify:package  # actual tarball, independent strict TypeScript / ESM / CSS / SSR consumer
+npm run pack:library    # isolated source build, then a local tarball; never packs shared dist
+npm run verify:package  # isolated build and tarball, independent strict TypeScript / ESM / CSS / SSR
 npm run verify:nuxt     # Nuxt 3 and 4: locked tarball consumers, typecheck, build and SSR smoke
 npx playwright install chromium firefox webkit
 npm run test:e2e        # temporary loopback demo, keyboard flows, viewports and axe scans
@@ -19,7 +20,7 @@ npm run test:e2e        # temporary loopback demo, keyboard flows, viewports and
 
 GitHub Actions configurations run those checks on pushes and pull requests. Adding the configurations does not mean remote CI has run; see [QA.md](QA.md) for recorded local evidence and remaining acceptance work.
 
-The package is private and has not been published to npm. Build and run `npm pack`, then install the generated tarball in the consumer. Import the stylesheet explicitly; the consumer does not need Tailwind.
+The package is private and has not been published to npm. Run `npm run pack:library`, then install the generated tarball in the consumer. It builds a private source snapshot and checks bundled declarations before packing, so concurrent builds cannot change the package. Direct `npm pack` only checks existing declarations through prepack; it does not build an isolated snapshot. Both consumer verification scripts use the isolated pipeline. See [package verification](docs/package-build.md). Import the stylesheet explicitly; the consumer does not need Tailwind.
 
 ```vue
 <script setup lang="ts">

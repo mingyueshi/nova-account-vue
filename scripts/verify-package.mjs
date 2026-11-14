@@ -4,6 +4,7 @@ import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { createLibraryPackage } from './package-library.mjs'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const packageJson = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'))
@@ -16,77 +17,93 @@ const env = {
 }
 const run = (command, args, cwd = root) =>
   execFileSync(command, args, { cwd, env, encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] })
-const [packed] = JSON.parse(run('npm', ['pack', '--json']))
-assert(packed?.filename, 'npm pack must return a tarball')
-const files = packed.files.map((file) => file.path)
-assert(files.includes('dist/nova-account.js'))
-assert(files.includes('dist/index.d.ts'))
-assert(files.includes('dist/charts.js') && files.includes('dist/charts.d.ts'))
-for (const file of ['LICENSE', 'README.en.md', 'CHANGELOG.md', 'THIRD_PARTY_NOTICES.md'])
-  assert(files.includes(file), `missing package document: ${file}`)
-assert.equal(packageJson.license, 'MIT')
-assert(!packageJson.dependencies.echarts, 'ECharts must not be a hard dependency')
-assert.equal(packageJson.peerDependenciesMeta.echarts.optional, true)
-assert(files.includes('dist/nova-account.css'))
-assert(
-  !files.some((file) => /^(demo|src|tests|examples|node_modules)\//.test(file)),
-  'production package must not contain demo/source/tests/dependencies',
-)
-assert(
-  !files.some((file) => /(^|\/)(\.env|\.npmrc|\.git)/.test(file)),
-  'no secret/config artifacts in package',
-)
-const js = readFileSync(join(root, 'dist/nova-account.js'), 'utf8')
-assert(!js.includes('echarts'), 'optional chart engine must not enter the account entry')
-assert(/from\s*["']vue["']/.test(js), 'Vue must remain an external import')
-assert(
-  !/NovaDemo2026|demo@nova\.example|createDemoAdapter/.test(js),
-  'production JS must not contain demo adapters or credentials',
-)
-const css = readFileSync(join(root, 'dist/nova-account.css'), 'utf8')
-assert(css.includes('.nova-account'), 'compiled scoped foundation is required')
-assert(
-  css.includes('data-accent=teal') && css.includes('#06201e'),
-  'compiled CSS must contain generated light and dark palettes',
-)
-assert(css.includes('na\\:flex'), 'compiled prefixed Tailwind utilities are required')
-assert(
-  !/@tailwind|@source|@nova-palettes/.test(css),
-  'consumer must not need a Tailwind compilation step',
-)
-assert(!/@import/.test(css), 'the CSS export must be self-contained')
-assert(!/(?:^|})\s*(?:html|body)\s*\{/.test(css), 'no document-level Preflight reset')
-assert(!css.includes(':root'), 'library theme variables must be scoped to .nova-account')
-assert(!css.includes('--tw-'), 'Tailwind internal variables must use the library namespace')
-const sourceMap = JSON.parse(readFileSync(join(root, 'dist/nova-account.js.map'), 'utf8'))
-assert(
-  !sourceMap.sources.some((source) => /(^|\/)demo\//.test(source)),
-  'demo sources must not enter the library source map',
-)
+const packed = createLibraryPackage(root)
+try {
+  assert(packed?.filename, 'npm pack must return a tarball')
+  const files = packed.files.map((file) => file.path)
+  assert(files.includes('dist/nova-account.js'))
+  assert(files.includes('dist/index.d.ts'))
+  assert(files.includes('dist/charts.js') && files.includes('dist/charts.d.ts'))
+  for (const file of ['LICENSE', 'README.en.md', 'CHANGELOG.md', 'THIRD_PARTY_NOTICES.md'])
+    assert(files.includes(file), `missing package document: ${file}`)
+  assert.equal(packageJson.license, 'MIT')
+  assert(!packageJson.dependencies.echarts, 'ECharts must not be a hard dependency')
+  assert.equal(packageJson.peerDependenciesMeta.echarts.optional, true)
+  assert(files.includes('dist/nova-account.css'))
+  assert(
+    !files.some((file) => /^(demo|src|tests|examples|node_modules)\//.test(file)),
+    'production package must not contain demo/source/tests/dependencies',
+  )
+  assert(
+    !files.some((file) => /(^|\/)(\.env|\.npmrc|\.git)/.test(file)),
+    'no secret/config artifacts in package',
+  )
+  const js = readFileSync(join(packed.directory, 'dist/nova-account.js'), 'utf8')
+  assert(!js.includes('echarts'), 'optional chart engine must not enter the account entry')
+  assert(/from\s*["']vue["']/.test(js), 'Vue must remain an external import')
+  assert(
+    !/NovaDemo2026|demo@nova\.example|createDemoAdapter/.test(js),
+    'production JS must not contain demo adapters or credentials',
+  )
+  const css = readFileSync(join(packed.directory, 'dist/nova-account.css'), 'utf8')
+  assert(css.includes('.nova-account'), 'compiled scoped foundation is required')
+  assert(
+    css.includes('data-accent=teal') && css.includes('#06201e'),
+    'compiled CSS must contain generated light and dark palettes',
+  )
+  assert(css.includes('na\\:flex'), 'compiled prefixed Tailwind utilities are required')
+  assert(
+    !/@tailwind|@source|@nova-palettes/.test(css),
+    'consumer must not need a Tailwind compilation step',
+  )
+  assert(!/@import/.test(css), 'the CSS export must be self-contained')
+  assert(!/(?:^|})\s*(?:html|body)\s*\{/.test(css), 'no document-level Preflight reset')
+  assert(!css.includes(':root'), 'library theme variables must be scoped to .nova-account')
+  assert(!css.includes('--tw-'), 'Tailwind internal variables must use the library namespace')
+  const sourceMap = JSON.parse(
+    readFileSync(join(packed.directory, 'dist/nova-account.js.map'), 'utf8'),
+  )
+  assert(
+    !sourceMap.sources.some((source) => /(^|\/)demo\//.test(source)),
+    'demo sources must not enter the library source map',
+  )
 
-// Outside the workspace tree so module resolution cannot accidentally find source dependencies.
-const consumer = mkdtempSync(join(tmpdir(), 'nova-account-consumer-'))
-writeFileSync(
-  join(consumer, 'package.json'),
-  JSON.stringify({ name: 'nova-account-package-consumer', private: true, type: 'module' }, null, 2),
-)
-run(
-  'npm',
-  [
-    'install',
-    '--no-audit',
-    '--no-fund',
-    '--ignore-scripts',
-    join(root, packed.filename),
-    `vue@${packageJson.devDependencies.vue}`,
-    `@vue/server-renderer@${packageJson.devDependencies.vue}`,
-    `typescript@${packageJson.devDependencies.typescript}`,
-  ],
-  consumer,
-)
-writeFileSync(
-  join(consumer, 'verify.mjs'),
-  `
+  // Outside the workspace tree so module resolution cannot accidentally find source dependencies.
+  const consumer = mkdtempSync(join(tmpdir(), 'nova-account-consumer-'))
+  function assertInstalledSnapshot() {
+    for (const { path } of packed.files.filter((file) => file.path.startsWith('dist/')))
+      assert.deepEqual(
+        readFileSync(join(consumer, 'node_modules/nova-account', path)),
+        readFileSync(join(packed.directory, path)),
+        `Installed artifact differs from the completed build: ${path}`,
+      )
+  }
+  writeFileSync(
+    join(consumer, 'package.json'),
+    JSON.stringify(
+      { name: 'nova-account-package-consumer', private: true, type: 'module' },
+      null,
+      2,
+    ),
+  )
+  run(
+    'npm',
+    [
+      'install',
+      '--no-audit',
+      '--no-fund',
+      '--ignore-scripts',
+      packed.tarball,
+      `vue@${packageJson.devDependencies.vue}`,
+      `@vue/server-renderer@${packageJson.devDependencies.vue}`,
+      `typescript@${packageJson.devDependencies.typescript}`,
+    ],
+    consumer,
+  )
+  assertInstalledSnapshot()
+  writeFileSync(
+    join(consumer, 'verify.mjs'),
+    `
 import assert from 'node:assert/strict'
 import { readFileSync, realpathSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
@@ -110,10 +127,10 @@ assert.throws(() => createRequire(import.meta.url).resolve('echarts/core'), { co
 assert.equal(typeof globalThis.window, 'undefined')
 console.log('PASS tarball ESM exports, explicit compiled CSS, external Vue and SSR')
 `,
-)
-writeFileSync(
-  join(consumer, 'consumer.ts'),
-  `
+  )
+  writeFileSync(
+    join(consumer, 'consumer.ts'),
+    `
 import { NovaAccount, NovaAuthForm, NovaButton, NovaTheme, NovaError, useAuthFlow, type AuthAdapter, type NovaAdapter, type Appearance, type NovaMessages, type NovaErrorCode, type NovaRequestResult } from 'nova-account'
 import { h } from 'vue'
 const unavailable = async (): Promise<never> => { throw new NovaError('ADAPTER_NOT_CONFIGURED', 'Configure a server adapter') }
@@ -142,43 +159,44 @@ void goodAuthProps; void missingAdapter
 const invalid: Appearance = {mode:'light',accent:'red'}
 void invalid
 `,
-)
-writeFileSync(
-  join(consumer, 'tsconfig.json'),
-  JSON.stringify(
-    {
-      compilerOptions: {
-        strict: true,
-        noEmit: true,
-        module: 'NodeNext',
-        moduleResolution: 'NodeNext',
-        target: 'ES2022',
-        lib: ['ES2022', 'DOM'],
-        skipLibCheck: false,
+  )
+  writeFileSync(
+    join(consumer, 'tsconfig.json'),
+    JSON.stringify(
+      {
+        compilerOptions: {
+          strict: true,
+          noEmit: true,
+          module: 'NodeNext',
+          moduleResolution: 'NodeNext',
+          target: 'ES2022',
+          lib: ['ES2022', 'DOM'],
+          skipLibCheck: false,
+        },
+        include: ['consumer.ts'],
       },
-      include: ['consumer.ts'],
-    },
-    null,
-    2,
-  ),
-)
-process.stdout.write(run('node', ['verify.mjs'], consumer))
-process.stdout.write(run(join(consumer, 'node_modules/.bin/tsc'), ['--noEmit'], consumer))
-console.log('PASS base-only ESM / SSR / strict TypeScript consumer without ECharts')
-run(
-  'npm',
-  [
-    'install',
-    '--no-audit',
-    '--no-fund',
-    '--ignore-scripts',
-    `echarts@${packageJson.devDependencies.echarts}`,
-  ],
-  consumer,
-)
-writeFileSync(
-  join(consumer, 'verify-charts.mjs'),
-  `
+      null,
+      2,
+    ),
+  )
+  process.stdout.write(run('node', ['verify.mjs'], consumer))
+  process.stdout.write(run(join(consumer, 'node_modules/.bin/tsc'), ['--noEmit'], consumer))
+  console.log('PASS base-only ESM / SSR / strict TypeScript consumer without ECharts')
+  run(
+    'npm',
+    [
+      'install',
+      '--no-audit',
+      '--no-fund',
+      '--ignore-scripts',
+      `echarts@${packageJson.devDependencies.echarts}`,
+    ],
+    consumer,
+  )
+  assertInstalledSnapshot()
+  writeFileSync(
+    join(consumer, 'verify-charts.mjs'),
+    `
 import assert from 'node:assert/strict'
 import { createSSRApp, h } from 'vue'
 import { renderToString } from '@vue/server-renderer'
@@ -192,20 +210,23 @@ assert(localizedChart.includes('SSR chart. Optional entry'), 'chart and account 
 
 console.log('PASS optional chart entry with explicitly installed ECharts')
 `,
-)
-writeFileSync(
-  join(consumer, 'consumer.ts'),
-  readFileSync(join(consumer, 'consumer.ts'), 'utf8') +
-    `
+  )
+  writeFileSync(
+    join(consumer, 'consumer.ts'),
+    readFileSync(join(consumer, 'consumer.ts'), 'utf8') +
+      `
 import { NovaChart, type NovaChartOption } from 'nova-account/charts'
 const chartOption: NovaChartOption = {series:[{type:'line',data:[1,2,3]}]}
 h(NovaChart, {option:chartOption,label:'Activity'})
 `,
-)
-process.stdout.write(run('node', ['verify-charts.mjs'], consumer))
-process.stdout.write(run(join(consumer, 'node_modules/.bin/tsc'), ['--noEmit'], consumer))
-const dependencyTree = JSON.parse(run('npm', ['ls', 'vue', '--json'], consumer))
-assert(dependencyTree.dependencies?.vue?.version === packageJson.devDependencies.vue)
-console.log(`PASS independent TypeScript consumer; tarball: ${join(root, packed.filename)}`)
-console.log(`Tarball integrity: ${packed.integrity}`)
-console.log(`Consumer retained for inspection: ${consumer}`)
+  )
+  process.stdout.write(run('node', ['verify-charts.mjs'], consumer))
+  process.stdout.write(run(join(consumer, 'node_modules/.bin/tsc'), ['--noEmit'], consumer))
+  const dependencyTree = JSON.parse(run('npm', ['ls', 'vue', '--json'], consumer))
+  assert(dependencyTree.dependencies?.vue?.version === packageJson.devDependencies.vue)
+  console.log('PASS independent TypeScript consumer from isolated library build')
+  console.log(`Tarball integrity: ${packed.integrity}`)
+  console.log(`Consumer retained for inspection: ${consumer}`)
+} finally {
+  packed.cleanup()
+}

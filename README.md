@@ -69,8 +69,9 @@ const option: NovaChartOption = {
 git clone https://github.com/mingyueshi/nova-account-vue.git
 cd nova-account-vue
 npm ci
-npm run check           # lint + format + strict types + coverage + builds + gzip budgets
-npm run verify:package  # pack、独立consumer安装、ESM/CSS/Node SSR/严格TS
+npm run check           # lint + format + strict types + coverage + 打包竞态回归 + builds + gzip budgets
+npm run pack:library    # 隔离构建后生成根目录 tarball，不读取共享 dist
+npm run verify:package  # 隔离构建、pack、独立consumer安装、ESM/CSS/Node SSR/严格TS
 npm run verify:nuxt     # Nuxt 3/4 真实tarball + typecheck/build/SSR smoke
 npx playwright install chromium firefox webkit
 npm run test:e2e        # 临时loopback演示站；交互、键盘、视口、axe与主题截图
@@ -79,11 +80,11 @@ npm run dev            # Vite演示开发；demo CSP禁止业务网络连接
 
 `dist/` 是组件库，不是网站；`demo-dist/` 才是可离线托管的演示站点。运行构建不需要在线 CDN、字体、账户或邮件服务。开发态 CSP 的 `connect-src 'none'` 可能阻止 HMR websocket；这是演示隐私约束，刷新即可查看改动。
 
-`private: true` 故意阻止误发布。可以 `npm pack` 验证包，但本交付不执行 `npm publish`。
+`private: true` 故意阻止误发布。使用 `npm run pack:library` 生成本地安装包，本交付不执行 `npm publish`。打包先复制构建输入，在独立目录完整构建并检查声明；不会把并发构建中的 `dist/` 打进去。直接 `npm pack` 的 prepack 只检查已有声明，不负责构建，不能替代此隔离流程。细节见 [打包验证](docs/package-build.md)。
 
 ## 接入（不要求宿主安装 Tailwind）
 
-目前未在 npm registry 发布。先在此仓库运行 `npm run build && npm pack`，然后在消费项目中运行 `npm install /实际路径/nova-account-0.1.0-dev.2.tgz`。tarball 是本地生成物，不提交到 Git；不要把 `npm install nova-account` 当成安装此开发版的方式。
+目前未在 npm registry 发布。先在此仓库运行 `npm run pack:library`，然后在消费项目中运行 `npm install /实际路径/nova-account-0.1.0-dev.2.tgz`。tarball 是本地生成物，不提交到 Git；不要把 `npm install nova-account` 当成安装此开发版的方式。
 
 ```vue
 <script setup lang="ts">

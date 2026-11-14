@@ -4,14 +4,13 @@
 
 ## 运行
 
-推荐从根目录执行 `npm ci && npm run build && npm run verify:nuxt`，或加参数 `-- nuxt3` / `-- nuxt4` 仅验证一个版本。脚本在临时目录复制示例和锁文件、绑定本轮 tarball，再 `npm ci`，比较安装文件与当前 dist，执行 typecheck/build/smoke 后清理临时目录；不会改写仓库内示例锁文件。这也是 Nuxt CI 的执行入口。
+推荐从根目录执行 `npm ci && npm run verify:nuxt`，或加参数 `-- nuxt3` / `-- nuxt4` 仅验证一个版本。脚本从私有源码快照完整构建并打包，再在临时目录复制示例和锁文件、绑定该 tarball 并执行 `npm ci`；安装后的 JS、CSS、账户及图表声明与该次私有构建逐字节比较，然后执行 typecheck/build/smoke 并清理临时目录。它不读取共享 dist，不改写仓库内示例锁文件，也是 Nuxt CI 的执行入口。见 [打包验证](package-build.md)。
 
 在库根目录先构建本地安装包：
 
 ```sh
 npm ci
-npm run build
-npm pack
+npm run pack:library
 cd examples/nuxt/nuxt3 # 或 ../nuxt4
 npm install ../../../nova-account-0.1.0-dev.2.tgz
 npm run typecheck

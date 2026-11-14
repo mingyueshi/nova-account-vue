@@ -25,6 +25,8 @@
 
 ### Changed
 
+- Package and Nuxt consumer verification now build private source snapshots before packing, instead of reading shared `dist` while declaration bundling may still be in progress. Added `pack:library`, prepack declaration completeness checks, byte comparisons against installed artifacts, and regressions for mixed declarations, failed builds and concurrent package builds.
+
 - ECharts is now an optional peer (`^6.1.0`) with an exact development pin. Account-only consumers do not install it; chart consumers install ECharts explicitly. Palette types, validation, swatches and generated CSS share `src/palettes.ts`. Size checks include shared JS chunks.
 - Authoritative host page changes and page trimming preserve built-in profile/preference drafts. Refresh merges clean fields from the server while keeping edited fields; explicit discard and save reset only their own draft. Logout and before-unload guards also cover hidden drafts.
 - Demo configuration now lives in the account sidebar under “演示设置” and “组件接入”; the header tools dialog and duplicate entries are removed. Login, registration and password reset show mode-specific sample credentials with inline fill actions. Typed `authFooter` / `footer` slot props expose the current mode, reset stage, busy state and fill callback; the account `page` slot also exposes `setAppearance` and `storageError`.

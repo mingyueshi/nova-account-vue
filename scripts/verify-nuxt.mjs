@@ -4,6 +4,7 @@ import { cpSync, mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { createLibraryPackage } from './package-library.mjs'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const targets = process.argv.slice(2)
@@ -18,10 +19,10 @@ const run = (args, cwd = root, capture = false) =>
     encoding: 'utf8',
     stdio: capture ? ['ignore', 'pipe', 'inherit'] : 'inherit',
   })
+const packed = createLibraryPackage(root)
 const directory = mkdtempSync(join(tmpdir(), 'nova-nuxt-'))
 try {
-  const [packed] = JSON.parse(run(['pack', '--json', '--pack-destination', directory], root, true))
-  const tarball = join(directory, packed.filename)
+  const tarball = packed.tarball
   for (const target of targets) {
     const consumer = join(directory, target)
     cpSync(join(root, 'examples/nuxt', target), consumer, {
@@ -35,10 +36,10 @@ try {
       consumer,
     )
     run(['ci', '--no-audit', '--no-fund'], consumer)
-    for (const file of ['nova-account.js', 'index.d.ts', 'nova-account.css']) {
+    for (const file of ['nova-account.js', 'index.d.ts', 'charts.d.ts', 'nova-account.css']) {
       assert.deepEqual(
         readFileSync(join(consumer, 'node_modules/nova-account/dist', file)),
-        readFileSync(join(root, 'dist', file)),
+        readFileSync(join(packed.directory, 'dist', file)),
         `${target}: stale tarball ${file}`,
       )
     }
@@ -46,5 +47,6 @@ try {
     console.log(`PASS ${target}: locked consumer, current tarball, typecheck, build, SSR and CSS`)
   }
 } finally {
+  packed.cleanup()
   rmSync(directory, { recursive: true, force: true })
 }
