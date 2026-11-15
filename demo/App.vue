@@ -61,62 +61,62 @@ const extraPages: AccountExtraPage[] = [
     id: 'custom:charts',
     label: '数据概览',
     description: '了解任务进展与订单趋势。',
-    group: '业务场景',
+    group: '我的空间',
   },
   {
     id: 'custom:tasks',
     label: '我的任务',
     description: '安排待办事项，聚焦当前进展。',
     symbol: '☑',
-    group: '业务场景',
+    group: '我的空间',
   },
   {
     id: 'custom:editor',
     label: '内容编辑',
     description: '撰写内容，预览并保存草稿。',
     symbol: '✎',
-    group: '业务场景',
+    group: '我的空间',
   },
   {
     id: 'custom:comments',
     label: '社区互动',
     description: '发布评论，参与讨论。',
     symbol: '☷',
-    group: '业务场景',
+    group: '我的空间',
   },
   {
     id: 'custom:orders',
     label: '我的订单',
     description: '查看商品明细，跟进订单进度。',
     symbol: '▤',
-    group: '业务场景',
+    group: '我的空间',
   },
   {
     id: 'custom:fields',
     label: '输入字段',
     description: '体验前后缀、多行输入和表单状态。',
     symbol: '▭',
-    group: '基础组件',
+    group: '常用工具',
   },
   {
     id: 'custom:buttons',
     label: '操作按钮',
     description: '体验操作层级、加载反馈与禁用状态。',
     symbol: '▣',
-    group: '基础组件',
+    group: '常用工具',
   },
   {
     id: 'custom:dialogs',
     label: '对话框',
     description: '体验确认操作、键盘关闭与焦点恢复。',
     symbol: '□',
-    group: '基础组件',
+    group: '常用工具',
   },
   {
     id: 'custom:icons',
     label: '开源图标',
     description: '搜索 Lucide 图标，调节样式并复制用法。',
-    group: '基础组件',
+    group: '常用工具',
   },
   {
     id: 'custom:settings',
@@ -413,11 +413,12 @@ function alignInvalidField(event: FocusEvent) {
   const field = event.target as HTMLElement
   if (signedIn.value && field.matches('[aria-invalid="true"]'))
     field.scrollIntoView?.({ block: 'center' })
+  alignFocusedField()
 }
 let fieldFrame: number | undefined
-function alignResizedDialogField() {
+function alignFocusedField() {
   const field = document.activeElement as HTMLElement | null
-  const body = field?.closest<HTMLElement>('.nova-dialog-body')
+  const body = field?.closest<HTMLElement>('.nova-dialog-body, [data-account-content]')
   if (
     !field ||
     !body?.closest('.nova-demo') ||
@@ -430,13 +431,19 @@ function alignResizedDialogField() {
     if (document.activeElement !== field || !body.isConnected) return
     const control = field.getBoundingClientRect()
     const area = body.getBoundingClientRect()
-    if (control.top < area.top + 8 || control.bottom > area.bottom - 8)
-      field.scrollIntoView({ block: 'center' })
+    const savebar = body.querySelector<HTMLElement>('[data-account-savebar]')
+    const bottom =
+      savebar && getComputedStyle(savebar).position === 'sticky'
+        ? Math.min(area.bottom, savebar.getBoundingClientRect().top)
+        : area.bottom
+    if (control.top < area.top + 8 || control.bottom > bottom - 8)
+      body.scrollTop +=
+        control.top - area.top - 8 - Math.max(0, (bottom - area.top - 16 - control.height) / 2)
   })
 }
-onMounted(() => window.addEventListener('resize', alignResizedDialogField))
+onMounted(() => window.addEventListener('resize', alignFocusedField))
 onBeforeUnmount(() => {
-  window.removeEventListener('resize', alignResizedDialogField)
+  window.removeEventListener('resize', alignFocusedField)
   if (fieldFrame !== undefined) cancelAnimationFrame(fieldFrame)
 })
 function onAuthenticated(result: AuthResult) {
@@ -594,6 +601,7 @@ function onStorageChange(
         :code-length="settings.codeLength"
         :password-strength="strengthOn ? demoStrength : undefined"
         @focusin="alignInvalidField"
+        @input="alignFocusedField"
         @authenticated="onAuthenticated"
         @update:appearance="onAppearanceUpdate"
         @update:page="onHostPageUpdate"

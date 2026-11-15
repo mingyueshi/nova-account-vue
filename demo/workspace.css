@@ -1357,7 +1357,6 @@
     ),
   .nova-demo [data-account-content] textarea,
   .nova-demo [data-account-content] select,
-  .nova-demo [data-mobile-account-nav] select,
   .nova-demo .nova-dialog select,
   .nova-demo .nova-dialog textarea {
     font-size: 16px;
@@ -1385,5 +1384,102 @@
   }
   .nova-demo [data-account-savebar] {
     padding-bottom: max(12px, env(safe-area-inset-bottom, 0px));
+  }
+}
+
+/* Phone account workspaces keep actions close without covering clean forms. */
+@container account-content (max-width: 639px) {
+  .nova-demo [data-account-page-header] {
+    margin-bottom: 20px;
+  }
+  .nova-demo [data-account-savebar][data-dirty='false'] {
+    position: static;
+    margin-top: 12px;
+    padding-block: 12px;
+  }
+  .nova-demo [data-account-savebar][data-dirty='false'] > div {
+    display: none;
+  }
+  .nova-demo .nova-device-heading {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 12px;
+  }
+  .nova-demo .nova-device-heading p {
+    margin-bottom: 0;
+    font-size: 12px;
+    line-height: 1.7;
+  }
+  .nova-demo .nova-device-heading > button {
+    padding-inline: 12px;
+    font-size: 14px;
+  }
+  .nova-demo .nova-device-grid {
+    gap: 0;
+    border: 1px solid var(--na-line);
+    border-radius: 12px;
+    overflow: hidden;
+    background: var(--na-surface);
+  }
+  .nova-demo .nova-device-card {
+    grid-template-columns: 36px minmax(0, 1fr) auto;
+    align-items: start;
+    gap: 8px 12px;
+    padding: 16px;
+    border: 0;
+    border-bottom: 1px solid var(--na-line);
+    border-radius: 0;
+  }
+  .nova-demo .nova-device-card:last-child {
+    border-bottom: 0;
+  }
+  .nova-demo .nova-device-card > span:first-child {
+    width: 36px;
+    height: 36px;
+    grid-row: 1 / 3;
+  }
+  .nova-demo .nova-device-card > div {
+    grid-column: 2;
+    grid-row: 1;
+  }
+  .nova-demo .nova-device-card > time {
+    grid-column: 2 / -1;
+    grid-row: 2;
+    line-height: 1.6;
+  }
+  .nova-demo .nova-device-card > button,
+  .nova-demo .nova-device-card > span:last-child {
+    grid-column: 3;
+    grid-row: 1;
+    justify-self: end;
+    padding-inline: 10px;
+  }
+  .nova-demo .nova-message-toolbar {
+    gap: 12px;
+  }
+  .nova-demo .nova-message-page > div:first-child > button {
+    min-height: 44px;
+    padding-inline: 10px;
+    font-size: 14px;
+  }
+  .nova-demo .nova-message-toolbar > [role='group'] button {
+    padding-inline: 12px;
+  }
+}
+@container account-content (max-width: 359px) {
+  .nova-demo [data-account-savebar][data-dirty='true'] {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 8px;
+  }
+  .nova-demo [data-account-savebar][data-dirty='true'] > div {
+    display: grid;
+    grid-template-columns: 1fr 2fr;
+    width: 100%;
+  }
+}
+@media (max-width: 767px) {
+  .nova-demo .nova-navigation-sheet {
+    padding: 16px 16px max(16px, env(safe-area-inset-bottom, 0px));
   }
 }

@@ -18,6 +18,12 @@ import NovaIcon from './NovaIcon.vue'
 
 const { t, formatTime } = useNovaLocale()
 const mobileNavId = useId()
+const mobileNavigationOpen = ref(false)
+const mobileNavigationTrigger = ref<HTMLElement>()
+let desktopNavigation: MediaQueryList | undefined
+function closeDesktopNavigation() {
+  if (desktopNavigation?.matches) mobileNavigationOpen.value = false
+}
 const securityFormId = useId()
 const dialogTrigger = ref<HTMLElement>()
 const nicknameInvalid = ref(false)
@@ -251,6 +257,8 @@ function beforeUnload(event: BeforeUnloadEvent) {
 }
 onMounted(() => {
   void refresh()
+  desktopNavigation = window.matchMedia?.('(min-width: 768px)')
+  desktopNavigation?.addEventListener?.('change', closeDesktopNavigation)
   window.addEventListener('beforeunload', beforeUnload)
   if (content.value && typeof ResizeObserver !== 'undefined') {
     contentObserver = new ResizeObserver(([entry]) => {
@@ -260,15 +268,36 @@ onMounted(() => {
   }
 })
 onUnmounted(() => {
+  desktopNavigation?.removeEventListener?.('change', closeDesktopNavigation)
   window.removeEventListener('beforeunload', beforeUnload)
   contentObserver?.disconnect()
 })
 
-function onMobileNavigation(event: Event) {
-  const select = event.target as HTMLSelectElement
-  const target = select.value as AccountPage
-  select.value = page.value ?? ''
-  requestNavigation(target, event)
+async function openMobileNavigation(event: Event) {
+  mobileNavigationTrigger.value = event.currentTarget as HTMLElement
+  mobileNavigationOpen.value = true
+  await nextTick()
+  document
+    .getElementById(mobileNavId)
+    ?.querySelector('[aria-current="page"]')
+    ?.scrollIntoView?.({ block: 'nearest' })
+}
+async function chooseMobilePage(target: AccountPage | 'logout') {
+  mobileNavigationOpen.value = false
+  // Release native modality and restore the trigger before opening a draft guard.
+  await nextTick()
+  requestNavigation(target)
+}
+function dismissMobileBackdrop(event: MouseEvent) {
+  if (event.target !== event.currentTarget) return
+  const bounds = (event.currentTarget as HTMLElement).getBoundingClientRect()
+  if (
+    event.clientY < bounds.top ||
+    event.clientY > bounds.bottom ||
+    event.clientX < bounds.left ||
+    event.clientX > bounds.right
+  )
+    mobileNavigationOpen.value = false
 }
 const navigationGroups = computed(() => {
   const groups: { label: string; tabs: typeof visibleTabs.value }[] = []
@@ -691,6 +720,7 @@ watch(
   { flush: 'sync' },
 )
 watch(page, (target) => {
+  mobileNavigationOpen.value = false
   // All pages share the first snapshot. Do not abort its load during navigation.
   if (snapshot.value) cancel()
   if (modal.value !== null) closeModal()
@@ -743,23 +773,23 @@ defineExpose({ refresh, fillSecurity })
         </div>
       </div>
       <div class="na:flex na:items-center na:gap-3 na:p-3 na:md:hidden" data-mobile-account-nav>
-        <label :for="mobileNavId" class="na:sr-only">{{ t('account.navigation') }}</label>
-        <select
-          :id="mobileNavId"
-          :value="page"
-          class="na:min-h-11 na:min-w-0 na:flex-1 na:rounded-xl na:border na:border-[var(--na-control)] na:bg-[var(--na-surface)] na:px-3 na:text-sm na:text-[var(--na-ink)]"
-          @change="onMobileNavigation"
+        <button
+          type="button"
+          class="nova-mobile-nav-trigger"
+          data-mobile-nav-trigger
+          :data-current-page="page"
+          aria-haspopup="dialog"
+          :aria-controls="mobileNavId"
+          :aria-expanded="mobileNavigationOpen"
+          @click="openMobileNavigation"
         >
-          <optgroup v-for="group in navigationGroups" :key="group.label" :label="group.label">
-            <option v-for="tab in group.tabs" :key="tab.id" :value="tab.id">{{ tab.label }}</option>
-          </optgroup>
-        </select>
-        <NovaButton
-          variant="ghost"
-          :aria-label="t('account.logout')"
-          @click="requestNavigation('logout', $event)"
-          ><NovaIcon name="logout"
-        /></NovaButton>
+          <span class="nova-mobile-nav-icon" aria-hidden="true"
+            ><NovaIcon :name="page" :fallback="currentTab?.symbol"
+          /></span>
+          <strong>{{ currentTab?.label ?? t('account.navigation') }}</strong>
+          <span class="nova-mobile-nav-label">{{ t('account.allPages') }}</span>
+          <NovaIcon name="chevron" :size="16" class="nova-mobile-nav-chevron" />
+        </button>
       </div>
       <nav
         data-account-nav
@@ -811,6 +841,50 @@ defineExpose({ refresh, fillSecurity })
         {{ t('account.memory') }}
       </p>
     </aside>
+    <NovaDialog
+      :id="mobileNavId"
+      class="nova-navigation-sheet"
+      :open="mobileNavigationOpen"
+      :title="t('account.allPages')"
+      :return-focus="mobileNavigationTrigger"
+      @close="mobileNavigationOpen = false"
+      @click="dismissMobileBackdrop"
+    >
+      <nav
+        v-if="mobileNavigationOpen"
+        :aria-label="t('account.navigation')"
+        class="nova-mobile-navigation"
+      >
+        <section v-for="group in navigationGroups" :key="group.label">
+          <h3>{{ group.label }}</h3>
+          <div class="nova-mobile-navigation-group">
+            <button
+              v-for="tab in group.tabs"
+              :key="tab.id"
+              type="button"
+              :data-mobile-page="tab.id"
+              :aria-current="page === tab.id ? 'page' : undefined"
+              @click="chooseMobilePage(tab.id)"
+            >
+              <NovaIcon :name="tab.id" :fallback="tab.symbol" :size="18" />
+              <span>{{ tab.label }}</span>
+              <span
+                v-if="tab.id === 'messages' && unread"
+                class="nova-mobile-unread"
+                role="img"
+                :aria-label="t('account.unreadCount', { count: unread })"
+                >{{ unread }}</span
+              >
+            </button>
+          </div>
+        </section>
+      </nav>
+      <template #footer>
+        <button type="button" class="nova-mobile-logout" @click="chooseMobilePage('logout')">
+          <NovaIcon name="logout" :size="18" />{{ t('account.logout') }}
+        </button>
+      </template>
+    </NovaDialog>
     <main
       ref="content"
       data-account-content
@@ -828,7 +902,7 @@ defineExpose({ refresh, fillSecurity })
             <h1
               ref="heading"
               tabindex="-1"
-              class="na:m-0 na:text-2xl na:font-semibold na:tracking-tight"
+              class="nova-account-page-title na:m-0 na:text-2xl na:font-semibold na:tracking-tight"
             >
               {{ currentTab.label }}
             </h1>
@@ -1103,6 +1177,7 @@ defineExpose({ refresh, fillSecurity })
                 </section>
                 <div
                   data-account-savebar
+                  :data-dirty="dirty"
                   class="na:flex na:flex-wrap na:items-center na:justify-between na:gap-4"
                 >
                   <p
@@ -1396,6 +1471,7 @@ defineExpose({ refresh, fillSecurity })
             </p>
             <div
               data-account-savebar
+              :data-dirty="dirty"
               class="na:flex na:flex-wrap na:items-center na:justify-between na:gap-4"
             >
               <p role="status" tabindex="-1" class="na:m-0 na:text-xs na:text-[var(--na-muted)]">

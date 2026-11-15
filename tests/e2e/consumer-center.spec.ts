@@ -2,9 +2,11 @@ import { test, expect, type Page } from '@playwright/test'
 import { createAxeBuilder } from './axe'
 
 async function navigate(page: Page, id: string, expectChange = true) {
-  const mobile = page.locator('[data-mobile-account-nav] select')
-  if (await mobile.isVisible()) await mobile.selectOption(id)
-  else await page.locator(`[data-page="${id}"]`).click()
+  const mobile = page.locator('[data-mobile-nav-trigger]')
+  if (await mobile.isVisible()) {
+    await mobile.click()
+    await page.locator(`[data-mobile-page="${id}"]`).click()
+  } else await page.locator(`[data-page="${id}"]`).click()
   if (expectChange)
     await expect(page.locator('[data-account-content]')).toHaveAttribute('data-account-page', id)
 }
@@ -59,7 +61,11 @@ for (const width of [320, 390, 1440]) {
     await expect(bar).toContainText('有未保存的修改')
     await bar.getByRole('button', { name: '保存资料', exact: true }).click()
     await expect(page.getByRole('status').filter({ hasText: '个人资料已保存' })).toBeVisible()
-    await expect(bar.getByRole('button', { name: '保存资料', exact: true })).toBeDisabled()
+    if (width < 768)
+      await expect(
+        bar.getByRole('button', { name: '保存资料', exact: true, includeHidden: true }),
+      ).not.toBeVisible()
+    else await expect(bar.getByRole('button', { name: '保存资料', exact: true })).toBeDisabled()
     await navigate(page, 'notifications')
     const toggle = page.getByRole('switch', { name: '邮件摘要', exact: true })
     await toggle.check()

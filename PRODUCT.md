@@ -33,6 +33,7 @@ Avoid presenting mock flows as real authentication or payment, and avoid burying
 - Use the locally bundled open-source Lucide icons consistently, with an account-integrated searchable icon gallery and reusable NovaIcon API.
 
 - On phones, use readable native text controls, keep modal actions reachable while content scrolls, account for bottom safe areas, and preserve drafts and useful focus through validation, save and cancel flows.
+- Mobile account navigation uses a grouped bottom sheet with a clear current page, independent scrolling and a separate sign-out action. Close it before opening an unsaved-change guard. Keep clean forms unobstructed; make save actions prominent when there are edits.
 
 ## Accessibility & Inclusion
 

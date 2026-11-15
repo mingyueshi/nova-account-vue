@@ -61,6 +61,8 @@ interface MutationContext extends RequestContext {
 
 资料/偏好页面 dirty 时导航/退出会询问放弃；`beforeunload` 仅在浏览器挂载且有未保存数据时使用。组件卸载会清除监听。宿主路由强制卸载不自动接管路由确认，需在宿主导航设计中实现阻止离开。
 
+手机端（视口小于 768px）使用当前页入口打开“全部功能”底部面板，按账户页面与宿主 `extraPages.group` 分组；退出登录放在面板底部。页面按钮有 `aria-current`，入口有展开状态和对话框关联；Esc、关闭按钮或点击遮罩可关闭并返回入口。先关闭导航面板再处理切页/退出及未保存提醒，避免原生模态叠加。切页后聚焦内容标题，手机端可见标题在导航栏，内容的 h1 仍供辅助技术使用。宿主强制切页或视口切回桌面时收起面板；减少动态效果时不播放面板入场动画。
+
 ## 组件 API
 
 包仅提供 ESM import 导出，没有 CommonJS 实现；require 条件入口仅抛出带 await import(...) 用法的错误。Vue 是 peer dependency，消费者必须显式引入 `nova-account/style.css`。

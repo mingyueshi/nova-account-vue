@@ -4,9 +4,16 @@ import { lightPalettes } from '../../src/palettes'
 import { zhCN } from '../../src/locales'
 
 async function navigate(page: Page, id: string) {
-  const mobile = page.locator('[data-mobile-account-nav] select')
-  if (await mobile.isVisible()) await mobile.selectOption(id)
-  else await page.locator(`[data-page="${id}"]`).click()
+  const mobile = page.locator('[data-mobile-nav-trigger]')
+  if (await mobile.isVisible()) {
+    await mobile.click()
+    await page.locator(`[data-mobile-page="${id}"]`).click()
+  } else await page.locator(`[data-page="${id}"]`).click()
+}
+async function logout(page: Page) {
+  const mobile = page.locator('[data-mobile-nav-trigger]')
+  if (await mobile.isVisible()) await mobile.click()
+  await page.getByRole('button', { name: /^(退出登录|Sign out)$/ }).click()
 }
 
 async function ensureCenter(page: Page) {
@@ -208,7 +215,7 @@ for (const mode of ['code', 'register', 'reset'] as const) {
     } else {
       await expect(page.getByRole('heading', { name: '账户概览', exact: true })).toBeVisible()
       if (mode === 'register') {
-        await page.getByRole('button', { name: '退出登录', exact: true }).click()
+        await logout(page)
         await login(page, 'new@demo.com')
         await navigate(page, 'profile')
         await expect(page.getByLabel('昵称', { exact: true })).toHaveValue('new')
@@ -369,7 +376,7 @@ for (const viewport of [
       await navigate(page, tab)
       await withinViewport()
     }
-    await page.getByRole('button', { name: '退出登录', exact: true }).click()
+    await logout(page)
     await expect(page.getByRole('heading', { name: '欢迎回来', exact: true })).toBeVisible()
   })
 }
@@ -696,7 +703,7 @@ test('messages override and brand prop reshape the auth card and header', async 
 
 test('event log records authenticated and logout around a real sign-in', async ({ page }) => {
   await login(page)
-  await page.getByRole('button', { name: '退出登录', exact: true }).click()
+  await logout(page)
   await expect(page.getByRole('heading', { name: '欢迎回来', exact: true })).toBeVisible()
   const host = await hostPanel(page)
   const log = host.locator('[data-event-log] li')
@@ -1067,8 +1074,8 @@ for (const viewport of [
     ]) {
       const target = page.locator(`[data-page="${tab}"]`)
       await navigate(page, tab)
-      const mobile = page.locator('[data-mobile-account-nav] select')
-      if (await mobile.isVisible()) await expect(mobile).toHaveValue(tab)
+      const mobile = page.locator('[data-mobile-nav-trigger]')
+      if (await mobile.isVisible()) await expect(mobile).toHaveAttribute('data-current-page', tab)
       else await expect(target).toHaveAttribute('aria-current', 'page')
       await withinHost()
     }

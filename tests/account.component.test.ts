@@ -33,6 +33,59 @@ function button(wrapper: VueWrapper, label: string) {
 }
 
 describe('NovaAccountCenter', () => {
+  it('closes mobile navigation before guarding a draft and restores its stable trigger', async () => {
+    const wrapper = await create()
+    const trigger = wrapper.get('[data-mobile-nav-trigger]')
+    await trigger.trigger('click')
+    await flushPromises()
+    expect(trigger.attributes('aria-expanded')).toBe('true')
+    expect(wrapper.get('[data-mobile-page="overview"]').attributes('aria-current')).toBe('page')
+    await wrapper.get('[data-mobile-page="profile"]').trigger('click')
+    await flushPromises()
+    expect(wrapper.find('dialog[open]').exists()).toBe(false)
+    expect(wrapper.get('h1').text()).toBe('个人资料')
+    await wrapper.get('input[autocomplete="nickname"]').setValue('Mobile draft')
+    await trigger.trigger('click')
+    await flushPromises()
+    await wrapper.get('[data-mobile-page="overview"]').trigger('click')
+    await flushPromises()
+    expect(wrapper.findAll('dialog[open]')).toHaveLength(1)
+    expect(wrapper.get('dialog[open]').text()).toContain('还有未保存的修改')
+    await button(wrapper, '继续编辑').trigger('click')
+    await flushPromises()
+    expect(document.activeElement).toBe(trigger.element)
+    expect(wrapper.get<HTMLInputElement>('input[autocomplete="nickname"]').element.value).toBe(
+      'Mobile draft',
+    )
+    await trigger.trigger('click')
+    await flushPromises()
+    await wrapper.get('[data-mobile-page="overview"]').trigger('click')
+    await flushPromises()
+    await button(wrapper, '放弃并离开').trigger('click')
+    await flushPromises()
+    expect(wrapper.get('h1').text()).toBe('账户概览')
+  })
+
+  it('keeps mobile choices within host pages and closes the sheet on authoritative page changes', async () => {
+    const wrapper = await create()
+    await wrapper.setProps({
+      pages: ['security', 'custom:tasks'],
+      extraPages: [
+        { id: 'custom:tasks', label: '我的待办', description: '待办事项', group: '我的生活' },
+      ],
+    })
+    await wrapper.get('[data-mobile-nav-trigger]').trigger('click')
+    await flushPromises()
+    expect(
+      wrapper.findAll('[data-mobile-page]').map((item) => item.attributes('data-mobile-page')),
+    ).toEqual(['security', 'custom:tasks'])
+    await wrapper.setProps({ page: 'custom:tasks' })
+    await flushPromises()
+    expect(wrapper.find('dialog[open]').exists()).toBe(false)
+    expect(wrapper.get('[data-mobile-nav-trigger]').text()).toContain('我的待办')
+    expect(wrapper.emitted('update:page')).toBeUndefined()
+  })
+
   it('rejects invalid replacement emails locally and permits a corrected address', async () => {
     const base = createDemoAccountAdapter({ wait: () => Promise.resolve() })
     const requestCode = vi.fn(base.requestEmailChangeCode)

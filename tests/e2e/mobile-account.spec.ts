@@ -12,9 +12,11 @@ async function signIn(page: Page) {
   await slider.press('Enter')
   await expect(page.getByRole('button', { name: '编辑资料', exact: true })).toBeVisible()
 }
-async function nav(page: Page, id: string) {
-  await page.locator('[data-mobile-account-nav] select').selectOption(id)
-  await expect(page.locator('[data-account-content]')).toHaveAttribute('data-account-page', id)
+async function nav(page: Page, id: string, expectChange = true) {
+  await page.locator('[data-mobile-nav-trigger]').click()
+  await page.locator(`[data-mobile-page="${id}"]`).click()
+  if (expectChange)
+    await expect(page.locator('[data-account-content]')).toHaveAttribute('data-account-page', id)
 }
 async function fits(page: Page, dialog: Locator) {
   await expect
@@ -32,6 +34,66 @@ for (const viewport of [
   { width: 320, height: 568 },
   { width: 390, height: 844 },
 ]) {
+  test(`phone ${viewport.width}px: grouped navigation preserves drafts and closes without stacked dialogs`, async ({
+    page,
+  }) => {
+    await page.setViewportSize(viewport)
+    await signIn(page)
+    const trigger = page.locator('[data-mobile-nav-trigger]')
+    const sheet = page.getByRole('dialog', { name: '全部功能', exact: true })
+    await trigger.click()
+    await expect(trigger).toHaveAttribute('aria-expanded', 'true')
+    await fits(page, sheet)
+    await expect(sheet.locator('[aria-current="page"]')).toHaveAttribute(
+      'data-mobile-page',
+      'overview',
+    )
+    expect(
+      // Firefox 2090055: evaluateAll re-runs a composed role selector in the page
+      // world after the named dialog was resolved in Playwright's utility world.
+      // Keep the named-dialog assertions above; use CSS only for geometry reads.
+      await page
+        .locator('.nova-navigation-sheet [data-mobile-page]')
+        .evaluateAll((els) => els.every((el) => el.getBoundingClientRect().height >= 44)),
+    ).toBe(true)
+    await expect(sheet.getByRole('button', { name: '退出登录', exact: true })).toBeInViewport()
+    expect((await createAxeBuilder(page).analyze()).violations).toEqual([])
+    await page.keyboard.press('Escape')
+    await expect(sheet).not.toBeVisible()
+    await expect(trigger).toBeFocused()
+    await trigger.click()
+    await page.mouse.click(4, 16)
+    await expect(sheet).not.toBeVisible()
+    await expect(trigger).toBeFocused()
+    await nav(page, 'profile')
+    const nickname = page.getByLabel('昵称', { exact: true })
+    await nickname.fill('留在手机上的草稿')
+    await expect
+      .poll(async () => {
+        const field = (await nickname.boundingBox())!
+        const bar = (await page.locator('[data-account-savebar]').boundingBox())!
+        return field.y + field.height <= bar.y - 8
+      })
+      .toBe(true)
+    await nav(page, 'messages', false)
+    const guard = page.getByRole('dialog', { name: '还有未保存的修改', exact: true })
+    await expect(guard).toBeVisible()
+    await expect(page.locator('dialog[open]')).toHaveCount(1)
+    await guard.getByRole('button', { name: '继续编辑', exact: true }).click()
+    await expect(trigger).toBeFocused()
+    await expect(nickname).toHaveValue('留在手机上的草稿')
+    await page.getByRole('button', { name: '保存资料', exact: true }).click()
+    await expect(page.getByRole('status').filter({ hasText: '个人资料已保存' })).toBeVisible()
+    await expect(page.locator('[data-account-savebar]')).toHaveCSS('position', 'static')
+    await expect(
+      page.getByRole('button', { name: '保存资料', exact: true, includeHidden: true }),
+    ).not.toBeVisible()
+    await trigger.click()
+    await page.setViewportSize({ width: 1024, height: 768 })
+    await expect(sheet).not.toBeVisible()
+    await expect(page.locator('[data-account-nav]')).toBeVisible()
+  })
+
   test(`phone ${viewport.width}px: readable controls, profile errors and business form actions`, async ({
     page,
   }) => {
