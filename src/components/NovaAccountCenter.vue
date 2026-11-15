@@ -343,6 +343,7 @@ function discardAndNavigate() {
 function discardDraft() {
   cancel()
   syncDrafts(page.value === 'profile' ? 'profile' : 'notifications')
+  void focusFeedback(content.value, true)
 }
 watch(
   () => profile.nickname,
@@ -352,7 +353,8 @@ watch(
 )
 async function focusFeedback(root: HTMLElement | undefined, saved = false) {
   await nextTick()
-  if (!saved || root?.ownerDocument.activeElement === root?.ownerDocument.body)
+  const active = root?.ownerDocument.activeElement
+  if (!saved || active === root?.ownerDocument.body || active?.matches(':disabled'))
     root
       ?.querySelector<HTMLElement>(
         saved ? '[data-account-savebar] [role=status]' : '[role=alert][tabindex]',
@@ -477,12 +479,45 @@ const visibleMessages = computed(
 )
 const selectedMessageId = ref('')
 const messageBusy = ref<HTMLElement>()
+const accountNotice = ref<HTMLElement>()
+const messageDialogBusy = ref<HTMLElement>()
+let messagePosition = 0
+function messageTarget(index = messagePosition) {
+  const readers = [...(content.value?.querySelectorAll<HTMLElement>('[data-message-open]') ?? [])]
+  return (
+    readers[Math.min(index, readers.length - 1)] ??
+    content.value?.querySelector<HTMLElement>('[data-message-empty]') ??
+    heading.value
+  )
+}
+async function markAllRead(event: Event) {
+  const origin = event.currentTarget as HTMLElement
+  const pending = mutate(
+    (context) => props.adapter.markAllMessagesRead(context),
+    t('messages.allMarked'),
+  )
+  await nextTick()
+  const status = messageBusy.value
+  status?.focus({ preventScroll: true })
+  await pending
+  if (page.value !== 'messages' || modal.value) return
+  const active = origin.ownerDocument.activeElement
+  if (active !== origin && active !== status && active !== origin.ownerDocument.body) return
+  await nextTick()
+  ;(error.value
+    ? content.value?.querySelector<HTMLElement>('[data-account-error]')
+    : accountNotice.value
+  )?.focus()
+}
 const selectedMessage = computed(() =>
   snapshot.value?.messages.find((message) => message.id === selectedMessageId.value),
 )
 async function markRead(messageId: string, event?: Event) {
   const origin = event?.currentTarget as HTMLElement | undefined
-  const transfer = !!origin && origin === origin.ownerDocument.activeElement
+  // Pointer activation does not always focus buttons; an explicit action still needs feedback.
+  const transfer = !!origin
+  const index = visibleMessages.value.findIndex((message) => message.id === messageId)
+  const readerDialog = origin?.closest('dialog')
   const pending = mutate(
     (context) => props.adapter.markMessageRead(messageId, context),
     t('messages.marked'),
@@ -490,11 +525,11 @@ async function markRead(messageId: string, event?: Event) {
   let status: HTMLElement | undefined
   if (transfer) {
     await nextTick()
-    status = messageBusy.value
+    status = readerDialog ? messageDialogBusy.value : messageBusy.value
     status?.focus({ preventScroll: true })
   }
   const result = await pending
-  if (!transfer || page.value !== 'messages' || modal.value) return
+  if (!transfer || page.value !== 'messages') return
   const active = origin!.ownerDocument.activeElement
   if (active !== status && active !== origin && active !== origin!.ownerDocument.body) return
   await nextTick()
@@ -504,7 +539,12 @@ async function markRead(messageId: string, event?: Event) {
       : Array.from(content.value?.querySelectorAll<HTMLElement>('[data-message-open]') ?? []).find(
           (button) => button.dataset.messageOpen === messageId,
         )
-  ;(target ?? heading.value)?.focus({ preventScroll: true })
+  if (readerDialog) {
+    if (modal.value === 'message')
+      (result ? readerDialog.querySelector<HTMLElement>('[data-message-close]') : origin)?.focus({
+        preventScroll: true,
+      })
+  } else if (!modal.value) (target ?? messageTarget(index))?.focus({ preventScroll: true })
 }
 function openMessageDialog(event: Event) {
   dialogTrigger.value = event.currentTarget as HTMLElement
@@ -514,6 +554,7 @@ function openMessage(messageId: string, event?: Event) {
   if (!snapshot.value?.messages.some((message) => message.id === messageId)) return
   dialogTrigger.value = event?.currentTarget as HTMLElement | undefined
   modalEpoch++
+  messagePosition = visibleMessages.value.findIndex((message) => message.id === messageId)
   selectedMessageId.value = messageId
   if (!readerWide.value) modal.value = 'message'
   if (!selectedMessage.value?.read) void markRead(messageId)
@@ -553,6 +594,9 @@ watch(readerWide, (wide) => {
 })
 let modalEpoch = 0
 const deviceId = ref('')
+const selectedDevice = computed(() =>
+  snapshot.value?.devices.find((device) => device.id === deviceId.value),
+)
 const securityValues = reactive<SecurityValues>({
   currentPassword: '',
   newPassword: '',
@@ -588,11 +632,16 @@ function clearSecurity() {
   demoCode.value = ''
 }
 function closeModal() {
+  const lostMessageTrigger = modal.value === 'message' && !dialogTrigger.value?.isConnected
   modalEpoch++
   cancel()
   modal.value = null
   selectedMessageId.value = ''
   clearSecurity()
+  if (lostMessageTrigger)
+    void nextTick(() => {
+      if (page.value === 'messages' && !modal.value) messageTarget()?.focus({ preventScroll: true })
+    })
 }
 watch(
   showTwoStep,
@@ -625,6 +674,24 @@ watch(
   },
   { flush: 'sync' },
 )
+watch(securityValues, () => {
+  for (const key of ['currentPassword', 'newPassword'] as const)
+    if (securityErrors[key] && securityValues[key] && securityValues[key].length <= 1024)
+      delete securityErrors[key]
+  if (
+    securityErrors.confirmPassword &&
+    securityValues.confirmPassword &&
+    securityValues.confirmPassword === securityValues.newPassword
+  )
+    delete securityErrors.confirmPassword
+  if (
+    securityErrors.email &&
+    /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(securityValues.email.trim()) &&
+    securityValues.email.trim().length <= 254
+  )
+    delete securityErrors.email
+  if (securityErrors.code && /^\d{6}$/.test(securityValues.code.trim())) delete securityErrors.code
+})
 async function sendEmailCode() {
   if (busy.value || modal.value !== 'email') return
   delete securityErrors.email
@@ -656,16 +723,25 @@ async function sendEmailCode() {
 async function submitSecurity() {
   if (busy.value) return
   for (const key of Object.keys(securityErrors)) delete securityErrors[key as keyof SecurityValues]
-  if (modal.value === 'password') {
+  if (['password', 'email', 'twoStep'].includes(modal.value ?? '')) {
     for (const field of ['currentPassword', 'newPassword'] as const) {
-      if (!securityValues[field] || securityValues[field].length > 1024)
+      if (
+        (field === 'currentPassword' || modal.value === 'password') &&
+        (!securityValues[field] || securityValues[field].length > 1024)
+      )
         securityErrors[field] = 'flow.passwordInvalid'
     }
     if (
-      !securityValues.confirmPassword ||
-      securityValues.confirmPassword !== securityValues.newPassword
+      modal.value === 'password' &&
+      (!securityValues.confirmPassword ||
+        securityValues.confirmPassword !== securityValues.newPassword)
     )
       securityErrors.confirmPassword = 'flow.passwordMismatch'
+    if (
+      (modal.value === 'email' || modal.value === 'twoStep') &&
+      !/^\d{6}$/.test(securityValues.code.trim())
+    )
+      securityErrors.code = 'security.codeInvalid'
     if (Object.keys(securityErrors).length) {
       await nextTick()
       securityForm.value?.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus()
@@ -706,8 +782,16 @@ async function submitSecurity() {
       (context) => props.adapter.revokeOtherDevices(context),
       props.simulated ? t('devices.demoAllRevoked') : t('devices.allRevoked'),
     )
-  if (result && epoch === modalEpoch) closeModal()
-  else if (epoch === modalEpoch && error.value) await focusFeedback(securityForm.value)
+  if (result && epoch === modalEpoch) {
+    closeModal()
+    await nextTick()
+    const active = content.value?.ownerDocument.activeElement
+    if (
+      !modal.value &&
+      (active === content.value?.ownerDocument.body || active?.closest('dialog:not([open])'))
+    )
+      accountNotice.value?.focus()
+  } else if (epoch === modalEpoch && error.value) await focusFeedback(securityForm.value)
 }
 watch(
   selectedMessage,
@@ -926,7 +1010,14 @@ defineExpose({ refresh, fillSecurity })
             t('common.reload')
           }}</NovaButton>
         </div>
-        <p v-if="notice" role="status" class="na:mb-5 na:text-sm na:text-[var(--na-brand)]">
+        <p
+          v-if="notice"
+          ref="accountNotice"
+          data-account-notice
+          tabindex="-1"
+          role="status"
+          class="na:mb-5 na:text-sm na:text-[var(--na-brand)]"
+        >
           {{ notice }}
         </p>
         <p
@@ -1300,7 +1391,7 @@ defineExpose({ refresh, fillSecurity })
                   >{{ filter.label }}</NovaButton
                 >
               </div>
-              <ul class="na:m-0 na:list-none na:p-0">
+              <ul :aria-label="t('security.activity')" class="na:m-0 na:list-none na:p-0">
                 <li
                   v-for="entry in visibleActivities"
                   :key="entry.id"
@@ -1364,13 +1455,13 @@ defineExpose({ refresh, fillSecurity })
                 <article
                   v-for="device in snapshot.devices"
                   :key="device.id"
+                  :data-device-id="device.id"
                   class="nova-device-card na:flex na:flex-wrap na:items-center na:gap-4 na:border-b na:border-[var(--na-line)] na:py-5 na:last:border-b-0"
                 >
                   <span
                     class="na:flex na:size-11 na:items-center na:justify-center na:rounded-xl na:bg-[var(--na-soft)] na:text-lg na:text-[var(--na-brand)]"
                     aria-hidden="true"
-                    ><NovaIcon
-                      :name="device.platform.toLowerCase().includes('ios') ? 'phone' : 'devices'"
+                    ><NovaIcon :name="/ios|android/i.test(device.platform) ? 'phone' : 'devices'"
                   /></span>
                   <div class="na:min-w-0 na:flex-1">
                     <h3 class="na:m-0 na:text-sm na:font-semibold">{{ device.name }}</h3>
@@ -1510,10 +1601,9 @@ defineExpose({ refresh, fillSecurity })
               <NovaButton
                 variant="secondary"
                 :disabled="busy || !unread"
-                @click="
-                  mutate((context) => adapter.markAllMessagesRead(context), t('messages.allMarked'))
-                "
-                >{{ t('messages.markAll') }}</NovaButton
+                :busy="busy"
+                @click="markAllRead"
+                >{{ busy ? t('common.processingShort') : t('messages.markAll') }}</NovaButton
               >
             </div>
             <div
@@ -1570,7 +1660,12 @@ defineExpose({ refresh, fillSecurity })
                     }}</span></NovaButton
                   >
                 </article>
-                <div v-if="!visibleMessages.length" class="na:py-12 na:text-center">
+                <div
+                  v-if="!visibleMessages.length"
+                  data-message-empty
+                  tabindex="-1"
+                  class="na:py-12 na:text-center"
+                >
                   <span class="na:text-2xl na:text-[var(--na-brand)]" aria-hidden="true">✓</span>
                   <h2 class="na:mt-4 na:text-base na:font-semibold">
                     {{ t('messages.emptyTitle') }}
@@ -1682,6 +1777,7 @@ defineExpose({ refresh, fillSecurity })
             :label="t('security.currentPassword')"
             type="password"
             autocomplete="current-password"
+            enterkeyhint="next"
             :disabled="busy"
           />
           <template v-if="modal === 'password'"
@@ -1691,6 +1787,7 @@ defineExpose({ refresh, fillSecurity })
               :label="t('auth.newPassword')"
               type="password"
               autocomplete="new-password"
+              enterkeyhint="next"
               :disabled="busy" /><NovaField
               v-model="securityValues.confirmPassword"
               :error="
@@ -1699,6 +1796,7 @@ defineExpose({ refresh, fillSecurity })
               :label="t('auth.confirmPassword')"
               type="password"
               autocomplete="new-password"
+              enterkeyhint="done"
               :disabled="busy"
           /></template>
           <template v-if="modal === 'email'"
@@ -1708,10 +1806,14 @@ defineExpose({ refresh, fillSecurity })
               :label="t('security.newEmail')"
               type="email"
               autocomplete="email"
+              autocapitalize="none"
+              :spellcheck="false"
+              inputmode="email"
               :disabled="busy"
             />
             <NovaField
               v-model="securityValues.code"
+              :error="securityErrors.code ? t(securityErrors.code) : undefined"
               :label="t('security.emailCode')"
               :maxlength="6"
               inputmode="numeric"
@@ -1738,6 +1840,7 @@ defineExpose({ refresh, fillSecurity })
             </p>
             <NovaField
               v-model="securityValues.code"
+              :error="securityErrors.code ? t(securityErrors.code) : undefined"
               :label="t('security.confirmationCode')"
               :maxlength="6"
               inputmode="numeric"
@@ -1746,15 +1849,42 @@ defineExpose({ refresh, fillSecurity })
           /></template>
           <slot name="securityFormTools" :fill="fillSecurity" />
         </template>
-        <p v-else :class="muted">
-          {{ modal === 'revokeAll' ? t('devices.keepCurrent') : t('devices.confirmSession') }}
-        </p>
+        <template v-else>
+          <div v-if="modal === 'revoke' && selectedDevice" class="nova-device-confirm">
+            <NovaIcon
+              :name="/ios|android/i.test(selectedDevice.platform) ? 'phone' : 'devices'"
+              :size="24"
+            />
+            <div>
+              <h3>{{ selectedDevice.name }}</h3>
+              <p>{{ selectedDevice.platform }} · {{ selectedDevice.location }}</p>
+              <time :datetime="selectedDevice.lastActiveAt">{{
+                t('devices.lastActive', { time: formatTime(selectedDevice.lastActiveAt) })
+              }}</time>
+            </div>
+          </div>
+          <p :class="muted">
+            {{ modal === 'revokeAll' ? t('devices.keepCurrent') : t('devices.confirmSession') }}
+          </p>
+        </template>
         <p v-if="error" role="alert" tabindex="-1" class="na:text-sm na:text-[var(--na-error)]">
           {{ error }}
         </p>
       </form>
-      <template v-if="modal && modal !== 'message'" #footer>
-        <div class="na:flex na:justify-end na:gap-3 na:pt-2">
+      <template v-if="modal" #footer>
+        <div v-if="modal === 'message'" class="na:flex na:justify-end na:gap-3">
+          <p v-if="busy" ref="messageDialogBusy" role="status" tabindex="-1" class="na:sr-only">
+            {{ t('common.processing') }}
+          </p>
+          <NovaButton
+            v-if="selectedMessage && !selectedMessage.read"
+            :busy="busy"
+            @click="markRead(selectedMessage.id, $event)"
+            >{{ t('messages.mark') }}</NovaButton
+          >
+          <NovaButton data-message-close @click="closeModal">{{ t('common.close') }}</NovaButton>
+        </div>
+        <div v-else class="na:flex na:justify-end na:gap-3 na:pt-2">
           <NovaButton variant="secondary" @click="closeModal">{{ t('common.cancel') }}</NovaButton
           ><NovaButton
             variant="primary"

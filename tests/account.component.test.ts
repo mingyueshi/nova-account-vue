@@ -133,9 +133,131 @@ describe('NovaAccountCenter', () => {
       expect(document.activeElement?.getAttribute('role')).toBe('status')
       finish()
       await flushPromises()
-      expect(document.activeElement).toBe(unreadOnly ? wrapper.get('h1').element : reader)
+      expect(document.activeElement).toBe(
+        unreadOnly ? wrapper.get('[data-message-open="welcome-space"]').element : reader,
+      )
     },
   )
+  it('transfers pointer-read feedback even when activation did not focus the button', async () => {
+    const base = createDemoAccountAdapter({ wait: () => Promise.resolve() })
+    let finish!: () => void
+    const wrapper = await create(true, {
+      ...base,
+      markMessageRead: async (id, context) => {
+        await new Promise<void>((resolve) => {
+          finish = resolve
+        })
+        return base.markMessageRead(id, context)
+      },
+    })
+    await wrapper.get('[data-page="messages"]').trigger('click')
+    await button(wrapper, '未读 4').trigger('click')
+    ;(wrapper.get('h1').element as HTMLElement).focus()
+    const action = button(wrapper, '标为已读')
+    expect(document.activeElement).not.toBe(action.element)
+    await action.trigger('click')
+    expect(document.activeElement?.getAttribute('role')).toBe('status')
+    finish()
+    await flushPromises()
+    expect(document.activeElement).toBe(wrapper.get('[data-message-open="welcome-space"]').element)
+  })
+
+  it('returns from a read message to the next unread item and then the empty state', async () => {
+    const wrapper = await create()
+    await wrapper.get('[data-page="messages"]').trigger('click')
+    await button(wrapper, '未读 4').trigger('click')
+    for (let count = 4; count > 0; count--) {
+      const origin = wrapper.get('[data-message-open]')
+      ;(origin.element as HTMLElement).focus()
+      await origin.trigger('click')
+      await flushPromises()
+      await wrapper.get('[data-message-close]').trigger('click')
+      await flushPromises()
+      expect(document.activeElement).toBe(
+        count > 1
+          ? wrapper.get('[data-message-open]').element
+          : wrapper.get('[data-message-empty]').element,
+      )
+    }
+  })
+
+  it('keeps a failed read retry inside the message dialog and focuses its stable close action', async () => {
+    const base = createDemoAccountAdapter({ wait: () => Promise.resolve() })
+    const mark = vi.fn(base.markMessageRead).mockRejectedValueOnce(new Error('Try again'))
+    const wrapper = await create(true, { ...base, markMessageRead: mark })
+    await wrapper.get('[data-page="messages"]').trigger('click')
+    await wrapper.get('[data-message-open]').trigger('click')
+    await flushPromises()
+    const dialog = wrapper.get('dialog[open]')
+    expect(dialog.get('[role="alert"]').text()).toBe('Try again')
+    const retry = dialog.findAll('button').find((item) => item.text() === '标为已读')!
+    ;(retry.element as HTMLElement).focus()
+    await retry.trigger('click')
+    await flushPromises()
+    expect(mark).toHaveBeenCalledTimes(2)
+    expect(dialog.find('[role="alert"]').exists()).toBe(false)
+    expect(document.activeElement).toBe(dialog.get('[data-message-close]').element)
+  })
+
+  it.each([false, true])(
+    'keeps bulk-read feedback focused on success or failure (%s)',
+    async (fail) => {
+      const base = createDemoAccountAdapter({ wait: () => Promise.resolve() })
+      const wrapper = await create(true, {
+        ...base,
+        markAllMessagesRead: fail
+          ? async () => {
+              throw new Error('Try again')
+            }
+          : base.markAllMessagesRead,
+      })
+      await wrapper.get('[data-page="messages"]').trigger('click')
+      const action = button(wrapper, '全部标为已读')
+      ;(action.element as HTMLElement).focus()
+      await action.trigger('click')
+      await flushPromises()
+      expect(document.activeElement).toBe(
+        wrapper.get(fail ? '[data-account-error]' : '[data-account-notice]').element,
+      )
+    },
+  )
+
+  it('identifies the device before signing out and focuses the resulting notice when its row disappears', async () => {
+    const wrapper = await create()
+    await wrapper.get('[data-page="devices"]').trigger('click')
+    const action = wrapper.get('[aria-label="退出 iPhone · Safari"]')
+    ;(action.element as HTMLElement).focus()
+    await action.trigger('click')
+    const dialog = wrapper.get('dialog[open]')
+    expect(dialog.get('.nova-device-confirm').text()).toContain('iPhone · Safari')
+    expect(dialog.get('.nova-device-confirm').text()).toContain('iOS · 杭州')
+    await dialog.get('form').trigger('submit')
+    await flushPromises()
+    expect(document.activeElement).toBe(wrapper.get('[data-account-notice]').element)
+  })
+
+  it('validates two-step confirmation before submitting and clears corrected errors', async () => {
+    const base = createDemoAccountAdapter({ wait: () => Promise.resolve() })
+    const set = vi.fn(base.setTwoStep)
+    const wrapper = await create(true, { ...base, setTwoStep: set })
+    await wrapper.get('[data-page="security"]').trigger('click')
+    await button(wrapper, '开启').trigger('click')
+    const form = wrapper.get('dialog[open] form')
+    await form.trigger('submit')
+    await flushPromises()
+    expect(set).not.toHaveBeenCalled()
+    expect(form.findAll('[role="alert"]')).toHaveLength(2)
+    wrapper.vm.fillSecurity({ currentPassword: '123456', code: '12' })
+    await flushPromises()
+    expect(form.findAll('[role="alert"]')).toHaveLength(1)
+    wrapper.vm.fillSecurity({ code: '123456' })
+    await flushPromises()
+    expect(form.findAll('[role="alert"]')).toHaveLength(0)
+    await form.trigger('submit')
+    await flushPromises()
+    expect(set).toHaveBeenCalledOnce()
+  })
+
   it('prevents unload only for dirty drafts, including hidden drafts, and removes the listener', async () => {
     const remove = vi.spyOn(window, 'removeEventListener')
     const wrapper = await create()
@@ -327,6 +449,20 @@ describe('NovaAccountCenter', () => {
     expect(wrapper.text()).toContain('Replacement')
     expect(wrapper.text()).not.toContain('你好，Nova')
   })
+  it('returns cancelled notification edits to the saved status instead of a disabled action', async () => {
+    const wrapper = await create()
+    await wrapper.get('[data-page="notifications"]').trigger('click')
+    await wrapper.get('[aria-label="邮件摘要"]').setValue(true)
+    const cancel = button(wrapper, '取消')
+    ;(cancel.element as HTMLElement).focus()
+    await cancel.trigger('click')
+    await flushPromises()
+    expect(wrapper.get('[aria-label="邮件摘要"]').element).toHaveProperty('checked', false)
+    expect(document.activeElement).toBe(
+      wrapper.get('[data-account-savebar] [role="status"]').element,
+    )
+  })
+
   it('protects unsaved notification preferences on logout', async () => {
     const wrapper = await create()
     await wrapper.get('[data-page="notifications"]').trigger('click')

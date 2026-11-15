@@ -25,6 +25,8 @@
 
 ### Changed
 
+- Refine phone message, notification, security and device workflows: wider message summaries, retryable read dialogs, stable focus after unread filtering and session removal, identified device confirmations, corrected security-field feedback and compact notification previews. Keep consumer verification codes in documentation.
+
 - Refine mobile sign-in, registration and password recovery: touch-sized visibility and navigation controls, keyboard field progression, corrected-error feedback, one code-delivery status, explicit captcha return focus and reset-success focus. The full-screen demo follows the visible viewport while preserving native pinch zoom and embedded layout.
 
 - Refine compact task, order, editor and community flows: on-demand task details and article previews, retained comment drafts, a discussion-first mobile feed, confirmed draft clearing, 80/5000-character article limits, 500-character comments and payment totals beside confirmation. Preserve focus when filtering removes a completed task or paid order; keep desktop detail panes and share internal demo forms.

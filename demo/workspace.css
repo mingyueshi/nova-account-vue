@@ -1695,3 +1695,83 @@
     padding-block: 16px;
   }
 }
+
+/* Consumer account lists keep identity, metadata and actions in distinct places. */
+@container account-content (max-width: 639px) {
+  .nova-demo .nova-message-toolbar > button {
+    min-width: 7rem;
+  }
+  .nova-demo .nova-message-list article {
+    grid-template-columns: 6px minmax(0, 1fr);
+    gap: 10px;
+  }
+  .nova-demo .nova-message-list article > button:last-child:not([data-message-open]) {
+    position: absolute;
+    right: 0;
+    bottom: 6px;
+  }
+  .nova-demo .nova-message-list time {
+    padding-inline-end: 48px;
+  }
+  .nova-demo .nova-device-card > div > p:last-child {
+    margin: 4px 0 0;
+    font-size: 12px;
+    line-height: 1.6;
+    overflow-wrap: anywhere;
+  }
+  .nova-demo .nova-device-card > button,
+  .nova-demo .nova-device-card > span:last-child {
+    align-self: start;
+  }
+  .nova-demo .nova-device-card > time {
+    font-size: 11px;
+    overflow-wrap: anywhere;
+  }
+  .nova-demo .nova-security-controls > div > div {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+  .nova-demo .nova-security-controls > div > button {
+    flex-shrink: 0;
+  }
+  .nova-demo .nova-security-activity li > div {
+    flex-direction: column;
+    gap: 4px;
+  }
+  .nova-demo .nova-security-activity li p {
+    font-size: 12px;
+  }
+  .nova-demo .nova-notification-options > label {
+    min-height: 88px;
+    padding-block: 20px;
+    gap: 16px;
+  }
+  .nova-demo .nova-notification-options > label > span > span {
+    font-size: 12px;
+    line-height: 1.6;
+  }
+  .nova-demo .nova-notification-previews {
+    margin-top: 16px;
+  }
+  .nova-demo .nova-notification-previews article {
+    align-items: center;
+    padding-block: 12px;
+  }
+  .nova-demo .nova-notification-previews article p {
+    display: none;
+  }
+}
+@container account-content (max-width: 359px) {
+  .nova-demo .nova-device-heading {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .nova-demo .nova-device-heading > button {
+    justify-self: start;
+  }
+  .nova-demo .nova-message-list,
+  .nova-demo .nova-security-controls,
+  .nova-demo .nova-security-activity,
+  .nova-demo .nova-notification-options {
+    padding-inline: 16px;
+  }
+}

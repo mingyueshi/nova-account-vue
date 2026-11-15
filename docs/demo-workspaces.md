@@ -53,6 +53,13 @@
 - 弹窗标题、关闭按钮与底部操作保持可达，正文独立滚动；短视口中同样可以完成校验、填写和确认。取消与关闭后返回原操作位置，内容滚动不应带动背景账户页。视口缩小时，若当前输入被正文区域裁切，宿主会将其重新对齐，已完整可见的字段不受影响。
 - 浏览器回归覆盖 320/390px 手机尺寸与 360px 短视口。缩短视口只模拟可用空间减少，不等同于 iOS / Android 真机软键盘验收。
 
+## 消息、通知与安全操作
+
+- 手机消息列表让标题和摘要优先占据宽度，标为已读操作靠近时间显示。未读条目读完后返回下一条消息，最后一条读完后返回空状态。阅读弹窗底部始终可关闭，标记失败可重试；批量处理显示明确结果。
+- 通知偏好保留整行开关操作、明确保存和取消、未保存离页提醒；手机预览收紧为已开启的项目清单。取消或保存导致按钮不可用时，焦点回到状态反馈。
+- 设备名称、系统/地点、当前状态和最近活动分开对齐。退出前展示具体设备；批量退出保留当前会话。退出后原行消失、或已无其他设备时，结果反馈仍可获得焦点。
+- 安全表单修正输入后及时清除错误，确认码先检查 6 位数字格式，实际结果仍由适配器决定。消费者演示的邮箱换绑只提示验证码已发送，不在弹窗展示测试验证码；测试值继续在凭据文档中查阅。组件库 `simulated` 默认提示仍明确模拟边界。
+
 ## 任务、内容、社区与订单
 
 - 紧凑布局优先展示任务清单。详情按需打开，补充备注、计划日期和优先级后关闭仍保留；宽屏继续在侧栏编辑同一份数据。完成任务使其离开当前筛选时，关闭详情回到完成反馈；删除仍可撤销，后续任务操作会替换上一条撤销提示。
@@ -68,5 +75,7 @@ Mobile authentication keeps the brand at the upper left, uses touch-sized passwo
 Account and business pages focus on the user's task: profile editing, security, devices, notifications, message reading and everyday activities. Layouts follow the available account-content width, including embedded hosts. Authentication keeps the brand at the upper left.
 
 All accounts, messages, locations, device events, payments and charts are synthetic in-memory examples. No real email, payment, device detection or authenticator enrollment occurs. Two-step confirmation does not provide real security. Credentials and email changes survive sign-out until refresh; other example state resets on sign-out or refresh. Only appearance preferences may be stored. Production adapters must implement server-side authorization, validation, session revocation and payment processing.
+
+Phone message lists prioritize readable summaries, keep read retries inside the reader, and restore focus to the next unread item or empty state. Device confirmations identify the selected session; removing a row or disabling the bulk action leaves focus on its result. Notification cancellation restores both saved values and useful focus. Security errors clear after correction, and consumer email-change notices never print the test verification code.
 
 Developer controls and component examples remain inside account navigation. Technical and simulation notes for consumer-facing pages live here instead of being repeated throughout the UI.

@@ -100,6 +100,10 @@ Exposed：`fill(...)`、`cancel()`、`setMode(AuthMode)`。宿主应提供服务
 
 Props：`adapter:AccountAdapter`（必填）、`simulated?:boolean`、`page?:AccountPage`、`initialPage?:AccountPage`、`pages?:AccountPage[]`、`extraPages?:AccountExtraPage[]`、`twoStep?:boolean`（默认 true）、`avatarMaxBytes?:number`（默认 2 MiB）。Events：`logout()`、`update:page(AccountPage)`、`pageChange(AccountPage)`。Slots：`appearance()`、`overview({snapshot,adapter,refresh})`、`page({page,snapshot,adapter,refresh})`、`profile({snapshot,adapter,refresh})`、`security({snapshot,adapter,refresh})`、`securityFormTools({fill})`。Exposed：`refresh()`、`fillSecurity(...)`。
 
+消息阅读关闭后优先回到原入口；未读筛选已移除该项时，定位同位置的下一条消息，全部读完则定位空状态。阅读弹窗保留关闭操作；自动标记失败可在弹窗内重试，忙态与完成后不会将焦点留在已移除按钮上。批量已读操作聚焦本次结果，用户已转向其他操作则不抢焦点。设备退出确认展示具体会话信息；原设备行移除或批量入口禁用后，定位结果反馈。
+
+内置安全演示表单在提交前检查当前密码、新密码/确认密码和 6 位数字确认码，已有字段错误在修正后清除；服务端仍负责实际认证和验证码校验。取消资料或通知编辑后，如果操作按钮被禁用，则定位保存状态，继续保留未保存离页守卫。
+
 `avatarMaxBytes` 仅由 `NovaAccount`（透传）和 `NovaAccountCenter` 支持，作用于内置资料页的头像上传；`NovaAuthForm` 不支持此 prop。自定义 `profile` 插槽的上传限制由宿主实现。
 
 无 page 时内部维护页签，initialPage 默认 overview。受控模式点击只请求 update:page，父级接受 prop 后才切页；pageChange 只在有效页签实际变化时发出。内部 dirty guard 通过后才请求切页；外部 page 更新是权威输入，不回声 update，也不拦截路由，宿主应在改变路由前完成离开确认。权威切页保留内置资料 / 偏好草稿，refresh 也保留未保存字段；保存或主动放弃只重置对应草稿，退出前会提示所有剩余草稿。adapter 更换会清除旧请求/草稿，受控 page 仍由父级决定。
