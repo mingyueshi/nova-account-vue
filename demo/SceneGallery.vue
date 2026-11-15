@@ -6,22 +6,33 @@ import { NovaButton, NovaDialog, NovaField, NovaTheme } from '../src'
 import NovaIcon from '../src/components/NovaIcon.vue'
 import { useWorkspace } from './useWorkspace'
 import './scene-gallery.css'
+import TaskFields from './TaskFields.vue'
+import CommentForm from './CommentForm.vue'
 
 const props = withDefaults(defineProps<{ appearance?: Appearance; active?: boolean }>(), {
   active: true,
 })
 const previewId = useId()
 const taskDetailId = useId()
+const commentFormId = useId()
+const commentDialogId = useId()
 const { root: workspace, wide } = useWorkspace()
 function focusInvalid(event?: Event) {
   const form = event?.currentTarget as HTMLFormElement | null
   void nextTick(() => form?.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus())
 }
 const postReceipt = ref<HTMLElement>()
+const postForm = ref<HTMLFormElement>()
 const commentReceipt = ref<HTMLElement>()
-async function focusReceipt(scene: 'editor' | 'comments') {
+const taskReceipt = ref<HTMLElement>()
+async function focusReceipt(scene: 'editor' | 'comments' | 'tasks') {
   await nextTick()
-  const el = scene === 'editor' ? postReceipt.value : commentReceipt.value
+  const el =
+    scene === 'editor'
+      ? postReceipt.value
+      : scene === 'comments'
+        ? commentReceipt.value
+        : taskReceipt.value
   if (
     el &&
     props.active &&
@@ -57,14 +68,21 @@ const tasks = ref<Task[]>([
 ])
 const selectedTaskId = ref(1)
 const selectedTask = computed(() => tasks.value.find((task) => task.id === selectedTaskId.value))
-const taskDetail = ref<HTMLElement>()
-function selectTask(task: Task) {
+const taskOpen = ref(false)
+const taskTrigger = ref<HTMLElement>()
+function selectTask(task: Task, event?: Event) {
   selectedTaskId.value = task.id
-  if (!wide.value)
-    void nextTick(() => {
-      taskDetail.value?.scrollIntoView?.({ block: 'start', behavior: 'smooth' })
-      taskDetail.value?.focus({ preventScroll: true })
-    })
+  taskTrigger.value = event?.currentTarget as HTMLElement | undefined
+  if (!wide.value) taskOpen.value = true
+}
+function updateTask(fields: { note?: string; due?: string; priority?: string }) {
+  if (selectedTask.value) Object.assign(selectedTask.value, fields)
+}
+async function closeTask() {
+  taskOpen.value = false
+  await nextTick()
+  if (props.active && activeScene.value === 'tasks' && !taskTrigger.value?.isConnected)
+    taskReceipt.value?.focus()
 }
 const taskQuery = ref('')
 const taskFilter = ref<'all' | 'open' | 'done'>('all')
@@ -111,6 +129,7 @@ function addTask(event?: Event) {
   taskNote.value = `已添加「${title}」。`
 }
 function toggleTask(task: Task) {
+  removedTask.value = null
   task.done = !task.done
   taskNote.value = task.done ? `已完成「${task.title}」。` : `「${task.title}」已恢复为进行中。`
 }
@@ -121,6 +140,7 @@ function removeTask(id: number) {
   removedTask.value = { task: { ...task }, index }
   tasks.value.splice(index, 1)
   taskNote.value = `已删除「${task.title}」。`
+  void focusReceipt('tasks')
 }
 function undoTask() {
   if (!removedTask.value) return
@@ -129,6 +149,7 @@ function undoTask() {
   taskFilter.value = 'all'
   taskQuery.value = ''
   taskNote.value = '任务已恢复。'
+  void focusReceipt('tasks')
 }
 function resetTaskFilter() {
   taskQuery.value = ''
@@ -147,12 +168,26 @@ const postDirty = computed(() =>
     : !!(post.title || post.body),
 )
 const previewMode = ref<'auto' | 'show' | 'hide'>('auto')
+const previewDialogOpen = ref(false)
+const previewTrigger = ref<HTMLElement>()
+const clearPostOpen = ref(false)
+const clearPostTrigger = ref<HTMLElement>()
 const previewOn = computed({
   get: () => previewMode.value === 'show' || (previewMode.value === 'auto' && wide.value),
   set: (value: boolean) => {
     previewMode.value = value ? 'show' : 'hide'
   },
 })
+const previewExpanded = computed(() => (wide.value ? previewOn.value : previewDialogOpen.value))
+function openPreview(event: Event) {
+  previewTrigger.value = event.currentTarget as HTMLElement
+  if (wide.value) previewOn.value = !previewOn.value
+  else previewDialogOpen.value = true
+}
+function requestClearPost(event: Event) {
+  clearPostTrigger.value = event.currentTarget as HTMLElement
+  clearPostOpen.value = true
+}
 function savePost(event?: Event) {
   if (postBusy.value) return
   postTitleError.value = post.title.trim() ? '' : '标题不能为空。'
@@ -180,6 +215,11 @@ function clearPost() {
   postSaved.value = ''
   savedPost.value = null
   previewOn.value = false
+  clearPostOpen.value = false
+  void nextTick(() => {
+    if (props.active && activeScene.value === 'editor')
+      postForm.value?.querySelector('input')?.focus()
+  })
 }
 function fillPost() {
   post.title = '让工作台更好用的三个小习惯'
@@ -235,6 +275,12 @@ const comments = ref<Comment[]>([
   },
 ])
 const commentDraft = ref('')
+const commentDialogOpen = ref(false)
+const commentTrigger = ref<HTMLElement>()
+function openComment(event: Event) {
+  commentTrigger.value = event.currentTarget as HTMLElement
+  commentDialogOpen.value = true
+}
 const commentError = ref('')
 const commentBusy = ref(false)
 const commentNote = ref('')
@@ -259,6 +305,7 @@ function publishComment(event?: Event) {
   commentNote.value = ''
   commentBusy.value = true
   later(() => {
+    const fromDialog = commentDialogOpen.value && props.active && activeScene.value === 'comments'
     commentBusy.value = false
     comments.value.unshift({
       id: ++commentSeq,
@@ -271,7 +318,9 @@ function publishComment(event?: Event) {
     commentDraft.value = ''
     commentSort.value = 'latest'
     commentNote.value = '评论已发布。'
-    void focusReceipt('comments')
+    commentDialogOpen.value = false
+    if (fromDialog) void nextTick(() => commentReceipt.value?.focus())
+    else void focusReceipt('comments')
   }, 700)
 }
 function toggleLike(comment: Comment) {
@@ -359,12 +408,29 @@ const openOrderId = ref('')
 const orderTrigger = ref<HTMLElement>()
 watch([() => props.active, activeScene], ([active, scene]) => {
   if (!active || scene !== 'orders') openOrderId.value = ''
+  if (!active || scene !== 'tasks') taskOpen.value = false
+  if (!active || scene !== 'editor') {
+    previewDialogOpen.value = false
+    clearPostOpen.value = false
+  }
+  if (!active || scene !== 'comments') commentDialogOpen.value = false
+})
+watch(wide, (value) => {
+  if (value) {
+    taskOpen.value = false
+    previewDialogOpen.value = false
+    commentDialogOpen.value = false
+  }
 })
 const activeOrder = computed(
   () => orders.value.find((order) => order.id === openOrderId.value) ?? null,
 )
 const payingIds = reactive(new Set<string>())
 const paymentNotes = reactive<Record<string, string>>({})
+const paymentReceipt = ref<HTMLElement>()
+const orderReceipt = ref<HTMLElement>()
+const orderFiltersRoot = ref<HTMLElement>()
+const orderNotice = ref('')
 const paying = computed(() => !!activeOrder.value && payingIds.has(activeOrder.value.id))
 const cny = new Intl.NumberFormat('zh-CN', { style: 'currency', currency: 'CNY' })
 function orderTotal(order: Order) {
@@ -375,6 +441,19 @@ function openOrder(id: string, event?: Event) {
   selectedOrderId.value = id
   openOrderId.value = id
 }
+function selectOrder(id: string, event: Event) {
+  if (wide.value) selectedOrderId.value = id
+  else openOrder(id, event)
+}
+async function closeOrder() {
+  openOrderId.value = ''
+  await nextTick()
+  if (props.active && activeScene.value === 'orders' && !orderTrigger.value?.isConnected)
+    (
+      orderReceipt.value ??
+      orderFiltersRoot.value?.querySelector<HTMLElement>('[aria-pressed=true]')
+    )?.focus()
+}
 function payOrder() {
   const order = activeOrder.value
   if (!order || payingIds.has(order.id) || order.status !== 'pending') return
@@ -383,6 +462,22 @@ function payOrder() {
     order.status = 'processing'
     payingIds.delete(order.id)
     paymentNotes[order.id] = '支付成功，订单等待发货。'
+    orderNotice.value = `订单 ${order.id} 已支付，正在等待发货。`
+    void nextTick(() => {
+      if (!props.active || activeScene.value !== 'orders') return
+      const receipt =
+        openOrderId.value === order.id
+          ? paymentReceipt.value
+          : !openOrderId.value
+            ? orderReceipt.value
+            : undefined
+      const active = receipt?.ownerDocument.activeElement
+      if (
+        receipt &&
+        (active === receipt.ownerDocument.body || active === receipt.closest('dialog'))
+      )
+        receipt.focus()
+    })
   }, 800)
 }
 function resetOrderFilter() {
@@ -445,7 +540,10 @@ function resetOrderFilter() {
                   v-for="task in visibleTasks"
                   :key="task.id"
                   class="demo-scene-item demo-task-item"
-                  :class="{ 'is-done': task.done, 'is-selected': selectedTaskId === task.id }"
+                  :class="{
+                    'is-done': task.done,
+                    'is-selected': wide && selectedTaskId === task.id,
+                  }"
                 >
                   <label class="demo-scene-check"
                     ><input type="checkbox" :checked="task.done" @change="toggleTask(task)" /><span
@@ -459,7 +557,8 @@ function resetOrderFilter() {
                       class="demo-icon-button"
                       :aria-label="`查看任务 ${task.title}`"
                       :aria-pressed="selectedTaskId === task.id"
-                      @click="selectTask(task)"
+                      :aria-haspopup="!wide ? 'dialog' : undefined"
+                      @click="selectTask(task, $event)"
                     >
                       <NovaIcon name="chevron" /></button
                     ><button
@@ -501,11 +600,16 @@ function resetOrderFilter() {
                 </li>
               </ul>
               <div class="demo-list-footer">
-                <span>进行中 {{ tasks.length - doneCount }} · 已完成 {{ doneCount }}</span
-                ><span class="demo-scene-meta">数据仅保存在本页</span>
+                <span>进行中 {{ tasks.length - doneCount }} · 已完成 {{ doneCount }}</span>
               </div>
-              <div v-if="taskNote" class="demo-inline-notice">
-                <span role="status">{{ taskNote }}</span
+              <div
+                v-if="taskNote"
+                ref="taskReceipt"
+                tabindex="-1"
+                role="status"
+                class="demo-inline-notice"
+              >
+                <span>{{ taskNote }}</span
                 ><button
                   v-if="removedTask"
                   type="button"
@@ -517,7 +621,7 @@ function resetOrderFilter() {
               </div>
             </div>
             <aside
-              ref="taskDetail"
+              v-if="wide"
               class="demo-panel demo-task-detail"
               tabindex="-1"
               :aria-labelledby="taskDetailId"
@@ -525,7 +629,7 @@ function resetOrderFilter() {
               <div class="demo-panel-heading">
                 <div>
                   <h2 :id="taskDetailId">任务详情</h2>
-                  <p>在清单旁补充信息，变更即时保留。</p>
+                  <p>补充备注，安排日期与优先级。</p>
                 </div>
                 <NovaIcon name="tasks" />
               </div>
@@ -534,31 +638,7 @@ function resetOrderFilter() {
                 <span class="demo-task-state" :data-done="selectedTask.done">{{
                   selectedTask.done ? '已完成' : '进行中'
                 }}</span>
-                <div class="demo-task-detail-fields">
-                  <NovaField
-                    :model-value="selectedTask.note || ''"
-                    label="任务备注"
-                    as="textarea"
-                    :rows="5"
-                    :maxlength="200"
-                    placeholder="补充执行要点或相关信息…"
-                    @update:model-value="selectedTask.note = $event"
-                  /><NovaField
-                    :model-value="selectedTask.due || ''"
-                    label="计划日期"
-                    type="date"
-                    @update:model-value="selectedTask.due = $event"
-                  /><label class="demo-native-field"
-                    >优先级<select
-                      :value="selectedTask.priority || 'normal'"
-                      @change="selectedTask.priority = ($event.target as HTMLSelectElement).value"
-                    >
-                      <option value="normal">普通</option>
-                      <option value="high">优先处理</option>
-                      <option value="low">稍后安排</option>
-                    </select></label
-                  >
-                </div>
+                <TaskFields :task="selectedTask" @change="updateTask" />
                 <NovaButton
                   :variant="selectedTask.done ? 'secondary' : 'primary'"
                   @click="toggleTask(selectedTask)"
@@ -574,16 +654,40 @@ function resetOrderFilter() {
               </div>
             </aside>
           </div>
+          <NovaDialog
+            v-if="!wide && selectedTask && taskOpen"
+            :open="taskOpen"
+            title="任务详情"
+            :return-focus="taskTrigger"
+            class="demo-task-dialog"
+            @close="closeTask"
+          >
+            <h3 class="demo-task-dialog-title">{{ selectedTask.title }}</h3>
+            <p class="demo-task-state" :data-done="selectedTask.done" role="status">
+              {{ selectedTask.done ? '已完成' : '进行中' }}
+            </p>
+            <TaskFields v-if="taskOpen" :task="selectedTask" @change="updateTask" />
+            <template #footer
+              ><div class="demo-dialog-actions">
+                <NovaButton variant="secondary" @click="closeTask">关闭</NovaButton
+                ><NovaButton
+                  :variant="selectedTask.done ? 'secondary' : 'primary'"
+                  @click="toggleTask(selectedTask)"
+                  >{{ selectedTask.done ? '恢复为进行中' : '标记为完成' }}</NovaButton
+                >
+              </div></template
+            >
+          </NovaDialog>
         </NovaTheme>
       </section>
 
       <section v-show="activeScene === 'editor'" class="demo-scene-cell" aria-label="文章编辑器">
         <NovaTheme :model-value="appearance">
           <div class="demo-panel">
-            <div class="demo-panel-heading">
+            <div class="demo-panel-heading demo-editor-heading">
               <div>
                 <h2>文章草稿</h2>
-                <p>先把想法写下来，排版会在预览中呈现。</p>
+                <p>把想法写下来，随时保存。</p>
               </div>
               <span class="demo-draft-state" :data-saved="!!savedPost && !postDirty"
                 ><span aria-hidden="true">●</span
@@ -600,6 +704,7 @@ function resetOrderFilter() {
             </div>
             <div class="demo-editor-layout" :class="{ 'with-preview': previewOn }">
               <form
+                ref="postForm"
                 aria-label="保存文章"
                 class="demo-scene-form demo-editor-form"
                 @submit.prevent="savePost"
@@ -607,43 +712,59 @@ function resetOrderFilter() {
                 <NovaField
                   v-model="post.title"
                   label="文章标题"
-                  :maxlength="40"
+                  :maxlength="80"
                   placeholder="给这篇内容起个标题"
                   autocomplete="off"
-                  :hint="`${post.title.length} / 40 字符`"
+                  :hint="`${post.title.length} / 80 字符`"
                   :error="postTitleError"
                 />
                 <NovaField
                   v-model="post.body"
                   as="textarea"
                   label="正文"
-                  :rows="10"
-                  :maxlength="200"
+                  :rows="8"
+                  :maxlength="5000"
                   placeholder="写下你的想法，支持换行…"
-                  :hint="`已输入 ${post.body.length}/200 字符`"
+                  :hint="`已输入 ${post.body.length}/5000 字符`"
                   :error="postBodyError"
                 />
-                <div class="demo-editor-actions">
+                <NovaButton
+                  v-if="!post.title && !post.body"
+                  class="demo-writing-template"
+                  variant="ghost"
+                  @click="fillPost"
+                  >使用写作模板</NovaButton
+                >
+                <div class="demo-editor-actions" data-mobile-form-actions>
                   <div class="demo-scene-row">
-                    <NovaButton type="submit" variant="primary" :busy="postBusy"
+                    <NovaButton
+                      type="submit"
+                      variant="primary"
+                      :busy="postBusy"
+                      :disabled="!!savedPost && !postDirty"
                       ><NovaIcon v-if="!postBusy" name="save" :size="16" />保存草稿</NovaButton
                     ><NovaButton
-                      :aria-pressed="previewOn"
-                      :aria-controls="previewOn ? previewId : undefined"
-                      :aria-expanded="previewOn"
-                      @click="previewOn = !previewOn"
+                      :aria-pressed="previewExpanded"
+                      :aria-controls="previewExpanded ? previewId : undefined"
+                      :aria-expanded="previewExpanded"
+                      :aria-haspopup="!wide ? 'dialog' : undefined"
+                      @click="openPreview"
                       ><NovaIcon :icon="Eye" :size="16" />预览</NovaButton
                     >
                   </div>
-                  <NovaButton v-if="!post.title && !post.body" variant="ghost" @click="fillPost"
-                    >使用写作模板</NovaButton
-                  ><NovaButton v-else variant="ghost" :disabled="postBusy" @click="clearPost"
-                    ><NovaIcon name="trash" :size="16" />清空</NovaButton
+                  <NovaButton
+                    v-if="post.title || post.body"
+                    variant="ghost"
+                    :disabled="postBusy"
+                    aria-label="清空"
+                    class="demo-clear-post"
+                    @click="requestClearPost"
+                    ><NovaIcon name="trash" :size="16" /><span>清空</span></NovaButton
                   >
                 </div>
               </form>
               <aside
-                v-if="previewOn"
+                v-if="wide && previewOn"
                 :id="previewId"
                 class="demo-scene-preview demo-article-preview"
                 aria-label="文章预览"
@@ -666,10 +787,54 @@ function resetOrderFilter() {
               {{
                 postBusy
                   ? '正在保存当前版本，你可以继续编辑。'
-                  : '切换账户页会保留草稿；刷新页面后重置。'
+                  : postDirty
+                    ? '有修改尚未保存。'
+                    : '写下想法，随时保存。'
               }}
             </p>
           </div>
+          <NovaDialog
+            v-if="!wide"
+            :id="previewId"
+            :open="previewDialogOpen"
+            title="文章预览"
+            :return-focus="previewTrigger"
+            class="demo-preview-dialog"
+            @close="previewDialogOpen = false"
+          >
+            <article
+              v-if="previewDialogOpen"
+              class="demo-scene-preview demo-article-preview"
+              aria-label="文章预览"
+            >
+              <h3>{{ post.title.trim() || '等待你的标题' }}</h3>
+              <p>{{ post.body.trim() || '填写正文后，即可在这里检查内容与段落。' }}</p>
+            </article>
+            <template v-if="previewDialogOpen" #footer
+              ><div class="demo-dialog-actions">
+                <NovaButton variant="primary" @click="previewDialogOpen = false"
+                  >继续编辑</NovaButton
+                >
+              </div></template
+            >
+          </NovaDialog>
+          <NovaDialog
+            v-if="clearPostOpen"
+            :open="clearPostOpen"
+            title="清空这篇草稿？"
+            :return-focus="clearPostTrigger"
+            @close="clearPostOpen = false"
+          >
+            <p class="demo-clear-description">标题和正文都会被移除，此操作无法撤销。</p>
+            <template #footer
+              ><div class="demo-dialog-actions">
+                <NovaButton variant="secondary" @click="clearPostOpen = false">保留草稿</NovaButton
+                ><NovaButton variant="primary" class="demo-destructive" @click="clearPost"
+                  >清空内容</NovaButton
+                >
+              </div></template
+            >
+          </NovaDialog>
         </NovaTheme>
       </section>
 
@@ -679,37 +844,21 @@ function resetOrderFilter() {
             <div class="demo-discussion-topic">
               <span class="demo-topic-icon"><NovaIcon name="comments" /></span>
               <div>
-                <h2>你最想完善哪一个交互细节？</h2>
-                <p>分享使用中的发现，或给其他人的建议点个赞。</p>
+                <h2>你有哪些让生活更轻松的小习惯？</h2>
+                <p>分享日常经验，也为喜欢的想法点个赞。</p>
               </div>
             </div>
             <div class="demo-community-workspace">
-              <form
-                aria-label="发布评论"
-                class="demo-comment-composer demo-panel"
-                @submit.prevent="publishComment"
-              >
+              <div v-if="wide" class="demo-comment-composer demo-panel">
                 <span class="demo-scene-avatar demo-current-avatar" aria-hidden="true">你</span>
-                <div class="demo-scene-form">
-                  <NovaField
-                    v-model="commentDraft"
-                    as="textarea"
-                    label="发表评论"
-                    :rows="3"
-                    :maxlength="120"
-                    :disabled="commentBusy"
-                    placeholder="写下你的建议，让讨论更有帮助…"
-                    :hint="`已输入 ${commentDraft.length}/120 字符`"
-                    :error="commentError"
-                  />
-                  <div class="demo-comment-compose-footer">
-                    <span class="demo-scene-meta">分享你的想法</span
-                    ><NovaButton type="submit" variant="primary" :busy="commentBusy"
-                      >发布</NovaButton
-                    >
-                  </div>
-                </div>
-              </form>
+                <CommentForm
+                  v-model:draft="commentDraft"
+                  :busy="commentBusy"
+                  :error="commentError"
+                  actions
+                  @submit="publishComment"
+                />
+              </div>
               <div class="demo-community-feed demo-panel">
                 <div class="demo-discussion-toolbar">
                   <h3>{{ comments.length }} 条评论</h3>
@@ -723,11 +872,11 @@ function resetOrderFilter() {
                 <p
                   v-if="commentNote"
                   ref="commentReceipt"
-                  role="status"
                   tabindex="-1"
+                  role="status"
                   class="demo-success-note"
                 >
-                  {{ commentNote }}
+                  <NovaIcon name="check" />{{ commentNote }}
                 </p>
                 <ul class="demo-comment-list">
                   <li
@@ -761,8 +910,51 @@ function resetOrderFilter() {
                   </li>
                 </ul>
               </div>
+              <div v-if="!wide" class="demo-community-mobile-compose">
+                <button
+                  type="button"
+                  class="demo-community-compose-trigger"
+                  aria-haspopup="dialog"
+                  :aria-controls="commentDialogId"
+                  @click="openComment"
+                >
+                  <NovaIcon name="comments" :size="20" /><span>{{
+                    commentDraft || '写下你的想法…'
+                  }}</span
+                  ><strong>{{ commentDraft ? '继续编辑' : '写评论' }}</strong>
+                </button>
+              </div>
             </div>
           </div>
+          <NovaDialog
+            v-if="!wide"
+            :id="commentDialogId"
+            :open="commentDialogOpen"
+            title="写评论"
+            :return-focus="commentTrigger"
+            @close="commentDialogOpen = false"
+          >
+            <CommentForm
+              v-if="commentDialogOpen"
+              :id="commentFormId"
+              v-model:draft="commentDraft"
+              :busy="commentBusy"
+              :error="commentError"
+              @submit="publishComment"
+            />
+            <template v-if="commentDialogOpen" #footer
+              ><div class="demo-dialog-actions">
+                <NovaButton variant="secondary" @click="commentDialogOpen = false">取消</NovaButton
+                ><NovaButton
+                  type="submit"
+                  :form="commentFormId"
+                  variant="primary"
+                  :busy="commentBusy"
+                  >发布</NovaButton
+                >
+              </div></template
+            >
+          </NovaDialog>
         </NovaTheme>
       </section>
 
@@ -770,7 +962,12 @@ function resetOrderFilter() {
         <NovaTheme :model-value="appearance">
           <div class="demo-orders">
             <div class="demo-panel demo-orders-toolbar">
-              <div role="group" aria-label="订单状态筛选" class="demo-filter-tabs">
+              <div
+                ref="orderFiltersRoot"
+                role="group"
+                aria-label="订单状态筛选"
+                class="demo-filter-tabs"
+              >
                 <button
                   v-for="filter in orderFilters"
                   :key="filter.key"
@@ -791,22 +988,32 @@ function resetOrderFilter() {
                 ></NovaField>
               </div>
             </div>
+            <p
+              v-if="orderNotice"
+              ref="orderReceipt"
+              tabindex="-1"
+              role="status"
+              class="demo-success-note demo-order-notice"
+            >
+              <NovaIcon name="check" />{{ orderNotice }}
+            </p>
             <div class="demo-order-workspace">
               <ul class="demo-order-list">
                 <li
                   v-for="order in visibleOrders"
                   :key="order.id"
                   class="demo-order-card"
-                  :class="{ 'is-selected': selectedOrderId === order.id }"
+                  :class="{ 'is-selected': wide && selectedOrderId === order.id }"
                 >
                   <div class="demo-order-heading">
                     <div>
                       <button
                         type="button"
                         class="demo-order-select"
-                        :aria-pressed="selectedOrderId === order.id"
-                        :aria-label="`选择订单 ${order.id}`"
-                        @click="selectedOrderId = order.id"
+                        :aria-pressed="wide ? selectedOrderId === order.id : undefined"
+                        :aria-label="`${wide ? '选择' : '查看'}订单 ${order.id}`"
+                        :aria-haspopup="!wide ? 'dialog' : undefined"
+                        @click="selectOrder(order.id, $event)"
                       >
                         {{ order.id }}</button
                       ><time>{{ order.placedAt }}</time>
@@ -860,7 +1067,7 @@ function resetOrderFilter() {
                 </li>
               </ul>
               <aside
-                v-if="inspectedOrder"
+                v-if="inspectedOrder && wide"
                 class="demo-panel demo-order-inspector"
                 aria-label="订单摘要"
               >
@@ -910,21 +1117,22 @@ function resetOrderFilter() {
                   @click="openOrder(inspectedOrder.id, $event)"
                   >打开订单详情<NovaIcon name="chevron" :size="16"
                 /></NovaButton>
-                <p class="demo-scene-meta">列表与摘要状态同步更新。</p>
               </aside>
             </div>
             <NovaDialog
               v-if="activeOrder"
               :return-focus="orderTrigger"
               :open="true"
-              :title="`订单详情 ${activeOrder.id}`"
-              @close="openOrderId = ''"
+              title="订单详情"
+              class="demo-order-dialog"
+              @close="closeOrder"
               ><div class="demo-order-dialog-meta">
                 <span class="demo-scene-status" :data-status="activeOrder.status">{{
                   statusLabels[activeOrder.status]
                 }}</span
                 ><span>下单于 {{ activeOrder.placedAt }}</span>
               </div>
+              <p class="demo-scene-meta demo-order-number">订单号 {{ activeOrder.id }}</p>
               <h3 class="demo-order-dialog-title">{{ activeOrder.title }}</h3>
               <ul class="demo-order-detail-items">
                 <li v-for="item in activeOrder.items" :key="item.name">
@@ -935,10 +1143,13 @@ function resetOrderFilter() {
                   <strong>{{ cny.format((Math.round(item.price * 100) * item.qty) / 100) }}</strong>
                 </li>
               </ul>
-              <p class="demo-scene-total">
-                <span>合计</span><strong>{{ cny.format(orderTotal(activeOrder)) }}</strong>
-              </p>
-              <p v-if="paymentNotes[activeOrder.id]" role="status" class="demo-success-note">
+              <p
+                v-if="paymentNotes[activeOrder.id]"
+                ref="paymentReceipt"
+                tabindex="-1"
+                role="status"
+                class="demo-success-note"
+              >
                 <NovaIcon name="check" />{{ paymentNotes[activeOrder.id] }}
               </p>
               <p v-else class="demo-scene-meta demo-payment-note">
@@ -951,15 +1162,20 @@ function resetOrderFilter() {
                 }}
               </p>
               <template #footer
-                ><div class="demo-dialog-actions">
-                  <NovaButton variant="secondary" @click="openOrderId = ''">关闭</NovaButton
-                  ><NovaButton
-                    v-if="activeOrder.status === 'pending'"
-                    variant="primary"
-                    :busy="paying"
-                    @click="payOrder"
-                    >确认支付</NovaButton
-                  >
+                ><div class="demo-order-dialog-footer">
+                  <p class="demo-scene-total">
+                    <span>合计</span><strong>{{ cny.format(orderTotal(activeOrder)) }}</strong>
+                  </p>
+                  <div class="demo-dialog-actions">
+                    <NovaButton variant="secondary" @click="closeOrder">关闭</NovaButton
+                    ><NovaButton
+                      v-if="activeOrder.status === 'pending'"
+                      variant="primary"
+                      :busy="paying"
+                      @click="payOrder"
+                      >确认支付</NovaButton
+                    >
+                  </div>
                 </div></template
               ></NovaDialog
             >

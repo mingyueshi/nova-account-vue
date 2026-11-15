@@ -120,7 +120,7 @@ SSR采用确定性初始light（或显式传入mode）；system和storage在onMo
 
 - `NovaButton`：variant primary/secondary/ghost，type，disabled，busy；普通 attrs/listeners透传。
 - `NovaField`：string v-model，label，as（input/textarea，默认input），type，maxlength，error，hint，autocomplete，disabled；prefix/suffix slots；支持宿主 id，未传时按实例生成；宿主 aria-describedby 与提示/错误 id 合并；attrs作用于实际input/textarea。原生 maxlength 以 UTF-16 code units 计数。
-- `NovaDialog`：open/title、可选 `returnFocus?:HTMLElement|null`，close event，default/footer slots；原生dialog焦点约束、Esc请求关闭、回焦。标题与 footer 不随正文滚动，长内容在 `.nova-dialog-body` 内滚动，并约束滚动串联。默认标题获得初始焦点；关闭回焦不主动滚动底层页面；`returnFocus` 可显式指定仍存在的触发按钮，适用于 WebKit 点击按钮不自动聚焦的情况，未提供时记录打开前的活动元素。默认 slot 内的表单若通过 footer 提交按钮提交，应使用原生 `form="表单id"` 关联。无浏览器的SSR不调用DOM。
+- `NovaDialog`：open/title、可选 `returnFocus?:HTMLElement|null`，close event，default/footer slots；原生dialog焦点约束、Esc请求关闭、回焦。标题与 footer 不随正文滚动，长内容在 `.nova-dialog-body` 内滚动，并约束滚动串联。正文是以标题命名、可通过 Tab 进入的 region，可用 PageDown 等按键阅读纯文本；根节点仅裁切、不承担正文滚动。默认标题获得初始焦点；关闭回焦不主动滚动底层页面；`returnFocus` 可显式指定仍存在的触发按钮，适用于 WebKit 点击按钮不自动聚焦的情况，未提供时记录打开前的活动元素。默认 slot 内的表单若通过 footer 提交按钮提交，应使用原生 `form="表单id"` 关联。无浏览器的SSR不调用DOM。
 - `NovaCaptcha`：challenge,busy,error,simulated；submit(response),retry事件。`simulated` 保留为兼容输入，不再显示静态演示说明。44px 主题色手柄与浅色进度联动，键盘聚焦时短暂引导方向，拖动提供高光与按压反馈，忙态显示处理动画；支持深色主题与 `prefers-reduced-motion`，手柄位置不添加延迟过渡。从手柄开始拖动，到末端释放才提交 `{value:100}`；中途释放保留位置，取消、换题或进入忙态会终止当前手势。键盘End只移动，Enter明确提交；到达末端不表示服务端已通过验证。拖动和键盘说明保留为屏幕阅读器文本，错误按需显示并设置 `aria-invalid`，控件不是安全校验器。
 
 ## 生命周期与隐私

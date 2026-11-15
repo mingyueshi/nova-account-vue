@@ -46,6 +46,14 @@
 - 弹窗标题、关闭按钮与底部操作保持可达，正文独立滚动；短视口中同样可以完成校验、填写和确认。取消与关闭后返回原操作位置，内容滚动不应带动背景账户页。视口缩小时，若当前输入被正文区域裁切，宿主会将其重新对齐，已完整可见的字段不受影响。
 - 浏览器回归覆盖 320/390px 手机尺寸与 360px 短视口。缩短视口只模拟可用空间减少，不等同于 iOS / Android 真机软键盘验收。
 
+## 任务、内容、社区与订单
+
+- 紧凑布局优先展示任务清单。详情按需打开，补充备注、计划日期和优先级后关闭仍保留；宽屏继续在侧栏编辑同一份数据。完成任务使其离开当前筛选时，关闭详情回到完成反馈；删除仍可撤销，后续任务操作会替换上一条撤销提示。
+- 文章标题上限 80、正文 5000 个 UTF-16 code units，保存期间继续编辑不会把新内容误报为已保存。手机端保存/预览操作保留在表单附近，预览独立阅读、关闭回到编辑入口；清空会二次确认，确认后聚焦标题。模板是真实写作入口，内存重置说明留在本文。
+- 社区在紧凑布局先展示讨论，底部“写评论”打开编辑弹窗。取消后保留草稿，最多 500 个 UTF-16 code units；发布后关闭弹窗并显示新评论和反馈。离开页面期间完成的发布不会抢走其他页面的焦点，宽屏保留旁置的评论表单。
+- 手机订单状态横向浏览，订单号与详情按钮均可打开明细，不再堆叠重复摘要；宽屏保留旁置摘要。付款确认附近固定展示合计金额，付款结果按订单隔离；订单离开“待支付”筛选后，关闭弹窗回到订单反馈，仍可切回全部订单查看新状态。
+- `demo/TaskFields.vue` 与 `demo/CommentForm.vue` 是演示内部的共享表单，不是库的新增导出。任务、草稿、评论及支付继续只操作本页内存，没有真实存储、内容发布或资金流转。
+
 ## English
 
 Account and business pages focus on the user's task: profile editing, security, devices, notifications, message reading and everyday activities. Layouts follow the available account-content width, including embedded hosts. Authentication keeps the brand at the upper left.

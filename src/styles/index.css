@@ -94,7 +94,7 @@
     color: var(--na-brand);
   }
   .nova-account .nova-dialog {
-    overflow: hidden;
+    overflow: clip;
     max-height: calc(
       100dvh - 2rem - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px)
     );
@@ -116,6 +116,10 @@
     overflow-y: auto;
     overscroll-behavior: contain;
     scroll-padding-block: 12px;
+  }
+  .nova-account .nova-dialog-body:focus-visible {
+    outline: 2px solid var(--na-brand);
+    outline-offset: -2px;
   }
   .nova-account .nova-dialog::backdrop {
     background: var(--na-backdrop);

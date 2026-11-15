@@ -25,6 +25,7 @@
 
 ### Changed
 
+- Refine compact task, order, editor and community flows: on-demand task details and article previews, retained comment drafts, a discussion-first mobile feed, confirmed draft clearing, 80/5000-character article limits, 500-character comments and payment totals beside confirmation. Preserve focus when filtering removes a completed task or paid order; keep desktop detail panes and share internal demo forms.
 - Replace the mobile page select with a grouped, icon-led native-dialog bottom sheet, current-page context and unread counts. Close on Escape, backdrop, host navigation or desktop resize; restore focus and serialize draft guards. On phones, remove duplicate visible page headings, keep pristine forms unobstructed, align device rows and improve message/save actions. Account JS/CSS gzip budgets are now 41 / 7.5 KiB including shared chunks, with no new runtime dependency.
 - Give CAPTCHA a theme-colored handle, tinted progress, directional target, pressed feedback and processing animations. Keep movement directly linked to pointer displacement, expose invalid input semantics and honor reduced motion; no animation dependency is added.
 - Refined mobile form recovery and dialogs: blank nicknames focus the invalid field, rejected saves retain drafts and focus errors, and lost submit focus moves to saved/published feedback. Security forms use password-manager and OTP semantics with inline email-code actions. Explicit dialog return targets and closing native modality before unmount preserve focus in WebKit. Dialog content scrolls independently of headers and footers; security footer buttons submit through native form association. Phone controls use readable text sizes and save bars respect bottom safe areas.
@@ -52,6 +53,8 @@
 
 ### Fixed
 
+- Make dialog bodies labelled keyboard-scrollable regions and keep the dialog root from becoming another scrolling container. Pure-text previews and order details support PageDown while titles, totals and footer actions remain visible.
+- Coalesce demo workspace width changes on the next animation frame, skip height-only notifications and cancel pending work on unmount, preventing ResizeObserver feedback when responsive detail panes change.
 - Return failed password authentication to the login form after successful CAPTCHA verification, preserve credentials for correction and focus the form error. Keep verification failures inside the challenge; retries obtain a new challenge/proof and cancelled login failures cannot overwrite the current form.
 - Give `NovaCaptcha` a visible 44px drag handle and linked image piece. Pointer capture and continuous displacement keep dragging consistent across browsers, including release outside the track; cancellations and challenge changes cannot submit stale gestures. Keep native range keyboard semantics and the existing adapter response. Allow an extra 512 bytes in the CSS gzip budget for the scoped cross-browser control styles.
 - Keep Firefox accessibility scans usable with Playwright 1.65: apply axe-core's attribute-first ARIA reference fix through its supported custom-source option, guarded to the pinned version. Retain all rules and property-only references, with regression coverage for both naming paths and invalid names. Hold Dependabot TypeScript 7+ upgrades until the lint/declaration toolchain supports them.

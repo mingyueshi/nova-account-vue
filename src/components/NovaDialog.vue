@@ -62,7 +62,7 @@ onBeforeUnmount(() => {
         >×</NovaButton
       >
     </header>
-    <div class="nova-dialog-body"><slot /></div>
+    <div class="nova-dialog-body" tabindex="0" role="region" :aria-labelledby="id"><slot /></div>
     <footer v-if="$slots.footer" class="nova-dialog-footer na:mt-6"><slot name="footer" /></footer>
   </dialog>
 </template>

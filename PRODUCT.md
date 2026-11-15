@@ -34,6 +34,7 @@ Avoid presenting mock flows as real authentication or payment, and avoid burying
 
 - On phones, use readable native text controls, keep modal actions reachable while content scrolls, account for bottom safe areas, and preserve drafts and useful focus through validation, save and cancel flows.
 - Mobile account navigation uses a grouped bottom sheet with a clear current page, independent scrolling and a separate sign-out action. Close it before opening an unsaved-change guard. Keep clean forms unobstructed; make save actions prominent when there are edits.
+- Compact business pages keep lists and discussions primary. Open task editing, article previews and comment composition on demand; preserve drafts on cancel, confirm destructive clearing and keep payment totals beside confirmation. Scrollable dialog content must support keyboard reading while headings and actions remain visible.
 
 ## Accessibility & Inclusion
 

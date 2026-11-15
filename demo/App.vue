@@ -431,7 +431,9 @@ function alignFocusedField() {
     if (document.activeElement !== field || !body.isConnected) return
     const control = field.getBoundingClientRect()
     const area = body.getBoundingClientRect()
-    const savebar = body.querySelector<HTMLElement>('[data-account-savebar]')
+    const savebar = [
+      ...body.querySelectorAll<HTMLElement>('[data-account-savebar], [data-mobile-form-actions]'),
+    ].find((bar) => bar.getClientRects().length && getComputedStyle(bar).position === 'sticky')
     const bottom =
       savebar && getComputedStyle(savebar).position === 'sticky'
         ? Math.min(area.bottom, savebar.getBoundingClientRect().top)
