@@ -44,6 +44,8 @@
 
 ### Fixed
 
+- Keep Firefox accessibility scans usable with Playwright 1.65: apply axe-core's attribute-first ARIA reference fix through its supported custom-source option, guarded to the pinned version. Retain all rules and property-only references, with regression coverage for both naming paths and invalid names. Hold Dependabot TypeScript 7+ upgrades until the lint/declaration toolchain supports them.
+- Upgrade the pinned Playwright toolchain to 1.65.1 (macOS WebKit build 2388) to pick up the upstream native-select inherited-style cache fix. Add insertion/visibility regression cases and configuration-panel CSSOM checks alongside the existing axe scans; no theme timeout or contrast-rule exclusion is needed.
 - Validate account snapshot structure before load/mutate replaces state; malformed data surfaces INVALID_RESPONSE and retains the last valid snapshot. Guard unread derivation and fall back from non-string message overrides. Correct avatar/two-step prop comments and clarify avatar versus accent identifiers.
 - Validate replacement email syntax before requesting a code and preserve keyboard focus while marking messages read, including removal from the unread filter. Use a controlled clock for cancelled slow challenges and split the 52 appearance axe cases into individually named tests.
 

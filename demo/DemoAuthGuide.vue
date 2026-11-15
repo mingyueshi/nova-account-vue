@@ -59,10 +59,12 @@ function fillExample() {
 <template>
   <aside class="demo-auth-guide" :aria-label="english ? 'Sample credentials' : '演示填写说明'">
     <div class="demo-auth-guide-heading">
-      <strong>{{ english ? 'Sample credentials' : '演示填写说明' }}</strong
-      ><NovaButton variant="ghost" :disabled="busy" @click="fillExample">{{
-        english ? 'Fill example' : '填入示例'
-      }}</NovaButton>
+      <strong>{{ english ? 'Sample credentials' : '演示填写说明' }}</strong><NovaButton
+        variant="ghost"
+        :disabled="busy"
+        @click="fillExample"
+        >{{ english ? 'Fill example' : '填入示例' }}</NovaButton
+      >
     </div>
     <dl>
       <div v-if="mode !== 'reset' || resetStage !== 'password'">

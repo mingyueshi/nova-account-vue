@@ -86,6 +86,8 @@ npm run dev            # Vite演示开发；demo CSP禁止业务网络连接
 
 目前未在 npm registry 发布。先在此仓库运行 `npm run pack:library`，然后在消费项目中运行 `npm install /实际路径/nova-account-0.1.0-dev.2.tgz`。tarball 是本地生成物，不提交到 Git；不要把 `npm install nova-account` 当成安装此开发版的方式。
 
+Jest 宿主若使用 CommonJS 测试，或由转换器把 `import` 转成 `require`，会命中本包的 `require` 错误入口并在运行时抛出 `ERR_REQUIRE_ESM`。请按 [Jest ESM 配置说明](https://jestjs.io/docs/ecmascript-modules)启用 ESM，并让转换器保留 ESM 输出；本包不提供 CommonJS 实现。
+
 ```vue
 <script setup lang="ts">
 import { NovaAccount } from 'nova-account'

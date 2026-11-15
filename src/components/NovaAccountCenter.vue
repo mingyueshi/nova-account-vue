@@ -696,8 +696,7 @@ defineExpose({ refresh, fillSecurity })
         <div class="na:min-w-0">
           <strong class="na:block na:truncate na:text-sm na:font-semibold">{{
             snapshot.profile.nickname
-          }}</strong
-          ><span class="na:mt-1 na:block na:text-xs na:text-[var(--na-muted)]"
+          }}</strong><span class="na:mt-1 na:block na:text-xs na:text-[var(--na-muted)]"
             >{{ t('messages.account') }}{{ simulated ? t('security.demoSuffix') : '' }}</span
           >
         </div>
@@ -746,8 +745,7 @@ defineExpose({ refresh, fillSecurity })
             @click="requestNavigation(tab.id)"
           >
             <NovaIcon :name="tab.id" :fallback="tab.symbol" class="na:shrink-0" />
-            <span>{{ tab.label }}</span
-            ><span
+            <span>{{ tab.label }}</span><span
               v-if="tab.id === 'messages' && unread"
               class="na:rounded-full na:bg-[var(--na-soft)] na:px-1.5 na:text-xs na:text-[var(--na-brand)]"
               role="img"
@@ -874,15 +872,17 @@ defineExpose({ refresh, fillSecurity })
                 >
                   <NovaIcon :name="tab.id" class="na:shrink-0 na:text-[var(--na-brand)]" />
                   <div>
-                    <strong class="na:block na:text-sm na:font-medium">{{ tab.label }}</strong
-                    ><span class="na:mt-1 na:block na:text-xs na:text-[var(--na-muted)]">{{
-                      tab.id === 'devices'
-                        ? t('account.deviceCount', {
-                            count: snapshot.devices.length,
-                            simulated: simulated ? t('account.simulated') : '',
-                          })
-                        : t('account.manage')
-                    }}</span>
+                    <strong class="na:block na:text-sm na:font-medium">{{ tab.label }}</strong><span
+                      class="na:mt-1 na:block na:text-xs na:text-[var(--na-muted)]"
+                      >{{
+                        tab.id === 'devices'
+                          ? t('account.deviceCount', {
+                              count: snapshot.devices.length,
+                              simulated: simulated ? t('account.simulated') : '',
+                            })
+                          : t('account.manage')
+                      }}</span
+                    >
                   </div>
                   <NovaIcon
                     name="chevron"
@@ -1043,8 +1043,10 @@ defineExpose({ refresh, fillSecurity })
                   <div class="na:flex na:gap-3">
                     <NovaButton variant="secondary" @click="discardDraft">{{
                       t('common.cancel')
-                    }}</NovaButton
-                    ><NovaButton variant="primary" type="submit" :disabled="!dirty || busy"
+                    }}</NovaButton><NovaButton
+                      variant="primary"
+                      type="submit"
+                      :disabled="!dirty || busy"
                       ><NovaIcon v-if="!busy" name="save" :size="16" />{{
                         busy ? t('common.saving') : t('profile.save')
                       }}</NovaButton
@@ -1154,10 +1156,11 @@ defineExpose({ refresh, fillSecurity })
                   class="na:border-t na:border-[var(--na-line)] na:py-4"
                 >
                   <div class="na:flex na:flex-wrap na:justify-between na:gap-2">
-                    <strong class="na:text-sm na:font-medium">{{ entry.title }}</strong
-                    ><time class="na:text-xs na:text-[var(--na-muted)]" :datetime="entry.at">{{
-                      formatTime(entry.at)
-                    }}</time>
+                    <strong class="na:text-sm na:font-medium">{{ entry.title }}</strong><time
+                      class="na:text-xs na:text-[var(--na-muted)]"
+                      :datetime="entry.at"
+                      >{{ formatTime(entry.at) }}</time
+                    >
                   </div>
                   <p class="na:mt-1 na:mb-0" :class="muted">{{ entry.description }}</p>
                 </li>
@@ -1231,8 +1234,7 @@ defineExpose({ refresh, fillSecurity })
                   <span
                     v-if="device.current"
                     class="na:rounded-lg na:bg-[var(--na-soft)] na:px-3 na:py-2 na:text-xs na:text-[var(--na-brand)]"
-                    >{{ t('devices.current') }}</span
-                  ><NovaButton
+                    >{{ t('devices.current') }}</span><NovaButton
                     v-else
                     variant="ghost"
                     :disabled="busy"
@@ -1317,8 +1319,10 @@ defineExpose({ refresh, fillSecurity })
               <div class="na:flex na:gap-3">
                 <NovaButton variant="secondary" @click="discardDraft">{{
                   t('common.cancel')
-                }}</NovaButton
-                ><NovaButton variant="primary" type="submit" :disabled="!dirty || busy"
+                }}</NovaButton><NovaButton
+                  variant="primary"
+                  type="submit"
+                  :disabled="!dirty || busy"
                   ><NovaIcon v-if="!busy" name="save" :size="16" />{{
                     busy ? t('common.saving') : t('notifications.save')
                   }}</NovaButton
@@ -1334,8 +1338,7 @@ defineExpose({ refresh, fillSecurity })
                   :variant="messageFilter === 'all' ? 'primary' : 'secondary'"
                   :aria-pressed="messageFilter === 'all'"
                   @click="messageFilter = 'all'"
-                  >{{ t('messages.all') }}</NovaButton
-                ><NovaButton
+                  >{{ t('messages.all') }}</NovaButton><NovaButton
                   :variant="messageFilter === 'unread' ? 'primary' : 'secondary'"
                   :aria-pressed="messageFilter === 'unread'"
                   @click="messageFilter = 'unread'"
@@ -1392,8 +1395,9 @@ defineExpose({ refresh, fillSecurity })
                     <time
                       :datetime="message.createdAt"
                       class="na:mt-2 na:block na:text-xs na:text-[var(--na-muted)]"
-                      >{{ formatTime(message.createdAt) }}</time
-                    ><span class="na:sr-only">{{ t('messages.viewDetails') }}</span></button
+                      >{{ formatTime(message.createdAt) }}</time><span class="na:sr-only">{{
+                      t('messages.viewDetails')
+                    }}</span></button
                   ><NovaButton
                     v-if="!message.read"
                     variant="ghost"
@@ -1466,8 +1470,9 @@ defineExpose({ refresh, fillSecurity })
     <NovaDialog :open="queued !== null" :title="t('guard.title')" @close="queued = null"
       ><p :class="muted">{{ t('guard.description') }}</p>
       <div class="na:mt-6 na:flex na:flex-wrap na:justify-end na:gap-3">
-        <NovaButton variant="secondary" @click="queued = null">{{ t('guard.stay') }}</NovaButton
-        ><NovaButton variant="primary" @click="discardAndNavigate">{{
+        <NovaButton variant="secondary" @click="queued = null">{{
+          t('guard.stay')
+        }}</NovaButton><NovaButton variant="primary" @click="discardAndNavigate">{{
           t('guard.leave')
         }}</NovaButton>
       </div></NovaDialog
@@ -1565,8 +1570,9 @@ defineExpose({ refresh, fillSecurity })
         </p>
         <p v-if="error" role="alert" class="na:text-sm na:text-[var(--na-error)]">{{ error }}</p>
         <div class="na:flex na:justify-end na:gap-3 na:pt-2">
-          <NovaButton variant="secondary" @click="closeModal">{{ t('common.cancel') }}</NovaButton
-          ><NovaButton
+          <NovaButton variant="secondary" @click="closeModal">{{
+            t('common.cancel')
+          }}</NovaButton><NovaButton
             variant="primary"
             type="submit"
             :disabled="busy || (modal === 'email' && !codeSent)"

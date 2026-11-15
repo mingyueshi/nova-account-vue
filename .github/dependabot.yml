@@ -7,6 +7,11 @@ updates:
       - /examples/nuxt/nuxt4
     schedule:
       interval: weekly
+    # TS 7 removes the JS Compiler API used by declaration tooling, and the
+    # current typescript-eslint does not support it. Revisit with that toolchain.
+    ignore:
+      - dependency-name: typescript
+        versions: ['>=7.0.0']
     groups:
       minor-and-patch:
         update-types: [minor, patch]

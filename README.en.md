@@ -22,6 +22,8 @@ GitHub Actions configurations run those checks on pushes and pull requests. Addi
 
 The package is private and has not been published to npm. Run `npm run pack:library`, then install the generated tarball in the consumer. It builds a private source snapshot and checks bundled declarations before packing, so concurrent builds cannot change the package. Direct `npm pack` checks declarations and a content-hash receipt covering source, build configuration and all output files. It refuses stale, missing or modified outputs. Run `npm run build` to create the receipt; prepack does not rebuild or replace the isolated packaging pipeline. Both consumer verification scripts use the isolated pipeline. See [package verification](docs/package-build.md). Import the stylesheet explicitly; the consumer does not need Tailwind.
 
+Jest hosts using CommonJS tests, or a transformer that converts `import` to `require`, resolve this package's `require` error entry and throw `ERR_REQUIRE_ESM` at runtime. Follow the [Jest ESM setup guide](https://jestjs.io/docs/ecmascript-modules) to enable ESM and preserve ESM transformer output; this package does not provide a CommonJS implementation.
+
 ```vue
 <script setup lang="ts">
 import { ref } from 'vue'

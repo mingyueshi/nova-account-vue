@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test'
-import AxeBuilder from '@axe-core/playwright'
+import { createAxeBuilder } from './axe'
 import { lightPalettes } from '../../src/palettes'
 import { zhCN } from '../../src/locales'
 
@@ -352,7 +352,28 @@ async function scanAxe(page: Page) {
       root.getAnimations({ subtree: true }).map((animation) => animation.finished.catch(() => {})),
     )
   })
-  const results = await new AxeBuilder({ page })
+  // Check CSSOM as well as axe: affected WebKit builds could paint dark panels
+  // while reporting stale light tokens on ancestors of native select controls.
+  const panels = page.locator(
+    '[data-demo-settings]:visible .demo-panel, [data-demo-integration]:visible .demo-panel',
+  )
+  for (const panel of await panels.evaluateAll((panels) =>
+    panels.map((panel) => {
+      const style = getComputedStyle(panel)
+      const root = getComputedStyle(panel.closest('.nova-account')!)
+      return {
+        label: panel.getAttribute('aria-label'),
+        surface: style.getPropertyValue('--na-surface'),
+        expectedSurface: root.getPropertyValue('--na-surface'),
+        color: style.color,
+        headingColor: getComputedStyle(panel.querySelector('h2')!).color,
+      }
+    }),
+  )) {
+    expect(panel.surface, `${panel.label}: inherited surface`).toBe(panel.expectedSurface)
+    expect(panel.color, `${panel.label}: inherited foreground`).toBe(panel.headingColor)
+  }
+  const results = await createAxeBuilder(page)
     .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
     .analyze()
   expect(results.violations).toEqual([])
@@ -735,7 +756,7 @@ test('password changes validate locally, focus the invalid field and recover aft
   await confirm.click()
   await expect(dialog.getByText('两次输入的密码不一致。', { exact: true })).toBeVisible()
   await expect(dialog.getByLabel('确认新密码', { exact: true })).toBeFocused()
-  expect((await new AxeBuilder({ page }).include('dialog[open]').analyze()).violations).toEqual([])
+  expect((await createAxeBuilder(page).include('dialog[open]').analyze()).violations).toEqual([])
   await dialog.getByLabel('确认新密码', { exact: true }).fill('NovaNext2026!')
   await confirm.click()
   await expect(dialog).not.toBeVisible()
@@ -1150,7 +1171,7 @@ test('charts resize with their workspace, remain accessible in dark mode and fit
       })
       .toBe(true)
   }
-  const results = await new AxeBuilder({ page })
+  const results = await createAxeBuilder(page)
     .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
     .analyze()
   expect(results.violations).toEqual([])
