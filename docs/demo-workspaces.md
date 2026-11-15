@@ -36,6 +36,14 @@
 
 演示通过 `demo/presentation.ts` 的中英文消息覆盖收起组件自带的模拟说明与徽标；组件库 `simulated` 的默认提示和权限边界保留。空字符串消息不会留下空提示段落。认证页将站点品牌固定在左上角，认证表单独立居中。
 
+## 手机端操作
+
+- 账户与业务页的可编辑原生控件使用 16px 字号，兼顾窄屏输入和下拉选择；保存区为底部安全区域留出空间。
+- 昵称为空时就地提示并定位到输入框；宿主将错误字段对齐到视口中部，避免固定保存区遮挡。保存失败保留资料或通知草稿并聚焦错误；保存成功后，如果禁用按钮使焦点丢失，则移到保存状态。草稿保存、评论发布也保留反馈焦点，不打断继续编辑或已经切换页面的用户。
+- 改密表单允许密码管理器区分当前与新密码；邮箱验证码使用数字输入提示及一次性验证码自动填充语义，获取成功后定位到验证码输入。
+- 弹窗标题、关闭按钮与底部操作保持可达，正文独立滚动；短视口中同样可以完成校验、填写和确认。取消与关闭后返回原操作位置，内容滚动不应带动背景账户页。视口缩小时，若当前输入被正文区域裁切，宿主会将其重新对齐，已完整可见的字段不受影响。
+- 浏览器回归覆盖 320/390px 手机尺寸与 360px 短视口。缩短视口只模拟可用空间减少，不等同于 iOS / Android 真机软键盘验收。
+
 ## English
 
 Account and business pages focus on the user's task: profile editing, security, devices, notifications, message reading and everyday activities. Layouts follow the available account-content width, including embedded hosts. Authentication keeps the brand at the upper left.

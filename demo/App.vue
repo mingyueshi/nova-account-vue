@@ -1,5 +1,14 @@
 <script setup lang="ts">
-import { computed, defineAsyncComponent, reactive, ref, shallowRef, watch } from 'vue'
+import {
+  computed,
+  defineAsyncComponent,
+  onMounted,
+  onBeforeUnmount,
+  reactive,
+  ref,
+  shallowRef,
+  watch,
+} from 'vue'
 import {
   NovaAccount,
   NovaAuthForm,
@@ -177,6 +186,7 @@ const sessionNote = ref('')
 const flowNote = ref('')
 const oauthOn = ref(false)
 const deleteOpen = ref(false)
+const deleteTrigger = ref<HTMLElement>()
 const account = ref<InstanceType<typeof NovaAccount>>()
 const conflictArmed = computed(() => settings.conflict === 'dirty')
 const multiInstance = ref(false)
@@ -354,6 +364,10 @@ function armConflict() {
     '已模拟另一台设备修改资料：下一次账户操作将返回 REVISION_CONFLICT。真实接入通常在此时重新加载快照；演示中刷新页面或重新登录即恢复。',
   )
 }
+function openDelete(event: Event) {
+  deleteTrigger.value = event.currentTarget as HTMLElement
+  deleteOpen.value = true
+}
 function confirmDelete() {
   identities.removeCurrent()
   forceReturnToAuth('账号已注销。')
@@ -395,6 +409,36 @@ function onHostPageUpdate(value: AccountPage) {
   page.value = value
   logEvent('update:page', `${pageLabels[value]}（组件内导航回写）`)
 }
+function alignInvalidField(event: FocusEvent) {
+  const field = event.target as HTMLElement
+  if (signedIn.value && field.matches('[aria-invalid="true"]'))
+    field.scrollIntoView?.({ block: 'center' })
+}
+let fieldFrame: number | undefined
+function alignResizedDialogField() {
+  const field = document.activeElement as HTMLElement | null
+  const body = field?.closest<HTMLElement>('.nova-dialog-body')
+  if (
+    !field ||
+    !body?.closest('.nova-demo') ||
+    !field.matches('input:not([type=range]), textarea, select')
+  )
+    return
+  if (fieldFrame !== undefined) cancelAnimationFrame(fieldFrame)
+  fieldFrame = requestAnimationFrame(() => {
+    fieldFrame = undefined
+    if (document.activeElement !== field || !body.isConnected) return
+    const control = field.getBoundingClientRect()
+    const area = body.getBoundingClientRect()
+    if (control.top < area.top + 8 || control.bottom > area.bottom - 8)
+      field.scrollIntoView({ block: 'center' })
+  })
+}
+onMounted(() => window.addEventListener('resize', alignResizedDialogField))
+onBeforeUnmount(() => {
+  window.removeEventListener('resize', alignResizedDialogField)
+  if (fieldFrame !== undefined) cancelAnimationFrame(fieldFrame)
+})
 function onAuthenticated(result: AuthResult) {
   signedIn.value = true
   logEvent('authenticated', `登录成功 · ${result.user.email}`)
@@ -549,6 +593,7 @@ function onStorageChange(
         :storage-key="storageKey"
         :code-length="settings.codeLength"
         :password-strength="strengthOn ? demoStrength : undefined"
+        @focusin="alignInvalidField"
         @authenticated="onAuthenticated"
         @update:appearance="onAppearanceUpdate"
         @update:page="onHostPageUpdate"
@@ -1034,10 +1079,15 @@ function onStorageChange(
               <p class="demo-note">
                 <strong>注销账号</strong>：注销后将退出当前账号，并停止使用该账号登录。
               </p>
-              <NovaButton @click="deleteOpen = true">注销账号…</NovaButton>
+              <NovaButton @click="openDelete($event)">注销账号…</NovaButton>
             </div>
           </div>
-          <NovaDialog :open="deleteOpen" title="注销账号？" @close="deleteOpen = false">
+          <NovaDialog
+            :return-focus="deleteTrigger"
+            :open="deleteOpen"
+            title="注销账号？"
+            @close="deleteOpen = false"
+          >
             <p>注销后将退出当前账号，且无法再使用该账号登录。确认继续？</p>
             <template #footer>
               <div class="demo-grid">

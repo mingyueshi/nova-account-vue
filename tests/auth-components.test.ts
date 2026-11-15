@@ -205,6 +205,51 @@ describe('authentication components', () => {
     expect(service.login).toHaveBeenCalledTimes(1)
   })
 
+  it('returns focus and retained credentials to the login form after a password rejection', async () => {
+    const service = adapter()
+    service.login = vi
+      .fn<AuthAdapter['login']>()
+      .mockRejectedValueOnce(new Error('Incorrect password'))
+    const wrapper = mount(NovaAuthForm, {
+      attachTo: document.body,
+      props: { adapter: service },
+    })
+    wrappers.push(wrapper)
+    wrapper.vm.fill({ email: 'person@example.test', password: 'wrong-password' })
+    await wrapper.get('form').trigger('submit')
+    await flushPromises()
+    const slider = wrapper.get('input[type="range"]')
+    await slider.setValue(100)
+    await slider.trigger('keydown', { key: 'Enter' })
+    await flushPromises()
+
+    expect(wrapper.find('dialog[open]').exists()).toBe(false)
+    const error = wrapper.get('form [role="alert"]')
+    expect(error.text()).toBe('Incorrect password')
+    expect(document.activeElement).toBe(error.element)
+    expect(wrapper.get<HTMLInputElement>('input[type="email"]').element.value).toBe(
+      'person@example.test',
+    )
+    expect(
+      wrapper.get<HTMLInputElement>('input[autocomplete="current-password"]').element.value,
+    ).toBe('wrong-password')
+    expect(wrapper.get('button[type="submit"]').attributes('disabled')).toBeUndefined()
+    expect(wrapper.emitted('authenticated')).toBeUndefined()
+
+    service.login = adapter().login
+    await wrapper.get('input[autocomplete="current-password"]').setValue('corrected-password')
+    await wrapper.get('form').trigger('submit')
+    await flushPromises()
+    expect(wrapper.find('form [role="alert"]').exists()).toBe(false)
+    expect(service.challenge).toHaveBeenCalledTimes(2)
+    const retrySlider = wrapper.get('input[type="range"]')
+    await retrySlider.setValue(100)
+    await retrySlider.trigger('keydown', { key: 'Enter' })
+    await flushPromises()
+    expect(service.verifyCaptcha).toHaveBeenCalledTimes(2)
+    expect(wrapper.emitted('authenticated')).toHaveLength(1)
+  })
+
   it('renders a real Vue form without a permanently visible captcha', async () => {
     const service = adapter(),
       wrapper = mount(NovaAuthForm, { props: { adapter: service, simulated: true } })

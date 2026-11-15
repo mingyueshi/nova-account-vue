@@ -79,8 +79,15 @@ onMounted(() => slider.value?.focus({ preventScroll: true }))
 <template>
   <div class="nova-captcha na:grid na:gap-3" :aria-busy="busy">
     <label :for="id" class="na:sr-only">{{ challenge.label || t('captcha.label') }}</label>
-    <div class="nova-captcha-track" :style="{ '--na-captcha-progress': value / 100 }">
+    <div
+      class="nova-captcha-track"
+      :data-ready="value === 100"
+      :style="{ '--na-captcha-progress': value / 100 }"
+    >
       <span class="nova-captcha-fill" aria-hidden="true" />
+      <span class="nova-captcha-target" aria-hidden="true"
+        ><NovaIcon name="chevron" :size="16"
+      /></span>
       <span v-show="!value || busy" class="nova-captcha-prompt" aria-hidden="true">{{
         busy ? t('captcha.busy') : t('captcha.prompt')
       }}</span>
@@ -96,6 +103,7 @@ onMounted(() => slider.value?.focus({ preventScroll: true }))
         max="100"
         step="any"
         :disabled="busy"
+        :aria-invalid="error || localError ? true : undefined"
         class="nova-captcha-range"
         :aria-valuetext="t('captcha.value', { value: Math.round(value) })"
         :aria-describedby="`${id}-help${error || localError ? ` ${id}-error` : ''}`"

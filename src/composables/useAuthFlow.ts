@@ -325,11 +325,18 @@ export function useAuthFlow(
         cancel()
         notice.value = t('flow.codeSent')
       } else {
-        const result = await getAdapter().login(
-          { email, method: 'password', password: fields.password, proof: proof.token },
-          operation.context(),
-        )
-        if (operation.current()) complete(result)
+        try {
+          const result = await getAdapter().login(
+            { email, method: 'password', password: fields.password, proof: proof.token },
+            operation.context(),
+          )
+          if (operation.current()) complete(result)
+        } catch (cause) {
+          if (operation.current()) {
+            cancel()
+            error.value = message(cause)
+          }
+        }
       }
     } catch (cause) {
       if (operation.current()) challengeError.value = message(cause)

@@ -512,3 +512,46 @@ describe('adaptive account workspaces', () => {
     expect(preview.get('p').text()).not.toBe('')
   })
 })
+
+describe('account form recovery', () => {
+  it('rejects a blank nickname before calling the adapter and focuses its field', async () => {
+    const adapter = createDemoAccountAdapter({ wait: () => Promise.resolve() })
+    const update = vi.spyOn(adapter, 'updateProfile')
+    const wrapper = await create(true, adapter)
+    await wrapper.setProps({ page: 'profile' })
+    const nickname = wrapper.get('input[autocomplete="nickname"]')
+    await nickname.setValue('   ')
+    await wrapper.get('form.nova-profile-form').trigger('submit')
+    expect(update).not.toHaveBeenCalled()
+    expect(nickname.attributes('aria-invalid')).toBe('true')
+    expect(document.activeElement).toBe(nickname.element)
+    await nickname.setValue('我的日常')
+    await wrapper.get('form.nova-profile-form').trigger('submit')
+    await flushPromises()
+    expect(update).toHaveBeenCalledOnce()
+    expect(nickname.attributes('aria-invalid')).toBeUndefined()
+    expect(wrapper.text()).toContain('演示资料已保存')
+  })
+  it.each(['profile', 'notifications'] as const)(
+    'keeps the %s draft and focuses a rejected save',
+    async (page) => {
+      const adapter = createDemoAccountAdapter({ wait: () => Promise.resolve() })
+      const method = page === 'profile' ? 'updateProfile' : 'updateNotifications'
+      vi.spyOn(adapter, method).mockRejectedValue(new Error('暂时无法保存，请重试。'))
+      const wrapper = await create(true, adapter)
+      await wrapper.setProps({ page })
+      const field =
+        page === 'profile'
+          ? wrapper.get('input[autocomplete="nickname"]')
+          : wrapper.get('input[aria-label="邮件摘要"]')
+      await field.setValue(page === 'profile' ? '保留的昵称' : true)
+      await wrapper.get('form').trigger('submit')
+      await flushPromises()
+      expect(document.activeElement).toBe(wrapper.get('[data-account-error]').element)
+      expect(wrapper.get('[data-account-error]').text()).toContain('暂时无法保存')
+      if (page === 'profile') expect((field.element as HTMLInputElement).value).toBe('保留的昵称')
+      else expect((field.element as HTMLInputElement).checked).toBe(true)
+      expect(wrapper.text()).toContain('有未保存的修改')
+    },
+  )
+})

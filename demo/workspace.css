@@ -1348,3 +1348,42 @@
   -webkit-line-clamp: 2;
   overflow: hidden;
 }
+
+/* Phone controls use readable native input sizes and reachable dialog actions. */
+@media (max-width: 767px) {
+  .nova-demo
+    input:not([type='checkbox']):not([type='radio']):not([type='range']):not([type='file']):not(
+      [type='color']
+    ),
+  .nova-demo [data-account-content] textarea,
+  .nova-demo [data-account-content] select,
+  .nova-demo [data-mobile-account-nav] select,
+  .nova-demo .nova-dialog select,
+  .nova-demo .nova-dialog textarea {
+    font-size: 16px;
+  }
+  .nova-demo .nova-avatar-upload,
+  .nova-demo [data-appearance-choice] {
+    min-height: 44px;
+  }
+  .nova-demo .nova-dialog {
+    padding: 20px;
+  }
+  .nova-demo .nova-dialog-header {
+    margin-bottom: 16px;
+  }
+  .nova-demo .nova-dialog-footer {
+    margin-top: 16px;
+  }
+  .nova-demo .nova-dialog-footer > div,
+  .nova-demo .nova-dialog-footer .demo-dialog-actions {
+    display: flex;
+    gap: 12px;
+  }
+  .nova-demo .nova-dialog-footer button {
+    flex: 1;
+  }
+  .nova-demo [data-account-savebar] {
+    padding-bottom: max(12px, env(safe-area-inset-bottom, 0px));
+  }
+}

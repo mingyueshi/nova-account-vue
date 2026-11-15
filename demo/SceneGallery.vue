@@ -17,6 +17,19 @@ function focusInvalid(event?: Event) {
   const form = event?.currentTarget as HTMLFormElement | null
   void nextTick(() => form?.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus())
 }
+const postReceipt = ref<HTMLElement>()
+const commentReceipt = ref<HTMLElement>()
+async function focusReceipt(scene: 'editor' | 'comments') {
+  await nextTick()
+  const el = scene === 'editor' ? postReceipt.value : commentReceipt.value
+  if (
+    el &&
+    props.active &&
+    activeScene.value === scene &&
+    el.ownerDocument.activeElement === el.ownerDocument.body
+  )
+    el.focus()
+}
 const activeScene = defineModel<string>('activeScene', { default: 'tasks' })
 const timers = new Set<ReturnType<typeof setTimeout>>()
 function later(action: () => void, delay: number) {
@@ -155,6 +168,7 @@ function savePost(event?: Event) {
     savedPost.value = draft
     postBusy.value = false
     postSaved.value = `草稿《${draft.title.trim()}》已保存。`
+    void focusReceipt('editor')
   }, 700)
 }
 function clearPost() {
@@ -257,6 +271,7 @@ function publishComment(event?: Event) {
     commentDraft.value = ''
     commentSort.value = 'latest'
     commentNote.value = '评论已发布。'
+    void focusReceipt('comments')
   }, 700)
 }
 function toggleLike(comment: Comment) {
@@ -341,6 +356,7 @@ const inspectedOrder = computed(() =>
   orders.value.find((order) => order.id === selectedOrderId.value),
 )
 const openOrderId = ref('')
+const orderTrigger = ref<HTMLElement>()
 watch([() => props.active, activeScene], ([active, scene]) => {
   if (!active || scene !== 'orders') openOrderId.value = ''
 })
@@ -354,7 +370,8 @@ const cny = new Intl.NumberFormat('zh-CN', { style: 'currency', currency: 'CNY' 
 function orderTotal(order: Order) {
   return order.items.reduce((sum, item) => sum + Math.round(item.price * 100) * item.qty, 0) / 100
 }
-function openOrder(id: string) {
+function openOrder(id: string, event?: Event) {
+  orderTrigger.value = event?.currentTarget as HTMLElement | undefined
   selectedOrderId.value = id
   openOrderId.value = id
 }
@@ -636,7 +653,13 @@ function resetOrderFilter() {
                 <p>{{ post.body.trim() || '填写正文后，即可在这里检查内容与段落。' }}</p>
               </aside>
             </div>
-            <p v-if="postSaved && !postDirty" role="status" class="demo-success-note">
+            <p
+              v-if="postSaved && !postDirty"
+              ref="postReceipt"
+              role="status"
+              tabindex="-1"
+              class="demo-success-note"
+            >
               <NovaIcon name="check" />{{ postSaved }}
             </p>
             <p v-else class="demo-scene-meta demo-editor-status">
@@ -697,7 +720,15 @@ function resetOrderFilter() {
                     </select></label
                   >
                 </div>
-                <p v-if="commentNote" role="status" class="demo-success-note">{{ commentNote }}</p>
+                <p
+                  v-if="commentNote"
+                  ref="commentReceipt"
+                  role="status"
+                  tabindex="-1"
+                  class="demo-success-note"
+                >
+                  {{ commentNote }}
+                </p>
                 <ul class="demo-comment-list">
                   <li
                     v-for="comment in sortedComments"
@@ -816,7 +847,7 @@ function resetOrderFilter() {
                       :variant="order.status === 'pending' ? 'primary' : 'secondary'"
                       :data-order-id="order.id"
                       :aria-label="`${order.status === 'pending' ? '查看并支付' : '查看详情'}订单 ${order.id}`"
-                      @click="openOrder(order.id)"
+                      @click="openOrder(order.id, $event)"
                       >{{ order.status === 'pending' ? '查看并支付' : '查看详情' }}</NovaButton
                     >
                   </div>
@@ -876,7 +907,7 @@ function resetOrderFilter() {
                 </div>
                 <NovaButton
                   :variant="inspectedOrder.status === 'pending' ? 'primary' : 'secondary'"
-                  @click="openOrder(inspectedOrder.id)"
+                  @click="openOrder(inspectedOrder.id, $event)"
                   >打开订单详情<NovaIcon name="chevron" :size="16"
                 /></NovaButton>
                 <p class="demo-scene-meta">列表与摘要状态同步更新。</p>
@@ -884,6 +915,7 @@ function resetOrderFilter() {
             </div>
             <NovaDialog
               v-if="activeOrder"
+              :return-focus="orderTrigger"
               :open="true"
               :title="`订单详情 ${activeOrder.id}`"
               @close="openOrderId = ''"

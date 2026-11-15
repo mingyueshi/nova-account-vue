@@ -91,6 +91,69 @@ describe('useAuthFlow', () => {
     expect(flow.challengeOpen.value).toBe(false)
   })
 
+  it('returns a rejected password login to the form and requests a fresh proof on retry', async () => {
+    const adapter = createAdapter(),
+      authenticated = vi.fn(),
+      flow = setup(adapter, { onAuthenticated: authenticated })
+    adapter.login.mockRejectedValueOnce(new Error('Incorrect password'))
+    await flow.submit()
+    await flow.verifyChallenge({ value: 100 })
+    expect(flow.challengeOpen.value).toBe(false)
+    expect(flow.challenge.value).toBe(null)
+    expect(flow.challengeError.value).toBe('')
+    expect(flow.error.value).toBe('Incorrect password')
+    expect(flow.busy.value).toBe(false)
+    expect(flow.fields.email).toBe('person@example.test')
+    expect(flow.fields.password).toBe('a-secret-password')
+    expect(authenticated).not.toHaveBeenCalled()
+
+    flow.fields.password = 'corrected-password'
+    await flow.submit()
+    expect(flow.error.value).toBe('')
+    expect(adapter.challenge).toHaveBeenCalledTimes(2)
+    expect(adapter.login).toHaveBeenCalledTimes(1)
+    await flow.verifyChallenge({ value: 100 })
+    expect(adapter.verifyCaptcha).toHaveBeenCalledTimes(2)
+    expect(adapter.login.mock.calls[1]?.[0]).toMatchObject({
+      method: 'password',
+      password: 'corrected-password',
+    })
+    expect(authenticated).toHaveBeenCalledExactlyOnceWith(user)
+  })
+
+  it('keeps captcha verification errors in the challenge without attempting login', async () => {
+    const adapter = createAdapter(),
+      flow = setup(adapter)
+    adapter.verifyCaptcha.mockRejectedValueOnce(new Error('Verification failed'))
+    await flow.submit()
+    await flow.verifyChallenge({ value: 100 })
+    expect(flow.challengeOpen.value).toBe(true)
+    expect(flow.challengeError.value).toBe('Verification failed')
+    expect(flow.error.value).toBe('')
+    expect(adapter.login).not.toHaveBeenCalled()
+    expect(flow.busy.value).toBe(false)
+    await flow.verifyChallenge({ value: 100 })
+    expect(flow.challengeOpen.value).toBe(false)
+    expect(adapter.login).toHaveBeenCalledTimes(1)
+  })
+
+  it('ignores a password rejection after the challenge is cancelled', async () => {
+    const adapter = createAdapter(),
+      pending = deferred<AuthResult>(),
+      flow = setup(adapter)
+    adapter.login.mockReturnValueOnce(pending.promise)
+    await flow.submit()
+    const verify = flow.verifyChallenge({ value: 100 })
+    await Promise.resolve()
+    expect(adapter.login).toHaveBeenCalledTimes(1)
+    flow.cancel()
+    pending.reject(new Error('Late password rejection'))
+    await verify
+    expect(flow.error.value).toBe('')
+    expect(flow.challengeError.value).toBe('')
+    expect(flow.challengeOpen.value).toBe(false)
+  })
+
   it.each(['code', 'register', 'reset'] as const)(
     '%s sends code after challenge without a second challenge on submit',
     async (mode) => {

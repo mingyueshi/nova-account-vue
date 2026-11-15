@@ -32,6 +32,8 @@ Avoid presenting mock flows as real authentication or payment, and avoid burying
 - Integrate optional ECharts into account activity and a business data workspace; use one dataset for charts, summaries and exports, with explicit playback and readable tables.
 - Use the locally bundled open-source Lucide icons consistently, with an account-integrated searchable icon gallery and reusable NovaIcon API.
 
+- On phones, use readable native text controls, keep modal actions reachable while content scrolls, account for bottom safe areas, and preserve drafts and useful focus through validation, save and cancel flows.
+
 ## Accessibility & Inclusion
 
 Preserve the existing keyboard, semantic form, responsive layout and accessible-dialog patterns. Support narrow viewports and reduced motion. Automated accessibility checks complement browser verification.

@@ -41,6 +41,8 @@ interface MutationContext extends RequestContext {
 
 密码登录：challenge → verify → login。其他三流程：challenge → verify → sendCode，之后 code-login / register / verifyResetCode→resetPassword **不无条件重复 captcha**。服务端仍可拒绝过期/绑定错误等结果；额外风控流程由接入方明确设计。
 
+密码登录的 `login` 请求失败时关闭验证弹窗，将错误显示并聚焦在登录表单，保留账号和密码供修改；再次提交会请求新的 challenge/proof。`verifyCaptcha` 失败或验证凭证无效时，错误仍留在验证弹窗中，不调用登录请求。取消后的迟到失败不会写回表单。
+
 认证前端校验只覆盖邮箱形态、必填字段、长度上限、同意条款与确认密码一致。密码规则、邮箱所有权、注册资格、强度与真实认证必须由服务端执行；本库不宣称自动满足任何密码政策。
 
 ## 账户接口
@@ -116,8 +118,8 @@ SSR采用确定性初始light（或显式传入mode）；system和storage在onMo
 
 - `NovaButton`：variant primary/secondary/ghost，type，disabled，busy；普通 attrs/listeners透传。
 - `NovaField`：string v-model，label，as（input/textarea，默认input），type，maxlength，error，hint，autocomplete，disabled；prefix/suffix slots；支持宿主 id，未传时按实例生成；宿主 aria-describedby 与提示/错误 id 合并；attrs作用于实际input/textarea。原生 maxlength 以 UTF-16 code units 计数。
-- `NovaDialog`：open/title，close event，default/footer slots；原生dialog焦点约束、Esc请求关闭、回焦。无浏览器的SSR不调用DOM。
-- `NovaCaptcha`：challenge,busy,error,simulated；submit(response),retry事件。`simulated` 保留为兼容输入，不再显示静态演示说明。44px 中性手柄与验证条进度联动，从手柄开始拖动，到末端释放才提交 `{value:100}`；中途释放保留位置，取消、换题或进入忙态会终止当前手势。键盘End只移动，Enter明确提交；拖动和键盘说明保留为屏幕阅读器文本，错误按需显示，控件不是安全校验器。
+- `NovaDialog`：open/title、可选 `returnFocus?:HTMLElement|null`，close event，default/footer slots；原生dialog焦点约束、Esc请求关闭、回焦。标题与 footer 不随正文滚动，长内容在 `.nova-dialog-body` 内滚动，并约束滚动串联。默认标题获得初始焦点；关闭回焦不主动滚动底层页面；`returnFocus` 可显式指定仍存在的触发按钮，适用于 WebKit 点击按钮不自动聚焦的情况，未提供时记录打开前的活动元素。默认 slot 内的表单若通过 footer 提交按钮提交，应使用原生 `form="表单id"` 关联。无浏览器的SSR不调用DOM。
+- `NovaCaptcha`：challenge,busy,error,simulated；submit(response),retry事件。`simulated` 保留为兼容输入，不再显示静态演示说明。44px 主题色手柄与浅色进度联动，键盘聚焦时短暂引导方向，拖动提供高光与按压反馈，忙态显示处理动画；支持深色主题与 `prefers-reduced-motion`，手柄位置不添加延迟过渡。从手柄开始拖动，到末端释放才提交 `{value:100}`；中途释放保留位置，取消、换题或进入忙态会终止当前手势。键盘End只移动，Enter明确提交；到达末端不表示服务端已通过验证。拖动和键盘说明保留为屏幕阅读器文本，错误按需显示并设置 `aria-invalid`，控件不是安全校验器。
 
 ## 生命周期与隐私
 

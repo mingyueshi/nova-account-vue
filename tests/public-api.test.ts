@@ -190,6 +190,25 @@ describe('field and auth presentation extensions', () => {
 })
 
 describe('dialog native close sequencing', () => {
+  it('restores an explicit trigger even when it was not focused when opening', async () => {
+    const trigger = document.createElement('button')
+    const other = document.createElement('input')
+    document.body.append(trigger, other)
+    other.focus()
+    const wrapper = mount(NovaDialog, {
+      attachTo: document.body,
+      props: { open: true, title: 'Return', returnFocus: trigger },
+    })
+    wrappers.push(wrapper)
+    await flushPromises()
+    await wrapper.setProps({ open: false })
+    expect(document.activeElement).toBe(trigger)
+    await wrapper.setProps({ open: true })
+    trigger.remove()
+    await wrapper.setProps({ open: false })
+    expect(document.activeElement).not.toBe(trigger)
+    other.remove()
+  })
   it('ignores a delayed close event after reopening and reports a real external close', async () => {
     const wrapper = mount(NovaDialog, {
       attachTo: document.body,

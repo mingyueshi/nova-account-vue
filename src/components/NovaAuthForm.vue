@@ -128,6 +128,13 @@ const strength = computed(() => {
   }
 })
 const inputBlocked = computed(() => busy.value || challengeOpen.value)
+watch(error, async (value) => {
+  if (value) {
+    // A failed password login must release native dialog modality before focusing the form.
+    await nextTick()
+    errorSummary.value?.focus()
+  }
+})
 watch(
   delivery,
   async (result) => {
@@ -188,7 +195,6 @@ async function submit() {
   await nextTick()
   const invalid = form.value?.querySelector<HTMLElement>('[aria-invalid="true"]')
   if (invalid) invalid.focus()
-  else if (error.value) errorSummary.value?.focus({ preventScroll: true })
 }
 async function requestCode() {
   if (!activeMode.value) return

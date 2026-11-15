@@ -131,6 +131,33 @@ test.afterEach(async ({ page }) => {
   expect(runtimeErrors.get(page)).toEqual([])
 })
 
+for (const width of [320, 1440]) {
+  test(`password rejection returns to the login form and permits correction at ${width}px`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height: width === 320 ? 568 : 900 })
+    await fillLogin(page, 'demo@demo.com', 'wrong-password')
+    await page.locator('form button[type="submit"]').click()
+    await verify(page)
+    const form = page.locator('form')
+    const error = form.getByRole('alert')
+    await expect(error).toContainText('账号或密码不正确')
+    await expect(error).toBeFocused()
+    await expect(error).toBeInViewport()
+    await expect(form.locator('input[autocomplete="email"]')).toHaveValue('demo@demo.com')
+    await expect(form.locator('input[autocomplete="current-password"]')).toHaveValue(
+      'wrong-password',
+    )
+    await expect(page.locator('[data-nova-account-center]')).not.toBeVisible()
+
+    await form.locator('input[autocomplete="current-password"]').fill('123456')
+    await form.locator('button[type="submit"]').click()
+    await expect(page.getByRole('dialog', { name: '安全验证', exact: true })).toBeVisible()
+    await verify(page)
+    await expect(page.locator('[data-nova-account-center]')).toBeVisible()
+  })
+}
+
 test('password sign-in, keyboard slider, profile save, messages and device confirmation', async ({
   page,
 }) => {
@@ -589,12 +616,9 @@ test('TOTP security slot enables two-step; the danger zone returns to the auth p
   await expect(page.getByRole('heading', { name: '欢迎回来', exact: true })).toBeVisible()
   await fillLogin(page)
   await page.getByRole('button', { name: '登录', exact: true }).click()
-  const challenge = page.getByRole('dialog', { name: '安全验证', exact: true })
-  const slider = challenge.getByRole('slider')
-  await expect(slider).toBeEnabled()
-  await slider.press('End')
-  await slider.press('Enter')
-  await expect(challenge.getByRole('alert')).toContainText('账号或密码不正确')
+  await verify(page)
+  await expect(page.locator('form').getByRole('alert')).toContainText('账号或密码不正确')
+  await expect(page.locator('form').getByRole('alert')).toBeFocused()
   await expect(page.locator('[data-nova-account-center]')).not.toBeVisible()
 })
 

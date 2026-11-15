@@ -18,6 +18,9 @@ import NovaIcon from './NovaIcon.vue'
 
 const { t, formatTime } = useNovaLocale()
 const mobileNavId = useId()
+const securityFormId = useId()
+const dialogTrigger = ref<HTMLElement>()
+const nicknameInvalid = ref(false)
 const props = withDefaults(
   defineProps<{
     adapter: AccountAdapter
@@ -265,7 +268,7 @@ function onMobileNavigation(event: Event) {
   const select = event.target as HTMLSelectElement
   const target = select.value as AccountPage
   select.value = page.value ?? ''
-  requestNavigation(target)
+  requestNavigation(target, event)
 }
 const navigationGroups = computed(() => {
   const groups: { label: string; tabs: typeof visibleTabs.value }[] = []
@@ -277,10 +280,11 @@ const navigationGroups = computed(() => {
   }
   return groups
 })
-function requestNavigation(target: AccountPage | 'logout') {
+function requestNavigation(target: AccountPage | 'logout', event?: Event) {
   if (target !== 'logout' && !isPageAvailable(target)) return
   if (target === page.value) return
   if (target === 'logout' ? hasDrafts.value : dirty.value) {
+    dialogTrigger.value = event?.currentTarget as HTMLElement | undefined
     queued.value = target
     return
   }
@@ -311,13 +315,36 @@ function discardDraft() {
   cancel()
   syncDrafts(page.value === 'profile' ? 'profile' : 'notifications')
 }
+watch(
+  () => profile.nickname,
+  () => {
+    nicknameInvalid.value = false
+  },
+)
+async function focusFeedback(root: HTMLElement | undefined, saved = false) {
+  await nextTick()
+  if (!saved || root?.ownerDocument.activeElement === root?.ownerDocument.body)
+    root
+      ?.querySelector<HTMLElement>(
+        saved ? '[data-account-savebar] [role=status]' : '[role=alert][tabindex]',
+      )
+      ?.focus()
+}
 async function saveProfile() {
   if (!dirty.value) return
+  if (!profile.nickname.trim()) {
+    nicknameInvalid.value = true
+    await nextTick()
+    content.value?.querySelector<HTMLElement>('input[autocomplete="nickname"]')?.focus()
+    return
+  }
   const result = await mutate(
     (context) => props.adapter.updateProfile({ ...profile }, context),
     props.simulated ? t('profile.demoSaved') : t('profile.saved'),
   )
   if (result) syncDrafts('profile')
+  if (page.value === 'profile' && (result || error.value))
+    await focusFeedback(content.value, !!result)
 }
 /** Optional adapter capability: an avatar uploader appears in the profile page when present. */
 const canUploadAvatar = computed(() => typeof props.adapter.uploadAvatar === 'function')
@@ -410,6 +437,8 @@ async function saveNotifications() {
     props.simulated ? t('notifications.demoSaved') : t('notifications.saved'),
   )
   if (result) syncDrafts('notifications')
+  if (page.value === 'notifications' && (result || error.value))
+    await focusFeedback(content.value, !!result)
 }
 const messageFilter = ref<'all' | 'unread'>('all')
 const visibleMessages = computed(
@@ -448,8 +477,13 @@ async function markRead(messageId: string, event?: Event) {
         )
   ;(target ?? heading.value)?.focus({ preventScroll: true })
 }
-function openMessage(messageId: string) {
+function openMessageDialog(event: Event) {
+  dialogTrigger.value = event.currentTarget as HTMLElement
+  modal.value = 'message'
+}
+function openMessage(messageId: string, event?: Event) {
   if (!snapshot.value?.messages.some((message) => message.id === messageId)) return
+  dialogTrigger.value = event?.currentTarget as HTMLElement | undefined
   modalEpoch++
   selectedMessageId.value = messageId
   if (!readerWide.value) modal.value = 'message'
@@ -538,7 +572,8 @@ watch(
   },
   { flush: 'sync' },
 )
-function openModal(kind: Modal, targetDevice = '') {
+function openModal(kind: Modal, targetDevice = '', event?: Event) {
+  dialogTrigger.value = event?.currentTarget as HTMLElement | undefined
   modalEpoch++
   cancel()
   clearSecurity()
@@ -584,7 +619,10 @@ async function sendEmailCode() {
   ) {
     codeSent.value = true
     demoCode.value = props.simulated ? (result.demoCode ?? '') : ''
-  }
+    await nextTick()
+    if (epoch === modalEpoch)
+      securityForm.value?.querySelector<HTMLElement>('[autocomplete="one-time-code"]')?.focus()
+  } else if (epoch === modalEpoch && error.value) await focusFeedback(securityForm.value)
 }
 async function submitSecurity() {
   if (busy.value) return
@@ -640,6 +678,7 @@ async function submitSecurity() {
       props.simulated ? t('devices.demoAllRevoked') : t('devices.allRevoked'),
     )
   if (result && epoch === modalEpoch) closeModal()
+  else if (epoch === modalEpoch && error.value) await focusFeedback(securityForm.value)
 }
 watch(
   selectedMessage,
@@ -718,7 +757,7 @@ defineExpose({ refresh, fillSecurity })
         <NovaButton
           variant="ghost"
           :aria-label="t('account.logout')"
-          @click="requestNavigation('logout')"
+          @click="requestNavigation('logout', $event)"
           ><NovaIcon name="logout"
         /></NovaButton>
       </div>
@@ -744,7 +783,7 @@ defineExpose({ refresh, fillSecurity })
                 ? 'na:bg-[var(--na-soft)] na:font-medium na:text-[var(--na-brand)]'
                 : 'na:bg-transparent na:text-[var(--na-muted)]'
             "
-            @click="requestNavigation(tab.id)"
+            @click="requestNavigation(tab.id, $event)"
           >
             <NovaIcon :name="tab.id" :fallback="tab.symbol" class="na:shrink-0" />
             <span>{{ tab.label }}</span
@@ -760,7 +799,7 @@ defineExpose({ refresh, fillSecurity })
         <button
           type="button"
           class="na:shrink-0 na:rounded-xl na:border-0 na:bg-transparent na:px-4 na:py-3 na:text-left na:text-sm na:text-[var(--na-muted)] na:hover:bg-[var(--na-soft)] na:md:mt-6 na:md:border-t na:md:border-[var(--na-line)]"
-          @click="requestNavigation('logout')"
+          @click="requestNavigation('logout', $event)"
         >
           <NovaIcon name="logout" :size="18" />{{ t('account.logout') }}
         </button>
@@ -803,6 +842,8 @@ defineExpose({ refresh, fillSecurity })
         </header>
         <div
           v-if="error && !modal"
+          data-account-error
+          tabindex="-1"
           role="alert"
           class="na:mb-5 na:rounded-xl na:border na:border-[var(--na-error)] na:p-4 na:text-sm na:text-[var(--na-error)]"
         >
@@ -857,7 +898,7 @@ defineExpose({ refresh, fillSecurity })
                 <NovaButton
                   v-if="isPageAvailable('profile')"
                   variant="secondary"
-                  @click="requestNavigation('profile')"
+                  @click="requestNavigation('profile', $event)"
                   >{{ t('account.editProfile') }}</NovaButton
                 >
               </div>
@@ -872,7 +913,7 @@ defineExpose({ refresh, fillSecurity })
                   type="button"
                   :class="panel"
                   class="na:flex na:items-center na:gap-4 na:text-left na:hover:border-[var(--na-brand)]"
-                  @click="requestNavigation(tab.id)"
+                  @click="requestNavigation(tab.id, $event)"
                 >
                   <NovaIcon :name="tab.id" class="na:shrink-0 na:text-[var(--na-brand)]" />
                   <div>
@@ -1036,6 +1077,7 @@ defineExpose({ refresh, fillSecurity })
                         :label="t('profile.nickname')"
                         :maxlength="24"
                         autocomplete="nickname"
+                        :error="nicknameInvalid ? t('profile.nicknameRequired') : undefined"
                         :hint="t('profile.count', { count: profile.nickname.length, max: 24 })"
                         :disabled="busy"
                       />
@@ -1063,7 +1105,11 @@ defineExpose({ refresh, fillSecurity })
                   data-account-savebar
                   class="na:flex na:flex-wrap na:items-center na:justify-between na:gap-4"
                 >
-                  <p role="status" class="na:m-0 na:text-xs na:text-[var(--na-muted)]">
+                  <p
+                    role="status"
+                    tabindex="-1"
+                    class="na:m-0 na:text-xs na:text-[var(--na-muted)]"
+                  >
                     {{ dirty ? t('profile.dirty') : t('profile.clean') }}
                   </p>
                   <div class="na:flex na:gap-3">
@@ -1106,7 +1152,7 @@ defineExpose({ refresh, fillSecurity })
                       v-if="simulated"
                       variant="secondary"
                       :disabled="busy"
-                      @click="openModal('password')"
+                      @click="openModal('password', '', $event)"
                       >{{ t('common.edit') }}</NovaButton
                     >
                   </div>
@@ -1125,7 +1171,7 @@ defineExpose({ refresh, fillSecurity })
                       v-if="simulated"
                       variant="secondary"
                       :disabled="busy"
-                      @click="openModal('email')"
+                      @click="openModal('email', '', $event)"
                       >{{ t('common.change') }}</NovaButton
                     >
                   </div>
@@ -1149,7 +1195,7 @@ defineExpose({ refresh, fillSecurity })
                       v-if="simulated"
                       variant="secondary"
                       :disabled="busy"
-                      @click="openModal('twoStep')"
+                      @click="openModal('twoStep', '', $event)"
                       >{{
                         snapshot.security.twoStepEnabled ? t('common.close') : t('common.enable')
                       }}</NovaButton
@@ -1235,7 +1281,7 @@ defineExpose({ refresh, fillSecurity })
                 <NovaButton
                   variant="secondary"
                   :disabled="busy || !snapshot.devices.some((device) => !device.current)"
-                  @click="openModal('revokeAll')"
+                  @click="openModal('revokeAll', '', $event)"
                   >{{ t('devices.revokeAll') }}</NovaButton
                 >
               </div>
@@ -1272,7 +1318,7 @@ defineExpose({ refresh, fillSecurity })
                     variant="ghost"
                     :disabled="busy"
                     :aria-label="t('devices.revokeLabel', { name: device.name })"
-                    @click="openModal('revoke', device.id)"
+                    @click="openModal('revoke', device.id, $event)"
                     >{{ t('devices.revoke') }}</NovaButton
                   >
                 </article>
@@ -1352,7 +1398,7 @@ defineExpose({ refresh, fillSecurity })
               data-account-savebar
               class="na:flex na:flex-wrap na:items-center na:justify-between na:gap-4"
             >
-              <p role="status" class="na:m-0 na:text-xs na:text-[var(--na-muted)]">
+              <p role="status" tabindex="-1" class="na:m-0 na:text-xs na:text-[var(--na-muted)]">
                 {{ dirty ? t('profile.dirty') : t('profile.clean') }}
               </p>
               <div class="na:flex na:gap-3">
@@ -1418,7 +1464,7 @@ defineExpose({ refresh, fillSecurity })
                     :disabled="busy"
                     :data-message-open="message.id"
                     class="na:min-w-36 na:flex-1 na:border-0 na:bg-transparent na:p-0 na:text-left"
-                    @click="openMessage(message.id)"
+                    @click="openMessage(message.id, $event)"
                   >
                     <span class="na:sr-only"
                       >{{ message.read ? t('messages.read') : t('messages.unread') }}:
@@ -1479,7 +1525,7 @@ defineExpose({ refresh, fillSecurity })
                   >
                     {{ selectedMessage.body }}
                   </p>
-                  <NovaButton variant="ghost" @click="modal = 'message'">{{
+                  <NovaButton variant="ghost" @click="openMessageDialog($event)">{{
                     t('messages.openDialog')
                   }}</NovaButton></template
                 >
@@ -1509,16 +1555,28 @@ defineExpose({ refresh, fillSecurity })
       </div>
     </main>
 
-    <NovaDialog :open="queued !== null" :title="t('guard.title')" @close="queued = null"
-      ><p :class="muted">{{ t('guard.description') }}</p>
-      <div class="na:mt-6 na:flex na:flex-wrap na:justify-end na:gap-3">
-        <NovaButton variant="secondary" @click="queued = null">{{ t('guard.stay') }}</NovaButton
-        ><NovaButton variant="primary" @click="discardAndNavigate">{{
-          t('guard.leave')
-        }}</NovaButton>
-      </div></NovaDialog
+    <NovaDialog
+      :return-focus="dialogTrigger"
+      :open="queued !== null"
+      :title="t('guard.title')"
+      @close="queued = null"
     >
-    <NovaDialog :open="modal !== null" :title="modalTitle" @close="closeModal">
+      <p :class="muted">{{ t('guard.description') }}</p>
+      <template #footer>
+        <div class="na:flex na:flex-wrap na:justify-end na:gap-3">
+          <NovaButton variant="secondary" @click="queued = null">{{ t('guard.stay') }}</NovaButton>
+          <NovaButton variant="primary" @click="discardAndNavigate">{{
+            t('guard.leave')
+          }}</NovaButton>
+        </div>
+      </template>
+    </NovaDialog>
+    <NovaDialog
+      :return-focus="dialogTrigger"
+      :open="modal !== null"
+      :title="modalTitle"
+      @close="closeModal"
+    >
       <template v-if="modal === 'message' && selectedMessage"
         ><p class="na:mt-0 na:text-xs na:text-[var(--na-muted)]">
           {{ formatTime(selectedMessage.createdAt) }}
@@ -1532,6 +1590,7 @@ defineExpose({ refresh, fillSecurity })
       >
       <form
         v-else-if="modal && modal !== 'message'"
+        :id="securityFormId"
         ref="securityForm"
         class="na:space-y-4"
         novalidate
@@ -1546,7 +1605,7 @@ defineExpose({ refresh, fillSecurity })
             :error="securityErrors.currentPassword ? t(securityErrors.currentPassword) : undefined"
             :label="t('security.currentPassword')"
             type="password"
-            autocomplete="off"
+            autocomplete="current-password"
             :disabled="busy"
           />
           <template v-if="modal === 'password'"
@@ -1555,7 +1614,7 @@ defineExpose({ refresh, fillSecurity })
               :error="securityErrors.newPassword ? t(securityErrors.newPassword) : undefined"
               :label="t('auth.newPassword')"
               type="password"
-              autocomplete="off"
+              autocomplete="new-password"
               :disabled="busy" /><NovaField
               v-model="securityValues.confirmPassword"
               :error="
@@ -1563,7 +1622,7 @@ defineExpose({ refresh, fillSecurity })
               "
               :label="t('auth.confirmPassword')"
               type="password"
-              autocomplete="off"
+              autocomplete="new-password"
               :disabled="busy"
           /></template>
           <template v-if="modal === 'email'"
@@ -1572,26 +1631,27 @@ defineExpose({ refresh, fillSecurity })
               :error="securityErrors.email ? t(securityErrors.email) : undefined"
               :label="t('security.newEmail')"
               type="email"
-              autocomplete="off"
+              autocomplete="email"
               :disabled="busy"
             />
-            <div class="na:flex na:items-end na:gap-3">
-              <div class="na:min-w-0 na:flex-1">
-                <NovaField
-                  v-model="securityValues.code"
-                  :label="t('security.emailCode')"
-                  :maxlength="6"
-                  autocomplete="off"
-                  :disabled="busy || !codeSent"
-                />
-              </div>
-              <NovaButton
-                variant="secondary"
-                :disabled="busy || !securityValues.email || !securityValues.currentPassword"
-                @click="sendEmailCode"
-                >{{ busy ? t('common.processingShort') : t('security.getDemoCode') }}</NovaButton
-              >
-            </div>
+            <NovaField
+              v-model="securityValues.code"
+              :label="t('security.emailCode')"
+              :maxlength="6"
+              inputmode="numeric"
+              autocomplete="one-time-code"
+              :disabled="busy || !codeSent"
+            >
+              <template #suffix>
+                <NovaButton
+                  variant="ghost"
+                  class="na:shrink-0 na:px-2 na:py-1 na:text-xs"
+                  :disabled="busy || !securityValues.email || !securityValues.currentPassword"
+                  @click="sendEmailCode"
+                  >{{ busy ? t('common.processingShort') : t('security.getDemoCode') }}</NovaButton
+                >
+              </template>
+            </NovaField>
             <p v-if="codeSent" role="status" :class="muted">
               {{ demoCode ? t('security.demoCode', { code: demoCode }) : t('security.codeSent') }}
             </p></template
@@ -1605,7 +1665,7 @@ defineExpose({ refresh, fillSecurity })
               :label="t('security.confirmationCode')"
               :maxlength="6"
               inputmode="numeric"
-              autocomplete="off"
+              autocomplete="one-time-code"
               :disabled="busy"
           /></template>
           <slot name="securityFormTools" :fill="fillSecurity" />
@@ -1613,12 +1673,17 @@ defineExpose({ refresh, fillSecurity })
         <p v-else :class="muted">
           {{ modal === 'revokeAll' ? t('devices.keepCurrent') : t('devices.confirmSession') }}
         </p>
-        <p v-if="error" role="alert" class="na:text-sm na:text-[var(--na-error)]">{{ error }}</p>
+        <p v-if="error" role="alert" tabindex="-1" class="na:text-sm na:text-[var(--na-error)]">
+          {{ error }}
+        </p>
+      </form>
+      <template v-if="modal && modal !== 'message'" #footer>
         <div class="na:flex na:justify-end na:gap-3 na:pt-2">
           <NovaButton variant="secondary" @click="closeModal">{{ t('common.cancel') }}</NovaButton
           ><NovaButton
             variant="primary"
             type="submit"
+            :form="securityFormId"
             :disabled="busy || (modal === 'email' && !codeSent)"
             >{{
               busy
@@ -1629,7 +1694,7 @@ defineExpose({ refresh, fillSecurity })
             }}</NovaButton
           >
         </div>
-      </form>
+      </template>
     </NovaDialog>
   </div>
 </template>

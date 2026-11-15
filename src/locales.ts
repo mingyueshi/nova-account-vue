@@ -172,6 +172,7 @@ export const zhCN = Object.freeze({
   'profile.avatars': '预设头像',
   'profile.details': '基本资料',
   'profile.nickname': '昵称',
+  'profile.nicknameRequired': '请输入昵称。',
   'profile.bio': '个人简介',
   'profile.count': '{count} / {max} 字符',
   'profile.demo': '请只填写虚构资料。头像仅保存在本页内存，不发送到服务器。',
@@ -428,6 +429,7 @@ export const enUS: Readonly<NovaMessages> = Object.freeze({
   'profile.avatars': 'Preset avatars',
   'profile.details': 'Profile details',
   'profile.nickname': 'Nickname',
+  'profile.nicknameRequired': 'Enter a nickname.',
   'profile.bio': 'Bio',
   'profile.count': '{count} / {max} characters',
   'profile.demo':

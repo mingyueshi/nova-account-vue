@@ -15,12 +15,13 @@ const core = graph('nova-account.js')
 const chart = graph('charts.js')
 const total = (files) => [...files.values()].reduce((sum, value) => sum + value, 0)
 const checks = [
-  ['account JS including shared chunks', total(core), 40 * 1024],
+  // Allow 256 bytes for auth error routing/focus while retaining the shared-chunk cap.
+  ['account JS including shared chunks', total(core), 40.25 * 1024],
   [
     'account CSS',
     gzipSync(readFileSync(new URL('../dist/nova-account.css', import.meta.url))).byteLength,
-    // Includes the cross-browser CAPTCHA track/thumb styles (512-byte allowance).
-    6.5 * 1024,
+    // Includes the scoped CAPTCHA track/thumb and reduced-motion state animations.
+    7 * 1024,
   ],
   [
     'optional chart JS beyond the account graph',
