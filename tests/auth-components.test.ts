@@ -157,7 +157,9 @@ describe('authentication components', () => {
     wrapper.vm.fill({ password: 'Secret draft' })
     await flushPromises()
     const toggle = () =>
-      wrapper.findAll('button').find((item) => /显示密码|隐藏密码/.test(item.text()))!
+      wrapper
+        .findAll('button')
+        .find((item) => /显示密码|隐藏密码/.test(item.attributes('aria-label') ?? ''))!
     await toggle().trigger('click')
     expect(wrapper.get('input[autocomplete="current-password"]').attributes('type')).toBe('text')
     await toggle().trigger('click')
@@ -166,6 +168,152 @@ describe('authentication components', () => {
     )
     expect(wrapper.find('[role="tablist"]').exists()).toBe(false)
     expect(service.challenge).not.toHaveBeenCalled()
+  })
+
+  it('advances through credential inputs without submitting or interrupting composition', async () => {
+    const service = adapter()
+    const wrapper = mount(NovaAuthForm, { attachTo: document.body, props: { adapter: service } })
+    wrappers.push(wrapper)
+    wrapper.vm.setMode('register')
+    await flushPromises()
+    const email = wrapper.get('input[type="email"]')
+    const password = wrapper.get('input[autocomplete="new-password"]')
+    const code = wrapper.get('input[autocomplete="one-time-code"]')
+    expect(email.attributes()).toMatchObject({
+      autocapitalize: 'none',
+      spellcheck: 'false',
+      inputmode: 'email',
+      enterkeyhint: 'next',
+    })
+    ;(email.element as HTMLInputElement).focus()
+    await email.trigger('keydown', { key: 'Enter', isComposing: true })
+    expect(document.activeElement).toBe(email.element)
+    await email.trigger('keydown', { key: 'Enter' })
+    expect(document.activeElement).toBe(password.element)
+    await password.trigger('keydown', { key: 'Enter' })
+    expect(document.activeElement).toBe(code.element)
+    expect(service.challenge).not.toHaveBeenCalled()
+    expect(wrapper.find('form [role="alert"]').exists()).toBe(false)
+    wrapper.vm.setMode('password')
+    await flushPromises()
+    const final = wrapper.get('input[autocomplete="current-password"]')
+    const event = new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true })
+    final.element.dispatchEvent(event)
+    expect(event.defaultPrevented).toBe(false)
+  })
+
+  it('returns focus to the explicit code trigger on cancellation and announces delivery once', async () => {
+    const wrapper = mount(NovaAuthForm, { attachTo: document.body, props: { adapter: adapter() } })
+    wrappers.push(wrapper)
+    wrapper.vm.setMode('code')
+    wrapper.vm.fill({ email: 'person@example.test' })
+    await flushPromises()
+    const trigger = wrapper.get('[data-request-code]')
+    await trigger.trigger('click')
+    await flushPromises()
+    await wrapper.get('[aria-label="关闭对话框"]').trigger('click')
+    await flushPromises()
+    expect(document.activeElement).toBe(trigger.element)
+    await trigger.trigger('click')
+    await flushPromises()
+    const slider = wrapper.get('input[type="range"]')
+    await slider.setValue(100)
+    await slider.trigger('keydown', { key: 'Enter' })
+    await flushPromises()
+    expect(
+      wrapper
+        .findAll('form [role="status"]')
+        .filter((node) => node.text().includes('验证码已发出')),
+    ).toHaveLength(1)
+    expect(document.activeElement).toBe(wrapper.get('input[autocomplete="one-time-code"]').element)
+    expect(trigger.attributes('disabled')).toBeDefined()
+  })
+
+  it('completes password recovery with retained identity, confirmation feedback and safe focus', async () => {
+    const host = document.createElement('main')
+    host.setAttribute('data-auth-content', '')
+    document.body.append(host)
+    const service = adapter()
+    const wrapper = mount(NovaAuthForm, { attachTo: host, props: { adapter: service } })
+    wrappers.push(wrapper)
+    await wrapper
+      .findAll('button')
+      .find((button) => button.text() === '忘记密码？')!
+      .trigger('click')
+    await flushPromises()
+    await wrapper.get('input[type="email"]').setValue('person@example.test')
+    await wrapper.get('[data-request-code]').trigger('click')
+    await flushPromises()
+    const slider = wrapper.get('input[type="range"]')
+    await slider.setValue(100)
+    await slider.trigger('keydown', { key: 'Enter' })
+    await flushPromises()
+    await wrapper.get('input[autocomplete="one-time-code"]').setValue('123456')
+    await wrapper.get('form').trigger('submit')
+    await flushPromises()
+    const password = wrapper.findAll('input[autocomplete="new-password"]')[0]!
+    const confirm = wrapper.findAll('input[autocomplete="new-password"]')[1]!
+    expect(document.activeElement).toBe(password.element)
+    await password.setValue('new-password')
+    await confirm.setValue('different')
+    await wrapper.get('form').trigger('submit')
+    await flushPromises()
+    expect(document.activeElement).toBe(confirm.element)
+    await confirm.setValue('new-password')
+    expect(wrapper.find('form [role="alert"]').exists()).toBe(false)
+    await wrapper.get('[aria-label="显示密码"]').trigger('pointerdown')
+    await wrapper.get('[aria-label="显示密码"]').trigger('click')
+    expect(confirm.attributes('type')).toBe('text')
+    host.scrollTop = 100
+    await wrapper.get('form').trigger('submit')
+    await flushPromises()
+    expect(wrapper.emitted('reset')).toHaveLength(1)
+    expect(wrapper.get('input[type="email"]').element).toHaveProperty(
+      'value',
+      'person@example.test',
+    )
+    expect(wrapper.get('input[autocomplete="current-password"]').attributes('type')).toBe(
+      'password',
+    )
+    expect(wrapper.get('form [role="status"]').text()).toContain('密码已重置')
+    expect(document.activeElement).toBe(wrapper.get('form [role="status"]').element)
+    expect(host.scrollTop).toBe(0)
+    host.remove()
+  })
+
+  it('keeps registration consent actionable and identifies expired codes before resending', async () => {
+    vi.useFakeTimers({ toFake: ['Date', 'setInterval', 'clearInterval'] })
+    try {
+      const wrapper = mount(NovaAuthForm, {
+        attachTo: document.body,
+        props: { adapter: adapter(), simulated: true },
+      })
+      wrappers.push(wrapper)
+      wrapper.vm.setMode('register')
+      wrapper.vm.fill({ email: 'person@example.test', password: 'secret' })
+      await flushPromises()
+      await wrapper.get('form').trigger('submit')
+      await flushPromises()
+      const consent = wrapper.get('input[type="checkbox"]')
+      expect(consent.attributes('aria-describedby')).toBeDefined()
+      await consent.setValue(true)
+      expect(consent.attributes('aria-describedby')).toBeUndefined()
+      expect(wrapper.find('form [role="alert"]').exists()).toBe(false)
+      await wrapper.get('[data-request-code]').trigger('click')
+      await flushPromises()
+      const slider = wrapper.get('input[type="range"]')
+      await slider.setValue(100)
+      await slider.trigger('keydown', { key: 'Enter' })
+      await flushPromises()
+      expect(wrapper.text()).toContain('演示码 123456')
+      vi.advanceTimersByTime(101_000)
+      await flushPromises()
+      expect(wrapper.get('form span[role="status"]').text()).toContain('已过期')
+      expect(wrapper.get('[data-request-code]').attributes('disabled')).toBeUndefined()
+      expect(wrapper.get('[data-request-code]').text()).toBe('重新获取')
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('focuses the first invalid field, then the global error when the adapter rejects submission', async () => {

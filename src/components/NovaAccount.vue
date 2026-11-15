@@ -271,7 +271,11 @@ defineExpose({
           ><slot name="securityFormTools" v-bind="slotProps"
         /></template>
       </NovaAccountCenter>
-      <main v-else class="na:flex na:min-h-0 na:flex-1 na:overflow-y-auto na:px-5 na:py-10">
+      <main
+        v-else
+        data-auth-content
+        class="na:flex na:min-h-0 na:flex-1 na:overflow-y-auto na:px-5 na:py-10"
+      >
         <div class="na:m-auto na:w-full na:max-w-[352px]">
           <NovaAuthForm
             ref="auth"

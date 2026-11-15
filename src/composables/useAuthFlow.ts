@@ -240,6 +240,40 @@ export function useAuthFlow(
     else if (delivery.value.expiresAt <= now()) fieldMessages.code = () => t('flow.codeExpired')
     return !fieldErrors.code
   }
+  // Revalidate only built-in errors already shown; host messages remain host-owned.
+  watch(
+    () => fields.password,
+    () => {
+      if (typeof fieldMessages.password === 'function') validatePassword()
+      if (typeof fieldMessages.confirmPassword === 'function')
+        fieldMessages.confirmPassword =
+          fields.password === fields.confirmPassword ? '' : () => t('flow.passwordMismatch')
+    },
+    { flush: 'sync' },
+  )
+  watch(
+    () => fields.confirmPassword,
+    () => {
+      if (typeof fieldMessages.confirmPassword === 'function')
+        fieldMessages.confirmPassword =
+          fields.password === fields.confirmPassword ? '' : () => t('flow.passwordMismatch')
+    },
+    { flush: 'sync' },
+  )
+  watch(
+    () => fields.code,
+    () => {
+      if (typeof fieldMessages.code === 'function') validateCode()
+    },
+    { flush: 'sync' },
+  )
+  watch(
+    () => fields.consent,
+    (value) => {
+      if (value && typeof fieldMessages.consent === 'function') fieldMessages.consent = ''
+    },
+    { flush: 'sync' },
+  )
   function message(cause: unknown) {
     return cause instanceof Error ? cause.message : t('common.error')
   }

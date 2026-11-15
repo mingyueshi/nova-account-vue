@@ -503,3 +503,59 @@ label.demo-check {
     padding-inline: 20px;
   }
 }
+
+@media (max-width: 639px) {
+  .demo-single .demo-auth > [data-layout='full'] {
+    position: fixed;
+    inset-inline: 0;
+    top: var(--demo-auth-top, 0px);
+    height: var(--demo-auth-height, 100dvh);
+    background: var(--na-canvas);
+  }
+  .demo-single .demo-auth > [data-layout='full'] > header {
+    min-height: calc(60px + env(safe-area-inset-top, 0px));
+    padding-top: env(safe-area-inset-top, 0px);
+    flex-shrink: 0;
+  }
+  .nova-demo.demo-auth [data-auth-content] {
+    padding: 24px 24px max(20px, env(safe-area-inset-bottom));
+    scroll-padding-block: 16px 88px;
+    overscroll-behavior-y: contain;
+  }
+  .nova-demo.demo-auth [data-auth-content] > div {
+    margin-block: 0;
+  }
+  .nova-demo.demo-auth .nova-auth-form > header {
+    margin-bottom: 24px;
+  }
+  .nova-demo.demo-auth .nova-auth-form > button {
+    margin: 0 0 12px -12px;
+  }
+  .nova-demo.demo-auth .nova-auth-form > [role='tablist'] {
+    margin-bottom: 24px;
+  }
+  .nova-demo.demo-auth .nova-auth-form form {
+    gap: 20px;
+  }
+  .nova-demo.demo-auth .nova-auth-actions {
+    position: var(--demo-auth-actions-position, static);
+    bottom: 0;
+    z-index: 1;
+    padding-block: 8px;
+    background: var(--na-canvas);
+  }
+  .nova-demo.demo-auth .nova-auth-actions > button {
+    min-height: 48px;
+    margin: 0;
+  }
+  .nova-demo.demo-auth .nova-auth-form > p {
+    margin-top: 12px;
+  }
+  .demo-single .demo-auth:has(> [data-layout='full']) .nova-dialog {
+    top: calc(var(--demo-auth-top, 0px) + var(--demo-auth-height, 100dvh) / 2);
+    bottom: auto;
+    margin-block: 0;
+    transform: translateY(-50%);
+    max-height: calc(var(--demo-auth-height, 100dvh) - 32px);
+  }
+}

@@ -10,6 +10,8 @@ import {
   Clock,
   CodeXml,
   Copy,
+  Eye,
+  EyeOff,
   FilePenLine,
   FileText,
   LayoutDashboard,
@@ -42,6 +44,8 @@ import {
 
 // Static imports keep unused Lucide icons out of the distributed library.
 const components: Record<string, Component> = {
+  eye: Eye,
+  'eye-off': EyeOff,
   charts: ChartLine,
   back: ArrowLeft,
   forward: ArrowRight,

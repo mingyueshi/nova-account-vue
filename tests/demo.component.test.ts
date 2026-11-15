@@ -12,6 +12,7 @@ afterEach(() => {
   wrappers.splice(0).forEach((wrapper) => wrapper.unmount())
   vi.useRealTimers()
   vi.restoreAllMocks()
+  vi.unstubAllGlobals()
   localStorage.clear()
 })
 function create() {
@@ -59,6 +60,39 @@ async function hostPanel(wrapper: VueWrapper) {
   await flushPromises()
   return wrapper.get('[data-demo-integration]')
 }
+
+it('tracks keyboard viewport height and pan, leaves pinch zoom native, and removes listeners', async () => {
+  const viewport = Object.assign(new EventTarget(), { height: 844, offsetTop: 0, scale: 1 })
+  vi.stubGlobal('visualViewport', viewport)
+  const remove = vi.spyOn(viewport, 'removeEventListener')
+  const wrapper = create()
+  await flushPromises()
+  const root = wrapper.get('.demo-single .nova-demo').element as HTMLElement
+  expect(root.style.getPropertyValue('--demo-auth-height')).toBe('844px')
+  viewport.height = 360
+  viewport.dispatchEvent(new Event('resize'))
+  await flushPromises()
+  expect(root.style.getPropertyValue('--demo-auth-height')).toBe('360px')
+  viewport.offsetTop = 80
+  viewport.dispatchEvent(new Event('scroll'))
+  await flushPromises()
+  expect(root.style.getPropertyValue('--demo-auth-top')).toBe('80px')
+  viewport.scale = 2
+  viewport.height = 180
+  viewport.dispatchEvent(new Event('resize'))
+  await flushPromises()
+  expect(root.style.getPropertyValue('--demo-auth-height')).toBe('360px')
+  viewport.scale = 1
+  viewport.height = 844
+  viewport.offsetTop = 0
+  viewport.dispatchEvent(new Event('resize'))
+  await flushPromises()
+  expect(root.style.getPropertyValue('--demo-auth-height')).toBe('844px')
+  wrapper.unmount()
+  wrappers.splice(wrappers.indexOf(wrapper), 1)
+  expect(remove).toHaveBeenCalledWith('resize', expect.any(Function))
+  expect(remove).toHaveBeenCalledWith('scroll', expect.any(Function))
+})
 
 describe('demo host integration', () => {
   it('preserves the primary session and task draft across multi-instance preview', async () => {

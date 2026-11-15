@@ -46,6 +46,7 @@ import ProfileSlotEditor from './ProfileSlotEditor.vue'
 import './demo.css'
 import './workspace.css'
 import { consumerMessages } from './presentation'
+import { useAuthViewport } from './useAuthViewport'
 const settings = reactive(defaultSettings())
 const identities = createDemoIdentities()
 const signedIn = ref(false)
@@ -418,7 +419,9 @@ function alignInvalidField(event: FocusEvent) {
 let fieldFrame: number | undefined
 function alignFocusedField() {
   const field = document.activeElement as HTMLElement | null
-  const body = field?.closest<HTMLElement>('.nova-dialog-body, [data-account-content]')
+  const body = field?.closest<HTMLElement>(
+    '.nova-dialog-body, [data-account-content], [data-auth-content]',
+  )
   if (
     !field ||
     !body?.closest('.nova-demo') ||
@@ -432,7 +435,9 @@ function alignFocusedField() {
     const control = field.getBoundingClientRect()
     const area = body.getBoundingClientRect()
     const savebar = [
-      ...body.querySelectorAll<HTMLElement>('[data-account-savebar], [data-mobile-form-actions]'),
+      ...body.querySelectorAll<HTMLElement>(
+        '[data-account-savebar], [data-mobile-form-actions], .nova-auth-actions',
+      ),
     ].find((bar) => bar.getClientRects().length && getComputedStyle(bar).position === 'sticky')
     const bottom =
       savebar && getComputedStyle(savebar).position === 'sticky'
@@ -443,6 +448,7 @@ function alignFocusedField() {
         control.top - area.top - 8 - Math.max(0, (bottom - area.top - 16 - control.height) / 2)
   })
 }
+const authViewportStyle = useAuthViewport(alignFocusedField)
 onMounted(() => window.addEventListener('resize', alignFocusedField))
 onBeforeUnmount(() => {
   window.removeEventListener('resize', alignFocusedField)
@@ -585,6 +591,7 @@ function onStorageChange(
         :key="shellKey"
         class="nova-demo"
         :class="signedIn ? 'demo-account' : 'demo-auth'"
+        :style="authViewportStyle"
         :adapter="adapter"
         :locale="locale"
         :time-zone="timeZone"

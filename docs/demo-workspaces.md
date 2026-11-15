@@ -36,6 +36,13 @@
 
 演示通过 `demo/presentation.ts` 的中英文消息覆盖收起组件自带的模拟说明与徽标；组件库 `simulated` 的默认提示和权限边界保留。空字符串消息不会留下空提示段落。认证页将站点品牌固定在左上角，认证表单独立居中。
 
+## 手机认证
+
+- 登录、注册和找回密码保留左上角站点名称。返回入口、密码显隐与切换链接提供足够的点击区域；切换页面重置认证区滚动位置，避免遗漏返回入口。测试账号与验证码仍只在文档中提供。
+- 登录末字段可直接提交，注册与新密码表单可用键盘逐项前进。校验失败定位字段或错误摘要，修正内置错误后更新提示；密码显隐不会主动收起键盘，取消验证保留填写内容。
+- 全屏手机演示根据 `visualViewport` 的高度与偏移调整认证区域与滑块弹窗，较短可视区域中提交操作贴近底部，当前输入避开操作区。普通高度使用自然表单顺序；嵌入布局继续交由宿主排版。监听随宿主卸载清理，捏合缩放沿用浏览器行为。
+- 自动回归模拟了缩短视口、可视区域平移和键盘收起恢复，并覆盖真实验证码/滑块适配器调用；不等同于 iOS/Android 真机软键盘或屏幕阅读器验收。
+
 ## 手机端操作
 
 - 账户与业务页的可编辑原生控件使用 16px 字号，兼顾窄屏输入和下拉选择；保存区为底部安全区域留出空间。
@@ -55,6 +62,8 @@
 - `demo/TaskFields.vue` 与 `demo/CommentForm.vue` 是演示内部的共享表单，不是库的新增导出。任务、草稿、评论及支付继续只操作本页内存，没有真实存储、内容发布或资金流转。
 
 ## English
+
+Mobile authentication keeps the brand at the upper left, uses touch-sized password visibility and navigation controls, and supports input-to-input Enter navigation without intercepting IME composition. Built-in errors update after correction, code delivery is announced once, and cancelling a slider restores the initiating control. The full-screen demo follows visualViewport resize/pan events above a software keyboard; embedded layout remains host-owned. Automated viewport simulations complement real-device keyboard and screen-reader acceptance.
 
 Account and business pages focus on the user's task: profile editing, security, devices, notifications, message reading and everyday activities. Layouts follow the available account-content width, including embedded hosts. Authentication keeps the brand at the upper left.
 

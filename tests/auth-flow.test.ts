@@ -210,6 +210,50 @@ describe('useAuthFlow', () => {
     expect(adapter.register).not.toHaveBeenCalled()
   })
 
+  it('revalidates corrected built-in errors while preserving host-owned messages', async () => {
+    const flow = setup(createAdapter())
+    flow.fields.password = ''
+    await flow.submit()
+    expect(flow.fieldErrors.password).not.toBe('')
+    flow.fields.password = 'valid'
+    expect(flow.fieldErrors.password).toBe('')
+    flow.fieldErrors.password = 'Host policy'
+    flow.fields.password = 'another valid value'
+    expect(flow.fieldErrors.password).toBe('Host policy')
+    flow.mode.value = 'register'
+    flow.fields.password = 'valid'
+    await flow.submit()
+    expect(flow.fieldErrors.consent).not.toBe('')
+    flow.fields.consent = true
+    expect(flow.fieldErrors.consent).toBe('')
+    await flow.submit()
+    expect(flow.fieldErrors.code).toContain('先获取')
+    flow.fields.code = '123456'
+    expect(flow.fieldErrors.code).toContain('先获取')
+    await flow.requestCode()
+    await flow.verifyChallenge({ value: 100 })
+    flow.fields.code = ''
+    await flow.submit()
+    expect(flow.fieldErrors.code).toContain('请输入')
+    flow.fields.code = '123456'
+    expect(flow.fieldErrors.code).toBe('')
+    flow.mode.value = 'reset'
+    await flow.requestCode()
+    await flow.verifyChallenge({ value: 100 })
+    flow.fields.code = '123456'
+    await flow.submit()
+    flow.fields.password = 'new'
+    flow.fields.confirmPassword = 'mismatch'
+    await flow.submit()
+    expect(flow.fieldErrors.confirmPassword).not.toBe('')
+    flow.fields.confirmPassword = 'new'
+    expect(flow.fieldErrors.confirmPassword).toBe('')
+    flow.fields.confirmPassword = 'newer'
+    await flow.submit()
+    flow.fields.password = 'newer'
+    expect(flow.fieldErrors.confirmPassword).toBe('')
+  })
+
   it('ignores a challenge response after cancellation and aborts its signal', async () => {
     const adapter = createAdapter(),
       pending = deferred<Challenge>(),

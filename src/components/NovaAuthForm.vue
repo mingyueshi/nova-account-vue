@@ -7,6 +7,7 @@ import NovaButton from './NovaButton.vue'
 import NovaField from './NovaField.vue'
 import NovaDialog from './NovaDialog.vue'
 import NovaCaptcha from './NovaCaptcha.vue'
+import NovaIcon from './NovaIcon.vue'
 
 const { t } = useNovaLocale()
 const props = withDefaults(
@@ -78,7 +79,9 @@ const id = useId()
 const form = ref<HTMLFormElement>()
 const title = ref<HTMLElement>()
 const errorSummary = ref<HTMLElement>()
+const noticeSummary = ref<HTMLElement>()
 const showPassword = ref(false)
+const challengeTrigger = ref<HTMLElement | null>(null)
 const isLogin = computed(() => mode.value === 'password' || mode.value === 'code')
 const loginTabs = computed(() =>
   (['password', 'code'] as const).filter((tab) => props.modes.includes(tab)),
@@ -127,6 +130,13 @@ const strength = computed(() => {
     return null
   }
 })
+watch(
+  mode,
+  () => {
+    showPassword.value = false
+  },
+  { flush: 'sync' },
+)
 const inputBlocked = computed(() => busy.value || challengeOpen.value)
 watch(error, async (value) => {
   if (value) {
@@ -169,6 +179,8 @@ async function switchView(value: AuthMode) {
   setMode(value)
   await nextTick()
   title.value?.focus({ preventScroll: true })
+  const content = form.value?.closest<HTMLElement>('[data-auth-content]')
+  if (content) content.scrollTop = 0
 }
 async function tabKey(event: KeyboardEvent) {
   if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return
@@ -189,15 +201,38 @@ async function tabKey(event: KeyboardEvent) {
     ?.querySelector<HTMLButtonElement>('[role="tab"][aria-selected="true"]')
     ?.focus()
 }
+function nextField(event: KeyboardEvent) {
+  if (event.key !== 'Enter' || event.isComposing) return
+  const inputs = [
+    ...(form.value?.querySelectorAll<HTMLInputElement>('input:not([type="checkbox"])') ?? []),
+  ]
+  const index = inputs.indexOf(event.target as HTMLInputElement)
+  const next = index >= 0 ? inputs[index + 1] : undefined
+  if (!next || next.disabled) return
+  event.preventDefault()
+  next.focus()
+}
+function rememberTrigger() {
+  challengeTrigger.value =
+    form.value?.querySelector<HTMLButtonElement>('button[type="submit"]') ?? null
+}
 async function submit() {
   if (!activeMode.value) return
+  rememberTrigger()
   await flow.submit()
   await nextTick()
   const invalid = form.value?.querySelector<HTMLElement>('[aria-invalid="true"]')
   if (invalid) invalid.focus()
+  else if (notice.value && !delivery.value) {
+    noticeSummary.value?.focus({ preventScroll: true })
+    const content = form.value?.closest<HTMLElement>('[data-auth-content]')
+    if (content) content.scrollTop = 0
+  }
 }
 async function requestCode() {
   if (!activeMode.value) return
+  challengeTrigger.value =
+    form.value?.querySelector<HTMLButtonElement>('[data-request-code]') ?? null
   await flow.requestCode()
   await nextTick()
   form.value?.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus()
@@ -206,7 +241,10 @@ defineExpose({ fill: flow.fill, cancel: flow.cancel, setMode })
 </script>
 
 <template>
-  <section class="na:mx-auto na:w-full na:max-w-[352px] na:py-8" :aria-labelledby="`${id}-title`">
+  <section
+    class="nova-auth-form na:mx-auto na:w-full na:max-w-[352px] na:py-8"
+    :aria-labelledby="`${id}-title`"
+  >
     <NovaButton
       v-if="!isLogin && loginMode"
       variant="ghost"
@@ -268,6 +306,7 @@ defineExpose({ fill: flow.fill, cancel: flow.cancel, setMode })
         :aria-labelledby="isLogin && loginTabs.length > 1 ? `${id}-${mode}-tab` : `${id}-title`"
         :aria-busy="busy"
         @submit.prevent="submit"
+        @keydown="nextField"
       >
         <NovaField
           v-if="mode !== 'reset' || resetStage === 'verify'"
@@ -275,6 +314,10 @@ defineExpose({ fill: flow.fill, cancel: flow.cancel, setMode })
           :label="isUsername ? t('auth.account') : t('auth.email')"
           :type="isUsername ? 'text' : 'email'"
           :autocomplete="isUsername ? 'username' : 'email'"
+          :inputmode="isUsername ? 'text' : 'email'"
+          autocapitalize="none"
+          :spellcheck="false"
+          enterkeyhint="next"
           :placeholder="isUsername ? t('auth.accountPlaceholder') : t('auth.emailPlaceholder')"
           :disabled="inputBlocked"
           :error="fieldErrors.email"
@@ -293,22 +336,29 @@ defineExpose({ fill: flow.fill, cancel: flow.cancel, setMode })
               :type="showPassword ? 'text' : 'password'"
               :autocomplete="mode === 'password' ? 'current-password' : 'new-password'"
               :placeholder="t('auth.passwordPlaceholder')"
+              :enterkeyhint="mode === 'password' ? 'go' : 'next'"
               :disabled="inputBlocked"
               :error="fieldErrors.password"
-            />
-            <div class="na:flex na:items-center na:justify-between na:gap-3 na:text-xs">
+            >
+              <template #suffix>
+                <button
+                  type="button"
+                  class="nova-password-toggle"
+                  :aria-label="showPassword ? t('auth.hidePassword') : t('auth.showPassword')"
+                  :aria-pressed="showPassword"
+                  :disabled="inputBlocked"
+                  @pointerdown.prevent
+                  @click="showPassword = !showPassword"
+                >
+                  <NovaIcon :name="showPassword ? 'eye-off' : 'eye'" :size="20" />
+                </button>
+              </template>
+            </NovaField>
+            <div v-if="mode === 'password' && canReset" class="nova-auth-recovery">
               <button
                 type="button"
-                class="na:border-0 na:bg-transparent na:p-0 na:text-[var(--na-muted)] na:hover:text-[var(--na-brand)]"
-                :aria-pressed="showPassword"
-                @click="showPassword = !showPassword"
-              >
-                {{ showPassword ? t('auth.hidePassword') : t('auth.showPassword') }}
-              </button>
-              <button
-                v-if="mode === 'password' && canReset"
-                type="button"
-                class="na:border-0 na:bg-transparent na:p-0 na:text-[var(--na-brand)]"
+                class="nova-auth-link"
+                :disabled="inputBlocked"
                 @click="switchView('reset')"
               >
                 {{ t('auth.forgot') }}
@@ -332,6 +382,7 @@ defineExpose({ fill: flow.fill, cancel: flow.cancel, setMode })
             :label="t('auth.confirmPassword')"
             :type="showPassword ? 'text' : 'password'"
             autocomplete="new-password"
+            enterkeyhint="go"
             :placeholder="t('auth.confirmPlaceholder')"
             :disabled="inputBlocked"
             :error="fieldErrors.confirmPassword"
@@ -348,6 +399,7 @@ defineExpose({ fill: flow.fill, cancel: flow.cancel, setMode })
             :label="t('auth.code')"
             autocomplete="one-time-code"
             inputmode="numeric"
+            :enterkeyhint="mode === 'register' ? 'done' : 'go'"
             :maxlength="codeLength ?? undefined"
             :placeholder="t('auth.codePlaceholder')"
             :disabled="inputBlocked"
@@ -356,6 +408,7 @@ defineExpose({ fill: flow.fill, cancel: flow.cancel, setMode })
             <template #suffix>
               <NovaButton
                 variant="ghost"
+                data-request-code
                 class="na:shrink-0 na:rounded-none na:border-l na:border-[var(--na-line)] na:px-3 na:py-1 na:text-xs"
                 :disabled="inputBlocked || resendSeconds > 0"
                 @click="requestCode"
@@ -370,8 +423,8 @@ defineExpose({ fill: flow.fill, cancel: flow.cancel, setMode })
             </template>
           </NovaField>
           <span
-            class="na:text-xs na:text-[var(--na-muted)]"
-            :class="{ 'na:sr-only': !delivery }"
+            class="na:text-xs"
+            :class="codeExpired ? 'na:text-[var(--na-error)]' : 'na:text-[var(--na-muted)]'"
             role="status"
             >{{ codeExpired ? t('auth.codeExpired') : delivery ? t('auth.codeSent') : '' }}</span
           >
@@ -385,21 +438,26 @@ defineExpose({ fill: flow.fill, cancel: flow.cancel, setMode })
         </div>
         <div v-if="mode === 'register'" class="na:grid na:gap-2">
           <label
-            class="na:flex na:items-start na:gap-3 na:text-xs na:leading-relaxed na:text-[var(--na-muted)]"
+            class="nova-auth-consent na:flex na:items-start na:gap-3 na:text-xs na:leading-relaxed na:text-[var(--na-muted)]"
           >
             <input
               v-model="fields.consent"
               type="checkbox"
               :disabled="inputBlocked"
               :aria-invalid="!!fieldErrors.consent"
-              :aria-describedby="`${id}-consent-error`"
+              :aria-describedby="fieldErrors.consent ? `${id}-consent-error` : undefined"
               class="na:mt-0.5 na:h-4 na:w-4 na:shrink-0 na:accent-[var(--na-brand)]"
             />
             <span
               ><slot name="terms">{{ t('auth.terms') }}</slot></span
             >
           </label>
-          <p :id="`${id}-consent-error`" class="na:text-xs na:text-[var(--na-error)]" role="alert">
+          <p
+            v-if="fieldErrors.consent"
+            :id="`${id}-consent-error`"
+            class="na:text-xs na:text-[var(--na-error)]"
+            role="alert"
+          >
             {{ fieldErrors.consent }}
           </p>
         </div>
@@ -413,19 +471,23 @@ defineExpose({ fill: flow.fill, cancel: flow.cancel, setMode })
           {{ error }}
         </p>
         <p
-          v-if="notice && (!simulated || !delivery)"
+          v-if="notice && !delivery"
+          ref="noticeSummary"
+          tabindex="-1"
           role="status"
           class="na:text-sm na:text-[var(--na-muted)]"
         >
           {{ notice }}
         </p>
-        <NovaButton
-          type="submit"
-          variant="primary"
-          :disabled="inputBlocked"
-          class="na:mt-1 na:w-full"
-          >{{ busy ? t('common.processing') : submitLabel }}</NovaButton
-        >
+        <div class="nova-auth-actions">
+          <NovaButton
+            type="submit"
+            variant="primary"
+            :disabled="inputBlocked"
+            class="na:mt-1 na:w-full"
+            >{{ busy ? t('common.processing') : submitLabel }}</NovaButton
+          >
+        </div>
       </form>
     </div>
     <p
@@ -433,11 +495,7 @@ defineExpose({ fill: flow.fill, cancel: flow.cancel, setMode })
       class="na:mt-7 na:text-center na:text-sm na:text-[var(--na-muted)]"
     >
       {{ t('auth.noAccount')
-      }}<button
-        type="button"
-        class="na:border-0 na:bg-transparent na:p-0 na:text-[var(--na-brand)]"
-        @click="switchView('register')"
-      >
+      }}<button type="button" class="nova-auth-link" @click="switchView('register')">
         {{ t('auth.register') }}
       </button>
     </p>
@@ -446,11 +504,7 @@ defineExpose({ fill: flow.fill, cancel: flow.cancel, setMode })
       class="na:mt-7 na:text-center na:text-sm na:text-[var(--na-muted)]"
     >
       {{ t('auth.haveAccount')
-      }}<button
-        type="button"
-        class="na:border-0 na:bg-transparent na:p-0 na:text-[var(--na-brand)]"
-        @click="switchView(loginMode!)"
-      >
+      }}<button type="button" class="nova-auth-link" @click="switchView(loginMode!)">
         {{ t('auth.login') }}
       </button>
     </p>
@@ -465,7 +519,12 @@ defineExpose({ fill: flow.fill, cancel: flow.cancel, setMode })
       />
       <span v-else-if="simulated">{{ t('demo.disclosure') }}</span>
     </div>
-    <NovaDialog :open="challengeOpen" :title="t('captcha.title')" @close="flow.cancel">
+    <NovaDialog
+      :open="challengeOpen"
+      :title="t('captcha.title')"
+      :return-focus="challengeTrigger"
+      @close="flow.cancel"
+    >
       <template v-if="challenge">
         <slot
           name="captcha"

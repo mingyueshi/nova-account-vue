@@ -94,6 +94,8 @@ Exposed：`fill(...)`、`cancel()`、`setMode(AuthMode)`。宿主应提供服务
 
 表单提交失败后优先聚焦首个 `aria-invalid` 字段；没有字段错误时，聚焦本次提交产生的全局错误摘要。摘要保留 `role="alert"`，使用 `tabindex="-1"` 接收程序焦点，不增加常规 Tab 停靠点。不会仅因语言切换或文案覆盖更新而移动焦点；真实屏幕阅读器播报仍需宿主验收。
 
+密码显隐使用 44px 图标按钮，触摸切换保留输入焦点；切换认证流程会恢复密码遮挡。邮箱/账号关闭首字母大写和拼写检查，验证码保留数字键盘与一次性自动填充语义。Enter 在文本字段间前进，最后一个字段保留原生提交；输入法组合期间不拦截。内置密码、确认密码、验证码与协议错误在修正后更新，这些字段中宿主写入的字符串错误不会因编辑而被自动覆盖。验证码发送成功只保留一处状态提示，过期仍需重新获取；取消滑块返回发起按钮，发送成功定位验证码框，重置成功定位登录表单的成功反馈。
+
 ### `NovaAccountCenter`
 
 Props：`adapter:AccountAdapter`（必填）、`simulated?:boolean`、`page?:AccountPage`、`initialPage?:AccountPage`、`pages?:AccountPage[]`、`extraPages?:AccountExtraPage[]`、`twoStep?:boolean`（默认 true）、`avatarMaxBytes?:number`（默认 2 MiB）。Events：`logout()`、`update:page(AccountPage)`、`pageChange(AccountPage)`。Slots：`appearance()`、`overview({snapshot,adapter,refresh})`、`page({page,snapshot,adapter,refresh})`、`profile({snapshot,adapter,refresh})`、`security({snapshot,adapter,refresh})`、`securityFormTools({fill})`。Exposed：`refresh()`、`fillSecurity(...)`。

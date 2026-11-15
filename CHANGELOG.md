@@ -25,6 +25,8 @@
 
 ### Changed
 
+- Refine mobile sign-in, registration and password recovery: touch-sized visibility and navigation controls, keyboard field progression, corrected-error feedback, one code-delivery status, explicit captcha return focus and reset-success focus. The full-screen demo follows the visible viewport while preserving native pinch zoom and embedded layout.
+
 - Refine compact task, order, editor and community flows: on-demand task details and article previews, retained comment drafts, a discussion-first mobile feed, confirmed draft clearing, 80/5000-character article limits, 500-character comments and payment totals beside confirmation. Preserve focus when filtering removes a completed task or paid order; keep desktop detail panes and share internal demo forms.
 - Replace the mobile page select with a grouped, icon-led native-dialog bottom sheet, current-page context and unread counts. Close on Escape, backdrop, host navigation or desktop resize; restore focus and serialize draft guards. On phones, remove duplicate visible page headings, keep pristine forms unobstructed, align device rows and improve message/save actions. Account JS/CSS gzip budgets are now 41 / 7.5 KiB including shared chunks, with no new runtime dependency.
 - Give CAPTCHA a theme-colored handle, tinted progress, directional target, pressed feedback and processing animations. Keep movement directly linked to pointer displacement, expose invalid input semantics and honor reduced motion; no animation dependency is added.
