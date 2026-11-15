@@ -52,7 +52,7 @@ describe('SSR without browser globals', () => {
     expect(html).toContain('欢迎回来')
     expect(html).toContain('data-theme="light"')
     expect(html).toContain('type="email"')
-    expect(html).not.toContain('demo@nova.example')
+    expect(html).not.toContain('demo@demo.com')
     expect(reject).not.toHaveBeenCalled()
   })
 

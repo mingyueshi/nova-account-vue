@@ -22,6 +22,8 @@ GitHub Actions configurations run those checks on pushes and pull requests. Addi
 
 The package is private and has not been published to npm. Run `npm run pack:library`, then install the generated tarball in the consumer. It builds a private source snapshot and checks bundled declarations before packing, so concurrent builds cannot change the package. Direct `npm pack` checks declarations and a content-hash receipt covering source, build configuration and all output files. It refuses stale, missing or modified outputs. Run `npm run build` to create the receipt; prepack does not rebuild or replace the isolated packaging pipeline. Both consumer verification scripts use the isolated pipeline. See [package verification](docs/package-build.md). Import the stylesheet explicitly; the consumer does not need Tailwind.
 
+Jest hosts using CommonJS tests, or a transformer that converts `import` to `require`, resolve this package's `require` error entry and throw `ERR_REQUIRE_ESM` at runtime. Follow the [Jest ESM setup guide](https://jestjs.io/docs/ecmascript-modules) to enable ESM and preserve ESM transformer output; this package does not provide a CommonJS implementation.
+
 ```vue
 <script setup lang="ts">
 import { ref } from 'vue'
@@ -107,7 +109,7 @@ These are presentation options, not server authorization. Aborting an operation 
 
 ### Integrated demo controls
 
-The header offers a direct account preview entry. Runtime settings and integration controls live in the account sidebar as dedicated pages; their entries remain available when business pages are trimmed or simulated requests fail. Return to the sign-in page to try the configured authentication flow. Sample credentials and a local fill action appear beside the sign-in, registration and reset forms and follow the current mode and code length.
+Sign in or register to enter the account. Runtime settings and integration controls live in the account sidebar; their entries remain available when business pages are trimmed or simulated requests fail. Return to sign-in to try the configured flow. Authentication pages contain only the form, verification and feedback needed to proceed. Test credentials are documented in [Demo accounts and flows](docs/demo-credentials.md), without inline credential hints or fill shortcuts. Theme controls appear after sign-in.
 
 The `NovaAuthForm` footer and `NovaAccount` authFooter slots receive `{ mode, resetStage, busy, fill }`. Reset stages are `verify` and `password`; filling fields does not issue or verify a code. The account page slot also exposes `setAppearance` and `storageError` for host-owned integration tools. No sample credentials enter the library bundle.
 
@@ -140,14 +142,14 @@ The `profile` slot replaces the built-in profile page; the host owns its drafts 
 
 | Field               | Value                                      |
 | ------------------- | ------------------------------------------ |
-| Email               | `demo@nova.example`                        |
+| Email               | `demo@demo.com`                            |
 | Username mode       | `demo`                                     |
-| Sign-in password    | `NovaDemo2026!`                            |
-| Email code          | `246810` (or `2468` with four-digit codes) |
-| Sample new password | `NovaNext2026!`                            |
-| Sample new email    | `novanext@nova.example`                    |
+| Sign-in password    | `123456`                                   |
+| Email code          | `123456` (or `1234` with four-digit codes) |
+| Sample new password | `654321`                                   |
+| Sample new email    | `next@demo.com`                            |
 
-All demo data is synthetic and held in memory; no real account is created and no email is sent. Mock password changes do not alter the fixed sign-in credentials. Authentication forms show the appropriate values and a local fill action for each step. Security dialogs provide their own sample fill action. Filling does not accept terms, issue a code or pass verification. Only the optional appearance preference is persisted.
+All data is synthetic and held in memory; no real email is sent. Registered accounts remain available after sign-out, and password or email changes affect subsequent sign-in until the page is refreshed. Refresh restores the initial data. Code-delivery responses do not expose the code. Only the optional appearance preference is persisted. See [Demo accounts and flows](docs/demo-credentials.md) for registration and security inputs.
 
 ## Composable lifecycle and full API
 

@@ -82,7 +82,7 @@ Exposed：`fill({email?,password?,code?,confirmPassword?})`；`fillSecurity(...)
 
 ### `NovaAuthForm`
 
-Props：`adapter:AuthAdapter`（必填）、`simulated?:boolean`（默认 false）、`codeLength?:number|null`（默认 6）、`passwordStrength?:(password:string)=>PasswordStrength`、`identifier?:'email'|'username'`（默认 email）、`modes?:AuthMode[]`（默认 password/code/register/reset）。Events：`authenticated(AuthResult)`、`reset()`、`mode-change(AuthMode)`。Slots：`captcha({challenge,submit,busy,error,cancel,retry})`、`terms()`、`footer({mode,resetStage,busy,fill})`。
+Props：`adapter:AuthAdapter`（必填）、`simulated?:boolean`（默认 false）、`codeLength?:number|null`（默认 6）、`passwordStrength?:(password:string)=>PasswordStrength`、`identifier?:'email'|'username'`（默认 email）、`modes?:AuthMode[]`（默认 password/code/register/reset）。Events：`authenticated(AuthResult)`、`reset()`、`mode-change(AuthMode)`。Slots：`captcha({challenge,submit,busy,error,cancel,retry})`、`terms()`、`footer({mode,resetStage,busy,fill})`。显式提供空 `footer` 插槽可隐藏默认模拟环境说明，不留空白页尾。
 
 `PasswordStrength = {score:0|1|2|3|4,label:string,hint?:string}`，仅在注册/重置的新密码非空时展示。库不提供默认强度算法，评估不改变允许提交的条件。验证码 maxlength 是展示限制，null 关闭，服务器仍决定码策略。
 
@@ -117,7 +117,7 @@ SSR采用确定性初始light（或显式传入mode）；system和storage在onMo
 - `NovaButton`：variant primary/secondary/ghost，type，disabled，busy；普通 attrs/listeners透传。
 - `NovaField`：string v-model，label，as（input/textarea，默认input），type，maxlength，error，hint，autocomplete，disabled；prefix/suffix slots；支持宿主 id，未传时按实例生成；宿主 aria-describedby 与提示/错误 id 合并；attrs作用于实际input/textarea。原生 maxlength 以 UTF-16 code units 计数。
 - `NovaDialog`：open/title，close event，default/footer slots；原生dialog焦点约束、Esc请求关闭、回焦。无浏览器的SSR不调用DOM。
-- `NovaCaptcha`：challenge,busy,error,simulated；submit(response),retry事件。键盘End只移动，Enter明确提交；控件不是安全校验器。
+- `NovaCaptcha`：challenge,busy,error,simulated；submit(response),retry事件。`simulated` 保留为兼容输入，不再显示静态演示说明。44px 中性手柄与验证条进度联动，从手柄开始拖动，到末端释放才提交 `{value:100}`；中途释放保留位置，取消、换题或进入忙态会终止当前手势。键盘End只移动，Enter明确提交；拖动和键盘说明保留为屏幕阅读器文本，错误按需显示，控件不是安全校验器。
 
 ## 生命周期与隐私
 

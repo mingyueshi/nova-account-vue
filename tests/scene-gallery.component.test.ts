@@ -213,7 +213,15 @@ describe('scene gallery interactions', () => {
 
   it('App opens business content within the account shell', async () => {
     const wrapper = create(App)
-    await button(wrapper, '用户中心预览').trigger('click')
+    await wrapper.get('input[autocomplete="email"]').setValue('demo@demo.com')
+    await wrapper.get('input[autocomplete="current-password"]').setValue('123456')
+    await wrapper.get('form').trigger('submit')
+    await vi.advanceTimersByTimeAsync(400)
+    await flushPromises()
+    await wrapper.get('input[type="range"]').setValue(100)
+    await wrapper.get('input[type="range"]').trigger('keydown', { key: 'Enter' })
+    await vi.advanceTimersByTimeAsync(1200)
+    await flushPromises()
     await vi.advanceTimersByTimeAsync(400)
     await flushPromises()
     await wrapper.get('[data-page="custom:tasks"]').trigger('click')

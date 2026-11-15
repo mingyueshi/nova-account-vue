@@ -227,7 +227,7 @@ describe('in-memory demo account adapter', () => {
         { enabled: true, currentPassword: 'wrong', code: DEMO_ACCOUNT_VALUES.code },
         context(),
       ),
-    ).rejects.toMatchObject({ code: 'DEMO_PASSWORD_ONLY' })
+    ).rejects.toMatchObject({ code: 'PASSWORD_INVALID' })
     const enabled = await adapter.setTwoStep({ enabled: true, ...DEMO_ACCOUNT_VALUES }, context())
     expect(enabled.security.twoStepEnabled).toBe(true)
     const again = await adapter.setTwoStep({ enabled: true, ...DEMO_ACCOUNT_VALUES }, context())

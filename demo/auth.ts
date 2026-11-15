@@ -1,12 +1,18 @@
 import { NovaError } from '../src/types'
-import type { AuthAdapter, CaptchaPurpose, CodePurpose, RequestContext } from '../src/types'
-export const DEMO_EMAIL = 'demo@nova.example'
+import type {
+  AuthAdapter,
+  CaptchaPurpose,
+  CodePurpose,
+  RequestContext,
+  SessionUser,
+} from '../src/types'
+export const DEMO_EMAIL = 'demo@demo.com'
 /** `identifier="username"` collects this value; the wire contract stays on `email`. */
 export const DEMO_USERNAME = 'demo'
-export const DEMO_PASSWORD = 'NovaDemo2026!'
-export const DEMO_CODE = '246810'
-export const DEMO_NEXT_PASSWORD = 'NovaNext2026!'
-export const DEMO_NEXT_EMAIL = 'novanext@nova.example'
+export const DEMO_PASSWORD = '123456'
+export const DEMO_CODE = '123456'
+export const DEMO_NEXT_PASSWORD = '654321'
+export const DEMO_NEXT_EMAIL = 'next@demo.com'
 export interface DemoSettings {
   network: 'normal' | 'slow' | 'offline'
   captcha: 'normal' | 'fail' | 'expired'
@@ -35,6 +41,48 @@ export const defaultSettings = (): DemoSettings => ({
 export const demoCode = (codeLength: 4 | 6 | null = 6) =>
   codeLength ? DEMO_CODE.slice(0, codeLength) : DEMO_CODE
 export const demoUser = () => ({ id: 'nova-demo', email: DEMO_EMAIL, displayName: 'Nova' })
+export function createDemoIdentities() {
+  const initial = { user: demoUser() as SessionUser, password: DEMO_PASSWORD }
+  const users = new Map([[DEMO_EMAIL, initial]])
+  let active = initial
+  let sequence = 0
+  return {
+    normalize(value: string) {
+      const trimmed = value.trim()
+      return trimmed === DEMO_USERNAME
+        ? initial.user.email
+        : trimmed.includes('@')
+          ? trimmed.toLowerCase()
+          : trimmed
+    },
+    find(email: string) {
+      return users.get(email)
+    },
+    get current() {
+      return active
+    },
+    activate(record: typeof initial) {
+      active = record
+      return { user: { ...record.user } }
+    },
+    register(email: string, password: string) {
+      if (users.has(email)) fail('ACCOUNT_EXISTS', '该账号已注册，请直接登录。')
+      const record = {
+        user: { id: `nova-user-${++sequence}`, email, displayName: email.split('@')[0]! },
+        password,
+      }
+      users.set(email, record)
+      return this.activate(record)
+    },
+    changeEmail(email: string) {
+      if (users.has(email)) fail('EMAIL_TAKEN', '该邮箱已被使用。')
+      users.delete(active.user.email)
+      active.user.email = email
+      users.set(email, active)
+    },
+  }
+}
+export type DemoIdentities = ReturnType<typeof createDemoIdentities>
 export function fail(code: string, message: string): never {
   throw new NovaError(code, message)
 }
@@ -47,11 +95,13 @@ export function createDemoAuthAdapter(
     settings?: () => DemoSettings
     now?: () => number
     delay?: (ms: number) => Promise<void>
+    identities?: DemoIdentities
   } = {},
 ): AuthAdapter {
   const settings = options.settings ?? defaultSettings
   const now = options.now ?? Date.now
   const delay = options.delay ?? sleep
+  const identities = options.identities ?? createDemoIdentities()
   let sequence = 0
   let challenge: {
     id: string
@@ -73,26 +123,20 @@ export function createDemoAuthAdapter(
   } | null = null
   let rateUntil = 0
   function email(value: string) {
-    const trimmed = value.trim()
-    if (trimmed.toLowerCase() !== DEMO_EMAIL && trimmed !== DEMO_USERNAME)
-      fail(
-        'DEMO_ONLY',
-        `请使用示例邮箱 ${DEMO_EMAIL} 或示例账号 ${DEMO_USERNAME}，勿填写真实资料。`,
-      )
-    return DEMO_EMAIL
+    const address = identities.normalize(value)
+    if (!address || address.length > 254) fail('IDENTIFIER_INVALID', '请输入有效的账号。')
+    return address
   }
-  function password(value: string, next = false) {
-    if (value !== DEMO_PASSWORD && !(next && value === DEMO_NEXT_PASSWORD))
-      fail('DEMO_ONLY', `此演示仅接受合成密码 ${next ? DEMO_NEXT_PASSWORD : DEMO_PASSWORD}。`)
+  function password(value: string) {
+    if (value.length < 6 || value.length > 128) fail('PASSWORD_INVALID', '密码长度应为 6–128 位。')
   }
   async function wait(context: RequestContext, business = false) {
     assertActive(context)
     const config = { ...settings() }
     await delay(config.network === 'slow' ? 3000 : 350)
     assertActive(context)
-    if (config.network === 'offline')
-      fail('NETWORK', '模拟网络不可用，请在用户中心的演示设置恢复正常后重试。')
-    if (business && config.auth === 'fail') fail('REJECTED', '模拟请求被拒绝，状态未改变。')
+    if (config.network === 'offline') fail('NETWORK', '网络暂时不可用，请稍后重试。')
+    if (business && config.auth === 'fail') fail('REJECTED', '请求未完成，请稍后重试。')
     return config
   }
   function checkProof(token: string, address: string, purpose: CaptchaPurpose) {
@@ -112,11 +156,11 @@ export function createDemoAuthAdapter(
       delivery.email !== address ||
       delivery.purpose !== purpose
     )
-      fail('CODE_BINDING', '请先获取当前操作的演示验证码。')
+      fail('CODE_BINDING', '请先获取验证码。')
     if (settings().code === 'expired' || now() >= delivery.expiresAt)
-      fail('CODE_EXPIRED', '演示验证码已过期，请重新获取。')
+      fail('CODE_EXPIRED', '验证码已过期，请重新获取。')
     const expected = demoCode(settings().codeLength)
-    if (code !== expected) fail('CODE_INVALID', `演示验证码为 ${expected}。`)
+    if (code !== expected) fail('CODE_INVALID', '验证码不正确，请重新输入。')
   }
   return {
     async challenge(input, context) {
@@ -133,7 +177,7 @@ export function createDemoAuthAdapter(
         return { ...challenge, label: `请计算 ${left} × ${right} 的结果` }
       }
       challenge = { ...base, kind: 'slider' }
-      return { ...challenge, label: '滑动完成演示验证' }
+      return { ...challenge, label: '拖动滑块完成验证' }
     },
     async verifyCaptcha(input, context) {
       const address = email(input.email)
@@ -146,7 +190,7 @@ export function createDemoAuthAdapter(
       )
         fail('CHALLENGE_BINDING', '验证已失效，请重新开始。')
       if (config.captcha === 'expired' || now() >= challenge.expiresAt)
-        fail('CHALLENGE_EXPIRED', '演示验证已过期，请关闭后重试。')
+        fail('CHALLENGE_EXPIRED', '验证已过期，请重新验证。')
       const response = input.response as { value?: unknown; answer?: unknown } | null
       if (challenge.kind === 'custom') {
         const answer = Number(response?.answer)
@@ -156,9 +200,9 @@ export function createDemoAuthAdapter(
           !Number.isInteger(answer) ||
           answer !== challenge.answer
         )
-          fail('CHALLENGE_FAILED', `演示计算未通过（正确答案 ${challenge.answer}），请换一题重试。`)
+          fail('CHALLENGE_FAILED', '答案不正确，请重试。')
       } else if (config.captcha === 'fail' || !response || response.value !== 100)
-        fail('CHALLENGE_FAILED', '演示验证未通过，请重试。')
+        fail('CHALLENGE_FAILED', '验证未通过，请重试。')
       proof = {
         token: `demo-proof-${++sequence}`,
         email: address,
@@ -192,13 +236,11 @@ export function createDemoAuthAdapter(
       return {
         expiresAt: delivery.expiresAt,
         retryAfter: 30,
-        demoCode: demoCode(config.codeLength),
       }
     },
     async login(input, context) {
       const address = email(input.email),
         issue = delivery?.issue
-      if (input.method === 'password') password(input.password)
       await wait(context, true)
       if (input.method === 'password') {
         checkProof(input.proof, address, 'login-password')
@@ -207,17 +249,20 @@ export function createDemoAuthAdapter(
         checkCode(input.code, address, 'login-code', issue)
         delivery = null
       }
-      return { user: demoUser() }
+      const record = identities.find(address)
+      if (!record || (input.method === 'password' && input.password !== record.password))
+        fail('CREDENTIALS_INVALID', '账号或密码不正确。')
+      return identities.activate(record)
     },
     async register(input, context) {
       const address = email(input.email),
         issue = delivery?.issue
       password(input.password)
-      if (!input.consent) fail('CONSENT', '请先同意演示条款。')
+      if (!input.consent) fail('CONSENT', '请先阅读并同意服务条款与隐私说明。')
       await wait(context, true)
       checkCode(input.code, address, 'register', issue)
       delivery = null
-      return { user: demoUser() }
+      return identities.register(address, input.password)
     },
     async verifyResetCode(input, context) {
       const address = email(input.email),
@@ -230,7 +275,7 @@ export function createDemoAuthAdapter(
     async resetPassword(input, context) {
       const address = email(input.email),
         issue = delivery?.issue
-      password(input.password, true)
+      password(input.password)
       await wait(context, true)
       if (
         !delivery ||
@@ -243,6 +288,9 @@ export function createDemoAuthAdapter(
         fail('RESET_BINDING', '请先验证当前邮箱。')
       if (now() >= delivery.expiresAt || settings().code === 'expired')
         fail('RESET_EXPIRED', '邮箱验证已过期，请重新开始。')
+      const record = identities.find(address)
+      if (!record) fail('ACCOUNT_NOT_FOUND', '未找到此账号，请先注册。')
+      record.password = input.password
       delivery = null
     },
     async logout(context) {

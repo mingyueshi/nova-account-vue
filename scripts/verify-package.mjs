@@ -46,7 +46,9 @@ try {
   assert(!js.includes('echarts'), 'optional chart engine must not enter the account entry')
   assert(/from\s*["']vue["']/.test(js), 'Vue must remain an external import')
   assert(
-    !/NovaDemo2026|demo@nova\.example|createDemoAdapter/.test(js),
+    !/NovaDemo2026|demo@nova\.example|demo@demo\.com|createDemo(?:Auth|Account)?Adapter|createDemoIdentities/.test(
+      js,
+    ),
     'production JS must not contain demo adapters or credentials',
   )
   const css = readFileSync(join(packed.directory, 'dist/nova-account.css'), 'utf8')

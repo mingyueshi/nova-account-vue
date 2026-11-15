@@ -126,7 +126,7 @@ describe('account shell session lifecycle', () => {
     const service = adapter()
     const wrapper = mount(NovaAccount, { props: { adapter: service }, attachTo: document.body })
     wrappers.push(wrapper)
-    wrapper.vm.fill({ email: 'demo@nova.example', password: 'NovaDemo2026!' })
+    wrapper.vm.fill({ email: 'demo@demo.com', password: '123456' })
     await wrapper.get('form').trigger('submit')
     await flushPromises()
     const slider = wrapper.get('input[type="range"]')

@@ -50,3 +50,7 @@ npm 的 prepack 在 pack / publish 生命周期执行，依据 [npm scripts 文�
 当前交付仍是隔离构建的本地 tarball。本轮不增加自动 registry 发布，也不声称拥有 npm provenance。启用发布前需明确版本/公开范围、npm 组织和 trusted publisher、受保护的发布入口以及 provenance 核验；内部构建哈希回执不等同 npm 的 provenance 声明。
 
 CI 已缓存 npm 依赖。未增加浏览器二进制缓存：Playwright 官方指出恢复耗时可能接近下载，Linux 系统依赖仍需另装，见 [官方 CI 建议](https://playwright.dev/docs/ci#caching-browsers)。这属于可选性能权衡，并非运行缺陷。
+
+## TypeScript 升级约束
+
+当前根项目与两个 Nuxt 示例使用 TypeScript 5.9.3。TypeScript 7.0.2 的 Dependabot #6 验证显示，现有 typescript-eslint 明确拒绝 TS7，声明构建也缺少 TS7 移除的 JavaScript Compiler API。暂在覆盖三个目录的 Dependabot 配置中忽略 TypeScript >=7；恢复前需同时验证 lint、声明构建和 Nuxt 消费，不绕过这些检查来接受升级。minor/patch 组继续维护，升级后的格式要求在对应 PR 内修正。

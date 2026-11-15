@@ -18,7 +18,7 @@ const fields = reactive({
   intro: '你好，我喜欢把复杂的问题整理得简单一点。',
   broken: 'nova',
   locked: '由服务端下发的值',
-  readonly: 'demo@nova.example',
+  readonly: 'demo@demo.com',
 })
 const nameError = ref('该名称已被使用，请换一个。')
 const nameNote = ref('')

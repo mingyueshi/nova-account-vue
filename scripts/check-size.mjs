@@ -19,7 +19,8 @@ const checks = [
   [
     'account CSS',
     gzipSync(readFileSync(new URL('../dist/nova-account.css', import.meta.url))).byteLength,
-    6 * 1024,
+    // Includes the cross-browser CAPTCHA track/thumb styles (512-byte allowance).
+    6.5 * 1024,
   ],
   [
     'optional chart JS beyond the account graph',

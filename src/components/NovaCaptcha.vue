@@ -3,6 +3,7 @@ import { useNovaLocale } from '../locale'
 import { nextTick, onMounted, ref, useId, watch } from 'vue'
 import type { Challenge } from '../types'
 import NovaButton from './NovaButton.vue'
+import NovaIcon from './NovaIcon.vue'
 
 const { t } = useNovaLocale()
 const props = withDefaults(
@@ -15,6 +16,7 @@ const value = ref(0)
 const localError = ref('')
 const slider = ref<HTMLInputElement>()
 const status = ref<HTMLElement>()
+let drag: { pointerId: number; x: number; value: number; travel: number } | undefined
 function submit() {
   if (props.busy) return
   if (value.value !== 100) {
@@ -24,20 +26,48 @@ function submit() {
   localError.value = ''
   emit('submit', { value: value.value })
 }
-function pointerFinish() {
+function pointerStart(event: PointerEvent) {
+  if (drag || props.busy || event.button !== 0 || event.isPrimary === false) return
+  event.preventDefault()
+  const input = slider.value!
+  input.focus({ preventScroll: true })
+  const bounds = input.getBoundingClientRect()
+  // The 44px visible thumb has a 2px gutter inside the 48px native hit area.
+  const travel = Math.max(1, bounds.width - 48)
+  if (Math.abs(event.clientX - bounds.left - 24 - (travel * value.value) / 100) > 24) return
+  drag = { pointerId: event.pointerId, x: event.clientX, value: value.value, travel }
+  input.setPointerCapture?.(event.pointerId)
+}
+function pointerMove(event: PointerEvent) {
+  if (!drag || drag.pointerId !== event.pointerId || props.busy) return
+  value.value = Math.max(
+    0,
+    Math.min(100, drag.value + ((event.clientX - drag.x) * 100) / drag.travel),
+  )
+  localError.value = ''
+}
+function pointerFinish(event: PointerEvent) {
+  if (!drag || drag.pointerId !== event.pointerId) return
+  pointerMove(event)
+  cancelDrag()
   if (value.value === 100) submit()
+}
+function cancelDrag() {
+  drag = undefined
 }
 watch(
   () => props.challenge.id,
   () => {
     value.value = 0
     localError.value = ''
+    cancelDrag()
   },
 )
 watch(
   () => props.busy,
   async (busy) => {
     if (busy) {
+      cancelDrag()
       await nextTick()
       status.value?.focus({ preventScroll: true })
     }
@@ -47,23 +77,16 @@ onMounted(() => slider.value?.focus({ preventScroll: true }))
 </script>
 
 <template>
-  <div class="na:grid na:gap-5" :aria-busy="busy">
-    <div
-      class="na:relative na:h-28 na:overflow-hidden na:rounded-xl na:border na:border-[var(--na-line)] na:bg-[var(--na-soft)]"
-      aria-hidden="true"
-    >
-      <svg viewBox="0 0 320 112" class="na:h-full na:w-full" preserveAspectRatio="xMidYMid slice">
-        <circle cx="250" cy="27" r="17" fill="var(--na-brand)" opacity=".16" />
-        <path d="M0 112 68 33 139 112Z" fill="var(--na-brand)" opacity=".13" />
-        <path d="M74 112 176 18 285 112Z" fill="var(--na-brand)" opacity=".2" />
-        <path d="m202 112 62-63 56 63Z" fill="var(--na-brand)" opacity=".1" />
-      </svg>
-      <span class="na:absolute na:bottom-3 na:left-4 na:text-xs na:text-[var(--na-muted)]">{{
-        challenge.label || t('captcha.prompt')
+  <div class="nova-captcha na:grid na:gap-3" :aria-busy="busy">
+    <label :for="id" class="na:sr-only">{{ challenge.label || t('captcha.label') }}</label>
+    <div class="nova-captcha-track" :style="{ '--na-captcha-progress': value / 100 }">
+      <span class="nova-captcha-fill" aria-hidden="true" />
+      <span v-show="!value || busy" class="nova-captcha-prompt" aria-hidden="true">{{
+        busy ? t('captcha.busy') : t('captcha.prompt')
       }}</span>
-    </div>
-    <div class="na:grid na:gap-3">
-      <label :for="id" class="na:text-sm na:font-medium">{{ t('captcha.label') }}</label>
+      <span class="nova-captcha-thumb" aria-hidden="true" data-captcha-thumb>
+        <NovaIcon :name="busy ? 'clock' : 'forward'" :size="18" />
+      </span>
       <input
         :id="id"
         ref="slider"
@@ -71,27 +94,34 @@ onMounted(() => slider.value?.focus({ preventScroll: true }))
         type="range"
         min="0"
         max="100"
-        step="1"
+        step="any"
         :disabled="busy"
-        class="na:h-11 na:w-full na:cursor-pointer na:accent-[var(--na-brand)] na:disabled:cursor-wait"
-        :aria-valuetext="t('captcha.value', { value })"
-        :aria-describedby="`${id}-help ${id}-error`"
+        class="nova-captcha-range"
+        :aria-valuetext="t('captcha.value', { value: Math.round(value) })"
+        :aria-describedby="`${id}-help${error || localError ? ` ${id}-error` : ''}`"
         @input="localError = ''"
+        @pointerdown="pointerStart"
+        @pointermove="pointerMove"
         @pointerup="pointerFinish"
+        @pointercancel="cancelDrag"
+        @lostpointercapture="cancelDrag"
         @keydown.enter.prevent="submit"
       />
-      <p :id="`${id}-help`" class="na:text-xs na:leading-relaxed na:text-[var(--na-muted)]">
-        {{ t('captcha.help') }}
-      </p>
-      <p :id="`${id}-error`" class="na:text-sm na:text-[var(--na-error)]" role="alert">
-        {{ error || localError }}
-      </p>
-      <p ref="status" tabindex="-1" role="status" class="na:text-xs na:text-[var(--na-muted)]">
-        {{ busy ? t('captcha.busy') : simulated ? t('captcha.demo') : t('captcha.provider') }}
-      </p>
-      <NovaButton v-if="error" variant="secondary" :disabled="busy" @click="emit('retry')">{{
-        t('common.retry')
-      }}</NovaButton>
     </div>
+    <p :id="`${id}-help`" class="na:sr-only">{{ t('captcha.help') }}</p>
+    <p
+      v-if="error || localError"
+      :id="`${id}-error`"
+      class="na:text-sm na:text-[var(--na-error)]"
+      role="alert"
+    >
+      {{ error || localError }}
+    </p>
+    <p ref="status" tabindex="-1" role="status" class="na:sr-only">
+      {{ busy ? t('captcha.busy') : '' }}
+    </p>
+    <NovaButton v-if="error" variant="secondary" :disabled="busy" @click="emit('retry')">{{
+      t('common.retry')
+    }}</NovaButton>
   </div>
 </template>

@@ -32,8 +32,8 @@ body,
   color: var(--na-muted);
   font-size: 12px;
 }
-/* The reusable auth component already includes the short demo notice. Avoid a
-   duplicate host footer and stacked section/main padding in this demo only. */
+/* Keep consumer auth focused on its form; account footer content belongs after
+   sign-in. Avoid stacked section/main padding in this demo only. */
 .nova-demo.demo-auth > div > footer {
   display: none;
 }
@@ -453,61 +453,35 @@ label.demo-check {
 .demo-config-section > button {
   justify-self: start;
 }
-.demo-auth-guide {
-  padding-top: 20px;
-  border-top: 1px solid var(--na-line);
-  text-align: left;
-}
-.demo-auth-guide-heading {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  margin-bottom: 12px;
-}
-.demo-auth-guide-heading > strong {
-  color: var(--na-ink);
-  font-size: 13px;
-  font-weight: 600;
-}
-.demo-auth-guide-heading > button {
-  padding: 6px 8px;
-  font-size: 12px;
-}
-.demo-auth-guide dl {
-  display: grid;
-  gap: 8px;
-  margin: 0;
-}
-.demo-auth-guide dl > div {
-  display: grid;
-  grid-template-columns: 64px minmax(0, 1fr);
-  gap: 12px;
-  align-items: baseline;
-}
-.demo-auth-guide dt {
-  color: var(--na-muted);
-  font-size: 12px;
-}
-.demo-auth-guide dd {
-  margin: 0;
-  min-width: 0;
-  color: var(--na-ink);
-}
-.demo-auth-guide code {
-  font-size: 13px;
-  overflow-wrap: anywhere;
-  user-select: all;
-}
-.demo-auth-guide > p {
-  margin-top: 12px;
-  color: var(--na-muted);
-  font-size: 12px;
-  line-height: 1.8;
-}
 @container account-content (min-width: 1040px) {
   .demo-config-columns {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* Consumer-facing authentication: quiet brand, focused form, no demo toolbar. */
+.nova-demo.demo-auth > div > header {
+  justify-content: center;
+  min-height: 96px;
+  border-bottom: 0;
+  background: transparent;
+}
+.nova-demo.demo-auth > div > main {
+  padding: 24px 24px 64px;
+}
+.nova-demo.demo-auth h1 {
+  font-size: 28px;
+  line-height: 1.3;
+  letter-spacing: -0.025em;
+}
+.nova-demo.demo-auth .nova-auth-footer:empty {
+  display: none;
+}
+@media (max-width: 480px) {
+  .nova-demo.demo-auth > div > header {
+    min-height: 80px;
+  }
+  .nova-demo.demo-auth > div > main {
+    padding: 20px 24px 40px;
   }
 }

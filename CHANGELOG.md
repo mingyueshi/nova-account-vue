@@ -25,6 +25,8 @@
 
 ### Changed
 
+- Authentication demo now uses consumer-facing forms without credential hints, fill shortcuts or preview bypasses. Simple test inputs live in `docs/demo-credentials.md`. Registration, password reset and security changes share in-memory identities; new credentials work after sign-out until refresh. Code requests sit inside the verification-code field. The slider uses a compact neutral track and visible white handle instead of a decorative puzzle.
+
 - Bundle Lucide exclusively as a development dependency while retaining license inventory checks. ESM-only require conditions provide actionable import guidance; no CommonJS implementation is added. Pin the development Node/npm versions through .nvmrc and packageManager.
 
 - `useAuthFlow` and `useAppearance` require component setup or an active effect scope; browser store scopes now start their timers/listeners without component mount hooks and stop them on scope disposal. Unscoped calls fail explicitly; SSR remains free of browser resources.
@@ -34,7 +36,7 @@
 
 - ECharts is now an optional peer (`^6.1.0`) with an exact development pin. Account-only consumers do not install it; chart consumers install ECharts explicitly. Palette types, validation, swatches and generated CSS share `src/palettes.ts`. Size checks include shared JS chunks.
 - Authoritative host page changes and page trimming preserve built-in profile/preference drafts. Refresh merges clean fields from the server while keeping edited fields; explicit discard and save reset only their own draft. Logout and before-unload guards also cover hidden drafts.
-- Demo configuration now lives in the account sidebar under “演示设置” and “组件接入”; the header tools dialog and duplicate entries are removed. Login, registration and password reset show mode-specific sample credentials with inline fill actions. Typed `authFooter` / `footer` slot props expose the current mode, reset stage, busy state and fill callback; the account `page` slot also exposes `setAppearance` and `storageError`.
+- Demo configuration now lives in the account sidebar under “演示设置” and “组件接入”; the header tools dialog and duplicate entries are removed. Login, registration and password reset keep their sample inputs in documentation. Typed `authFooter` / `footer` slot props expose the current mode, reset stage, busy state and fill callback; the account `page` slot also exposes `setAppearance` and `storageError`.
 - Dark mode switches the whole tinted surface set per accent (canvas, sidebar, surface, ink, muted, line, control), taken from each django-nova-admin palette's dark surfaces, instead of only swapping brand and soft. Light mode keeps neutral surfaces with a brand-only swap, matching the admin preview.
 - Dates use `Intl.DateTimeFormat`; default zone remains UTC for deterministic SSR. Display is localized instead of appending a literal UTC suffix. Set a zone explicitly for local time.
 - Appearance choices use native radio inputs. Consumers targeting old button / `aria-pressed` selectors must update them; `update:modelValue` is unchanged.
@@ -44,6 +46,9 @@
 
 ### Fixed
 
+- Give `NovaCaptcha` a visible 44px drag handle and linked image piece. Pointer capture and continuous displacement keep dragging consistent across browsers, including release outside the track; cancellations and challenge changes cannot submit stale gestures. Keep native range keyboard semantics and the existing adapter response. Allow an extra 512 bytes in the CSS gzip budget for the scoped cross-browser control styles; the account JS budget stays at 40 KiB.
+- Keep Firefox accessibility scans usable with Playwright 1.65: apply axe-core's attribute-first ARIA reference fix through its supported custom-source option, guarded to the pinned version. Retain all rules and property-only references, with regression coverage for both naming paths and invalid names. Hold Dependabot TypeScript 7+ upgrades until the lint/declaration toolchain supports them.
+- Upgrade the pinned Playwright toolchain to 1.65.1 (macOS WebKit build 2388) to pick up the upstream native-select inherited-style cache fix. Add insertion/visibility regression cases and configuration-panel CSSOM checks alongside the existing axe scans; no theme timeout or contrast-rule exclusion is needed.
 - Validate account snapshot structure before load/mutate replaces state; malformed data surfaces INVALID_RESPONSE and retains the last valid snapshot. Guard unread derivation and fall back from non-string message overrides. Correct avatar/two-step prop comments and clarify avatar versus accent identifiers.
 - Validate replacement email syntax before requesting a code and preserve keyboard focus while marking messages read, including removal from the unread filter. Use a controlled clock for cancelled slow challenges and split the 52 appearance axe cases into individually named tests.
 

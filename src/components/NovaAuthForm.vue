@@ -346,24 +346,29 @@ defineExpose({ fill: flow.fill, cancel: flow.cancel, setMode })
             :placeholder="t('auth.codePlaceholder')"
             :disabled="inputBlocked"
             :error="fieldErrors.code"
-          />
-          <div class="na:flex na:items-center na:justify-between na:gap-3">
-            <span class="na:text-xs na:text-[var(--na-muted)]" role="status">{{
-              codeExpired ? t('auth.codeExpired') : delivery ? t('auth.codeSent') : ''
-            }}</span>
-            <NovaButton
-              variant="ghost"
-              :disabled="inputBlocked || resendSeconds > 0"
-              @click="requestCode"
-              >{{
-                resendSeconds > 0
-                  ? t('auth.retryAfter', { seconds: resendSeconds })
-                  : delivery
-                    ? t('auth.resend')
-                    : t('auth.requestCode')
-              }}</NovaButton
-            >
-          </div>
+          >
+            <template #suffix>
+              <NovaButton
+                variant="ghost"
+                class="na:shrink-0 na:rounded-none na:border-l na:border-[var(--na-line)] na:px-3 na:py-1 na:text-xs"
+                :disabled="inputBlocked || resendSeconds > 0"
+                @click="requestCode"
+                >{{
+                  resendSeconds > 0
+                    ? t('auth.retryAfter', { seconds: resendSeconds })
+                    : delivery
+                      ? t('auth.resend')
+                      : t('auth.requestCode')
+                }}</NovaButton
+              >
+            </template>
+          </NovaField>
+          <span
+            class="na:text-xs na:text-[var(--na-muted)]"
+            :class="{ 'na:sr-only': !delivery }"
+            role="status"
+            >{{ codeExpired ? t('auth.codeExpired') : delivery ? t('auth.codeSent') : '' }}</span
+          >
           <p
             v-if="simulated && delivery?.demoCode"
             class="na:text-xs na:text-[var(--na-muted)]"
@@ -443,10 +448,16 @@ defineExpose({ fill: flow.fill, cancel: flow.cancel, setMode })
         {{ t('auth.login') }}
       </button>
     </p>
-    <div class="na:mt-7 na:text-center na:text-xs na:text-[var(--na-muted)]">
-      <slot name="footer" :mode="mode" :reset-stage="resetStage" :busy="busy" :fill="flow.fill"
-        ><span v-if="simulated">{{ t('demo.disclosure') }}</span></slot
-      >
+    <div class="nova-auth-footer na:mt-7 na:text-center na:text-xs na:text-[var(--na-muted)]">
+      <slot
+        v-if="$slots.footer"
+        name="footer"
+        :mode="mode"
+        :reset-stage="resetStage"
+        :busy="busy"
+        :fill="flow.fill"
+      />
+      <span v-else-if="simulated">{{ t('demo.disclosure') }}</span>
     </div>
     <NovaDialog :open="challengeOpen" :title="t('captcha.title')" @close="flow.cancel">
       <template v-if="challenge">

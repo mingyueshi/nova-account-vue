@@ -25,9 +25,31 @@ function button(wrapper: Pick<VueWrapper, 'findAll'>, label: string) {
   return found
 }
 async function enterCenter(wrapper: VueWrapper) {
-  if (!wrapper.find('[data-nova-account-center]').exists()) {
-    await button(wrapper, '用户中心预览').trigger('click')
-    await vi.advanceTimersByTimeAsync(400)
+  if (wrapper.find('[data-nova-account-center]').exists()) return
+  const identifier = wrapper.get(
+    'form input[autocomplete="email"], form input[autocomplete="username"]',
+  )
+  await identifier.setValue(
+    identifier.attributes('autocomplete') === 'username' ? 'demo' : 'demo@demo.com',
+  )
+  const password = wrapper.find('form input[autocomplete="current-password"]')
+  if (password.exists()) {
+    await password.setValue('123456')
+    await wrapper.get('form').trigger('submit')
+  } else {
+    await button(wrapper, '获取验证码').trigger('click')
+  }
+  await vi.advanceTimersByTimeAsync(400)
+  await flushPromises()
+  const slider = wrapper.get('input[type="range"]')
+  await slider.setValue(100)
+  await slider.trigger('keydown', { key: 'Enter' })
+  await vi.advanceTimersByTimeAsync(1200)
+  await flushPromises()
+  if (!password.exists()) {
+    await wrapper.get('input[autocomplete="one-time-code"]').setValue('123456')
+    await wrapper.get('form').trigger('submit')
+    await vi.advanceTimersByTimeAsync(800)
     await flushPromises()
   }
 }
@@ -109,12 +131,12 @@ describe('demo capability switches', () => {
     expect(main.text()).toContain('获取验证码')
     expect(main.text()).not.toContain('密码登录')
     expect(wrapper.find('input[autocomplete="username"]').exists()).toBe(true)
-    await button(wrapper, '填入示例').trigger('click')
+    await wrapper.get('input[autocomplete="username"]').setValue('demo')
     expect((wrapper.get('input[autocomplete="username"]').element as HTMLInputElement).value).toBe(
       'demo',
     )
     // Preview renders the account center without the removed page.
-    await button(wrapper, '用户中心预览').trigger('click')
+    await enterCenter(wrapper)
     await vi.advanceTimersByTimeAsync(400)
     await flushPromises()
     const pageIds = wrapper.findAll('[data-page]').map((tab) => tab.attributes('data-page'))
@@ -138,7 +160,7 @@ describe('demo capability switches', () => {
 
   it('unified event log records pageChange for internal navigation', async () => {
     const wrapper = create()
-    await button(wrapper, '用户中心预览').trigger('click')
+    await enterCenter(wrapper)
     await vi.advanceTimersByTimeAsync(400)
     await flushPromises()
     await wrapper.get('[data-page="profile"]').trigger('click')
@@ -169,7 +191,7 @@ describe('demo capability switches', () => {
 
 describe('demo pages inside the account center', () => {
   async function enter(wrapper: VueWrapper) {
-    await button(wrapper, '用户中心预览').trigger('click')
+    await enterCenter(wrapper)
     await vi.advanceTimersByTimeAsync(400)
     await flushPromises()
   }
@@ -237,6 +259,7 @@ describe('demo pages inside the account center', () => {
 
   it('shares the account theme and honors disabled appearance persistence', async () => {
     const wrapper = create()
+    await enterCenter(wrapper)
     await wrapper.get('button[aria-label="切换深色模式"]').trigger('click')
     await hostPanel(wrapper)
     const label = wrapper
@@ -278,23 +301,23 @@ describe('demo pages inside the account center', () => {
 })
 
 describe('account-integrated demo configuration', () => {
-  it('shows mode-specific sample values beside the auth form and fills them locally', async () => {
+  it('keeps consumer authentication free of credentials and developer shortcuts', async () => {
     const wrapper = create()
-    const guide = () => wrapper.get('[aria-label="演示填写说明"]')
-    expect(guide().text()).toContain('demo@nova.example')
-    expect(guide().text()).toContain('NovaDemo2026!')
-    expect(wrapper.findAll('button').some((item) => item.text().includes('体验工具'))).toBe(false)
-    await button(wrapper, '填入示例').trigger('click')
-    expect((wrapper.get('form input[type="email"]').element as HTMLInputElement).value).toBe(
-      'demo@nova.example',
-    )
-    await button(wrapper, '注册').trigger('click')
-    expect(guide().text()).toContain('246810')
-    expect(guide().text()).toContain('先点击获取验证码')
-    await button(wrapper, '← 返回登录').trigger('click')
-    await button(wrapper, '忘记密码？').trigger('click')
-    expect(guide().text()).toContain('246810')
-    expect(guide().text()).not.toContain('NovaDemo2026!')
+    for (const mode of ['password', 'register', 'reset']) {
+      if (mode === 'register') await button(wrapper, '注册').trigger('click')
+      if (mode === 'reset') {
+        await button(wrapper, '← 返回登录').trigger('click')
+        await button(wrapper, '忘记密码？').trigger('click')
+      }
+      expect(wrapper.find('[aria-label="演示填写说明"]').exists()).toBe(false)
+      expect(wrapper.text()).not.toContain('demo@demo.com')
+      expect(wrapper.text()).not.toContain('123456')
+      expect(
+        wrapper
+          .findAll('button')
+          .some((item) => /填入示例|用户中心预览|切换深色/.test(item.text())),
+      ).toBe(false)
+    }
   })
 
   it('keeps configuration reachable through simulated failures and page trimming', async () => {
@@ -306,9 +329,9 @@ describe('account-integrated demo configuration', () => {
       .findAll('label')
       .find((label) => label.text().startsWith('网络响应'))!
     await network.get('select').setValue('offline')
-    await button(wrapper, '返回登录页').trigger('click')
-    await flushPromises()
-    await button(wrapper, '用户中心预览').trigger('click')
+    await wrapper.get('[data-page="profile"]').trigger('click')
+    await vi.advanceTimersByTimeAsync(400)
+    await wrapper.get('[data-page="custom:settings"]').trigger('click')
     await flushPromises()
     expect(wrapper.get('[data-demo-settings]').isVisible()).toBe(true)
     const host = await hostPanel(wrapper)

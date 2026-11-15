@@ -53,7 +53,7 @@ it('runs countdowns in a store-like scope, resyncs visibility and disposes timer
   try {
     const flow = scope.run(() => useAuthFlow(adapter))!
     flow.mode.value = 'code'
-    flow.fill({ email: 'demo@nova.example' })
+    flow.fill({ email: 'demo@demo.com' })
     await flow.requestCode()
     await flow.verifyChallenge({ value: 100 })
     expect(flow.resendSeconds.value).toBe(3)

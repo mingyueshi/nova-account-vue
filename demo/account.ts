@@ -6,20 +6,22 @@ import type {
   MutationContext,
   RequestContext,
 } from '../src/types'
-import type { DemoSettings } from './auth'
+import { DEMO_EMAIL } from './auth'
+import type { DemoSettings, DemoIdentities } from './auth'
 
 export const DEMO_ACCOUNT_VALUES = {
-  currentPassword: 'NovaDemo2026!',
-  newPassword: 'NovaNext2026!',
-  confirmPassword: 'NovaNext2026!',
-  email: 'novanext@nova.example',
-  code: '246810',
+  currentPassword: '123456',
+  newPassword: '654321',
+  confirmPassword: '654321',
+  email: 'next@demo.com',
+  code: '123456',
 } as const
 
 interface DemoAccountOptions {
   wait?: (signal: AbortSignal) => Promise<void>
   now?: () => number
   settings?: () => DemoSettings
+  identities?: DemoIdentities
 }
 const clone = <T>(value: T): T => structuredClone(value)
 function fail(code: string, message: string): never {
@@ -40,7 +42,7 @@ export function createInitialAccount(time: number): AccountSnapshot {
       avatar: 'iris',
       avatarUrl: '',
     },
-    email: 'demo@nova.example',
+    email: DEMO_EMAIL,
     notifications: { product: true, email: false, security: true },
     security: { twoStepEnabled: false },
     devices: [
@@ -163,6 +165,7 @@ export function createDemoAccountAdapter({
   wait = () => new Promise((resolve) => setTimeout(resolve, 350)),
   now = Date.now,
   settings,
+  identities,
 }: DemoAccountOptions = {}): AccountAdapter {
   let state = createInitialAccount(now())
   let issueCounter = 0
@@ -223,12 +226,18 @@ export function createDemoAccountAdapter({
     return snapshot()
   }
   function checkPassword(password: string) {
-    if (password !== DEMO_ACCOUNT_VALUES.currentPassword)
-      fail('DEMO_PASSWORD_ONLY', '请使用固定示例密码，勿输入真实密码。')
+    if (password !== (identities?.current.password ?? DEMO_ACCOUNT_VALUES.currentPassword))
+      fail('PASSWORD_INVALID', '当前密码不正确。')
   }
   return {
     async load(context) {
       await pause(context)
+      if (identities && state.profile.id !== identities.current.user.id) {
+        state = createInitialAccount(now())
+        state.profile.id = identities.current.user.id
+        state.profile.nickname = identities.current.user.displayName
+      }
+      if (identities) state.email = identities.current.user.email
       return snapshot()
     },
     async updateProfile(profile, context) {
@@ -282,8 +291,8 @@ export function createDemoAccountAdapter({
     },
     async changePassword(input, context) {
       checkPassword(input.currentPassword)
-      if (input.newPassword !== DEMO_ACCOUNT_VALUES.newPassword)
-        fail('DEMO_NEXT_PASSWORD_ONLY', '请使用固定新示例密码，勿输入真实密码。')
+      if (input.newPassword.length < 6 || input.newPassword.length > 128)
+        fail('PASSWORD_INVALID', '密码长度应为 6–128 位。')
       if (input.newPassword !== input.confirmPassword)
         fail('PASSWORD_MISMATCH', '两次输入的新密码不一致。')
       await pause(context)
@@ -291,6 +300,7 @@ export function createDemoAccountAdapter({
         context,
         (next) => {
           next.security.passwordUpdatedAt = new Date(now()).toISOString()
+          if (identities) identities.current.password = input.newPassword
         },
         'credentials',
         '密码修改演示已完成',
@@ -299,15 +309,15 @@ export function createDemoAccountAdapter({
     async requestEmailChangeCode(input, context) {
       checkPassword(input.currentPassword)
       const email = input.email.trim().toLowerCase()
-      if (email !== DEMO_ACCOUNT_VALUES.email)
-        fail('DEMO_EMAIL_ONLY', '请使用固定新示例邮箱，勿输入真实邮箱。')
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) fail('EMAIL_INVALID', '请输入有效的邮箱地址。')
+      if (identities?.find(email)) fail('EMAIL_TAKEN', '该邮箱已被使用。')
       if (state.email === email) fail('EMAIL_UNCHANGED', '当前已是此示例邮箱。')
       if (emailIssue && now() < emailIssue.resendAt) fail('CODE_COOLDOWN', '请稍后再获取演示码。')
       const issue = ++issueCounter
       await pause(context)
       if (issue !== issueCounter) fail('CANCELLED', '已有新的发码请求，本次结果已失效。')
       emailIssue = { id: issue, email, expiresAt: now() + 120_000, resendAt: now() + 30_000 }
-      return { expiresAt: emailIssue.expiresAt, retryAfter: 30, demoCode: DEMO_ACCOUNT_VALUES.code }
+      return { expiresAt: emailIssue.expiresAt, retryAfter: 30 }
     },
     async changeEmail(input, context) {
       const email = input.email.trim().toLowerCase(),
@@ -323,6 +333,7 @@ export function createDemoAccountAdapter({
         context,
         (next) => {
           next.email = email
+          identities?.changeEmail(email)
         },
         'credentials',
         '邮箱更换演示已完成',

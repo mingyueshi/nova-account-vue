@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test'
-import AxeBuilder from '@axe-core/playwright'
+import { createAxeBuilder } from './axe'
 import { lightPalettes } from '../../src/palettes'
 import { zhCN } from '../../src/locales'
 
@@ -11,7 +11,7 @@ async function navigate(page: Page, id: string) {
 
 async function ensureCenter(page: Page) {
   if (!(await page.locator('[data-nova-account-center]').isVisible())) {
-    await page.getByRole('button', { name: '用户中心预览', exact: true }).click()
+    await login(page)
     await expect(page.locator('[data-nova-account-center]')).toBeVisible()
   }
 }
@@ -29,12 +29,19 @@ async function chooseRadio(page: Page, name: string) {
   return radio
 }
 
-async function fillLogin(page: Page) {
-  await page.getByLabel('邮箱', { exact: true }).fill('demo@nova.example')
-  await page.getByLabel('密码', { exact: true }).fill('NovaDemo2026!')
+async function fillLogin(page: Page, email = 'demo@demo.com', secret = '123456') {
+  const identifier = page
+    .locator('form input[autocomplete="email"], form input[autocomplete="username"]')
+    .first()
+  await identifier.fill(
+    (await identifier.getAttribute('autocomplete')) === 'username' && email === 'demo@demo.com'
+      ? 'demo'
+      : email,
+  )
+  await page.locator('form input[autocomplete="current-password"]').fill(secret)
 }
 async function verify(page: Page) {
-  const dialog = page.getByRole('dialog', { name: '安全验证', exact: true })
+  const dialog = page.locator('dialog[open]').filter({ has: page.locator('input[type="range"]') })
   const slider = dialog.getByRole('slider')
   await expect(slider).toBeEnabled()
   await slider.press('End')
@@ -42,12 +49,30 @@ async function verify(page: Page) {
   await slider.press('Enter')
   await expect(dialog).not.toBeVisible()
 }
-async function login(page: Page) {
-  await fillLogin(page)
-  await page.getByRole('button', { name: '登录', exact: true }).click()
-  await verify(page)
-  await expect(page.getByRole('heading', { name: '账户概览', exact: true })).toBeVisible()
-  await expect(page.getByRole('button', { name: '编辑资料', exact: true })).toBeVisible()
+async function login(page: Page, email = 'demo@demo.com', secret = '123456') {
+  await expect(
+    page.getByRole('heading', { name: /^(欢迎回来|Welcome back|登录你的 Nova 演示账户)$/ }),
+  ).toBeVisible()
+  const password = page.locator('form input[autocomplete="current-password"]')
+  if (await password.count()) {
+    await fillLogin(page, email, secret)
+    await page.locator('form button[type="submit"]').click()
+    await verify(page)
+  } else {
+    const identifier = page
+      .locator('form input[autocomplete="email"], form input[autocomplete="username"]')
+      .first()
+    await identifier.fill(
+      (await identifier.getAttribute('autocomplete')) === 'username' && email === 'demo@demo.com'
+        ? 'demo'
+        : email,
+    )
+    await page.getByRole('button', { name: /^(获取验证码|Get code)$/ }).click()
+    await verify(page)
+    await page.getByLabel('验证码', { exact: true }).fill('123456')
+    await page.locator('form button[type="submit"]').click()
+  }
+  await expect(page.locator('[data-nova-account-center]')).toBeVisible()
 }
 async function preview(page: Page, readyLabel = '编辑资料') {
   await ensureCenter(page)
@@ -134,24 +159,33 @@ for (const mode of ['code', 'register', 'reset'] as const) {
     if (mode === 'register') await page.getByRole('button', { name: '注册', exact: true }).click()
     if (mode === 'reset')
       await page.getByRole('button', { name: '忘记密码？', exact: true }).click()
-    await page.getByLabel('邮箱', { exact: true }).fill('demo@nova.example')
+    await page
+      .getByLabel('邮箱', { exact: true })
+      .fill(mode === 'register' ? 'new@demo.com' : 'demo@demo.com')
     if (mode === 'register') {
-      await page.getByLabel('密码', { exact: true }).fill('NovaDemo2026!')
+      await page.getByLabel('密码', { exact: true }).fill('123456')
       await page.getByRole('checkbox').check()
     }
     await page.getByRole('button', { name: '获取验证码', exact: true }).click()
     await verify(page)
-    await expect(page.getByText('演示码 246810 · 没有发送真实邮件', { exact: true })).toBeVisible()
-    await page.getByLabel('验证码', { exact: true }).fill('246810')
+    await expect(page.getByText('验证码已发出', { exact: true })).toBeVisible()
+    await page.getByLabel('验证码', { exact: true }).fill('123456')
     await page.locator('form button[type="submit"]').click()
     if (mode === 'reset') {
       await expect(page.getByRole('heading', { name: '设置新密码', exact: true })).toBeVisible()
-      await page.getByLabel('新密码', { exact: true }).fill('NovaDemo2026!')
-      await page.getByLabel('确认新密码', { exact: true }).fill('NovaDemo2026!')
+      await page.getByLabel('新密码', { exact: true }).fill('654321')
+      await page.getByLabel('确认新密码', { exact: true }).fill('654321')
       await page.getByRole('button', { name: '确认重置', exact: true }).click()
       await expect(page.getByText('密码已重置，请重新登录。', { exact: true })).toBeVisible()
+      await login(page, 'demo@demo.com', '654321')
     } else {
       await expect(page.getByRole('heading', { name: '账户概览', exact: true })).toBeVisible()
+      if (mode === 'register') {
+        await page.getByRole('button', { name: '退出登录', exact: true }).click()
+        await login(page, 'new@demo.com')
+        await navigate(page, 'profile')
+        await expect(page.getByLabel('昵称', { exact: true })).toHaveValue('new')
+      }
     }
     await expect(page.getByRole('dialog', { name: '安全验证', exact: true })).not.toBeVisible()
   })
@@ -161,16 +195,16 @@ test('an invalid code sign-in focuses the global error and permits an explicit r
   page,
 }) => {
   await page.getByRole('tab', { name: '验证码登录', exact: true }).click()
-  await page.getByLabel('邮箱', { exact: true }).fill('demo@nova.example')
+  await page.getByLabel('邮箱', { exact: true }).fill('demo@demo.com')
   await page.getByRole('button', { name: '获取验证码', exact: true }).click()
   await verify(page)
   const code = page.getByLabel('验证码', { exact: true })
   await code.fill('000000')
   await page.getByRole('button', { name: '登录', exact: true }).click()
-  const error = page.getByRole('alert').filter({ hasText: '演示验证码为 246810。' })
+  const error = page.getByRole('alert').filter({ hasText: '验证码不正确，请重新输入。' })
   await expect(error).toBeFocused()
   await expect(code).toHaveValue('000000')
-  await code.fill('246810')
+  await code.fill('123456')
   await page.getByRole('button', { name: '登录', exact: true }).click()
   await expect(page.getByRole('heading', { name: '账户概览', exact: true })).toBeVisible()
 })
@@ -252,7 +286,7 @@ test('cancel a slow challenge and switch mode without a stale dialog or sign-in'
 })
 
 test('a failed verification is visible and can be retried explicitly', async ({ page }) => {
-  let dialog = await settings(page)
+  const dialog = await settings(page)
   await dialog.getByRole('combobox', { name: '滑块结果', exact: true }).selectOption('fail')
   await dialog.getByRole('button', { name: '返回登录页', exact: true }).click()
   await fillLogin(page)
@@ -260,11 +294,11 @@ test('a failed verification is visible and can be retried explicitly', async ({ 
   const challenge = page.getByRole('dialog', { name: '安全验证', exact: true })
   await challenge.getByRole('slider').press('End')
   await challenge.getByRole('slider').press('Enter')
-  await expect(challenge.getByRole('alert').filter({ hasText: /演示验证未通过/ })).toBeVisible()
-  await page.keyboard.press('Escape')
-  dialog = await settings(page)
-  await dialog.getByRole('combobox', { name: '滑块结果', exact: true }).selectOption('normal')
-  await dialog.getByRole('button', { name: '返回登录页', exact: true }).click()
+  await expect(challenge.getByRole('alert').filter({ hasText: /验证未通过/ })).toBeVisible()
+  await challenge.getByRole('button', { name: '重新载入验证', exact: true }).click()
+  await expect(challenge.getByRole('slider')).toHaveValue('0')
+  // Refresh restores the documented initial demo settings after a forced rejection.
+  await page.reload()
   await fillLogin(page)
   await page.getByRole('button', { name: '登录', exact: true }).click()
   await verify(page)
@@ -293,15 +327,15 @@ for (const viewport of [
     }
     await withinViewport()
     await page.getByRole('button', { name: '忘记密码？', exact: true }).click()
-    await page.getByLabel('邮箱', { exact: true }).fill('demo@nova.example')
+    await page.getByLabel('邮箱', { exact: true }).fill('demo@demo.com')
     await page.getByRole('button', { name: '获取验证码', exact: true }).click()
     await verify(page)
-    await page.getByLabel('验证码', { exact: true }).fill('246810')
+    await page.getByLabel('验证码', { exact: true }).fill('123456')
     await page.getByRole('button', { name: '继续', exact: true }).click()
     await expect(page.getByLabel('新密码', { exact: true })).toBeVisible()
     await withinViewport()
-    await page.getByLabel('新密码', { exact: true }).fill('NovaDemo2026!')
-    await page.getByLabel('确认新密码', { exact: true }).fill('NovaDemo2026!')
+    await page.getByLabel('新密码', { exact: true }).fill('123456')
+    await page.getByLabel('确认新密码', { exact: true }).fill('123456')
     await page.getByRole('button', { name: '确认重置', exact: true }).click()
     await preview(page)
     for (const tab of ['profile', 'messages', 'devices', 'notifications', 'appearance']) {
@@ -352,7 +386,28 @@ async function scanAxe(page: Page) {
       root.getAnimations({ subtree: true }).map((animation) => animation.finished.catch(() => {})),
     )
   })
-  const results = await new AxeBuilder({ page })
+  // Check CSSOM as well as axe: affected WebKit builds could paint dark panels
+  // while reporting stale light tokens on ancestors of native select controls.
+  const panels = page.locator(
+    '[data-demo-settings]:visible .demo-panel, [data-demo-integration]:visible .demo-panel',
+  )
+  for (const panel of await panels.evaluateAll((panels) =>
+    panels.map((panel) => {
+      const style = getComputedStyle(panel)
+      const root = getComputedStyle(panel.closest('.nova-account')!)
+      return {
+        label: panel.getAttribute('aria-label'),
+        surface: style.getPropertyValue('--na-surface'),
+        expectedSurface: root.getPropertyValue('--na-surface'),
+        color: style.color,
+        headingColor: getComputedStyle(panel.querySelector('h2')!).color,
+      }
+    }),
+  )) {
+    expect(panel.surface, `${panel.label}: inherited surface`).toBe(panel.expectedSurface)
+    expect(panel.color, `${panel.label}: inherited foreground`).toBe(panel.headingColor)
+  }
+  const results = await createAxeBuilder(page)
     .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
     .analyze()
   expect(results.violations).toEqual([])
@@ -493,7 +548,7 @@ test('external edit: the next account mutation reports a revision conflict', asy
   await expect(page.getByText('资料已发生变化，请重新加载后再试。').first()).toBeVisible()
 })
 
-test('math challenge through the #captcha slot: error names the answer, retry and success', async ({
+test('math challenge through the #captcha slot: safe error, retry and success', async ({
   page,
 }) => {
   const settingsDialog = await settings(page)
@@ -504,10 +559,9 @@ test('math challenge through the #captcha slot: error names the answer, retry an
   const dialog = page.getByRole('dialog', { name: '安全验证', exact: true })
   const question = dialog.getByText(/请计算/)
   await expect(question).toBeVisible()
-  const [, left, right] = (await question.textContent())!.match(/请计算 (\d+) × (\d+)/)!
   await page.getByLabel('计算结果', { exact: true }).fill('1')
   await dialog.getByRole('button', { name: '提交答案', exact: true }).click()
-  await expect(dialog.getByRole('alert')).toContainText(`正确答案 ${Number(left) * Number(right)}`)
+  await expect(dialog.getByRole('alert')).toContainText('答案不正确')
   await dialog.getByRole('button', { name: '换一题', exact: true }).click()
   await expect(question).toBeVisible()
   const [, nextLeft, nextRight] = (await question.textContent())!.match(/请计算 (\d+) × (\d+)/)!
@@ -526,8 +580,8 @@ test('TOTP security slot enables two-step; the danger zone returns to the auth p
   await host.getByRole('checkbox', { name: /#security 插槽/ }).check()
   await navigate(page, 'security')
   await expect(page.getByRole('heading', { name: '宿主二次认证（TOTP 形式演示）' })).toBeVisible()
-  await page.getByLabel('当前密码', { exact: true }).fill('NovaDemo2026!')
-  await page.getByLabel('验证器验证码', { exact: true }).fill('246810')
+  await page.getByLabel('当前密码', { exact: true }).fill('123456')
+  await page.getByLabel('验证器验证码', { exact: true }).fill('123456')
   await page.getByRole('button', { name: '开启两步验证', exact: true }).click()
   await expect(page.getByText('已开启两步验证')).toBeVisible()
   await page.getByRole('button', { name: '注销演示账户…', exact: true }).click()
@@ -545,13 +599,14 @@ test('codeLength and passwordStrength props shape the auth form', async ({ page 
   await host.getByRole('checkbox', { name: /passwordStrength/ }).check()
   await host.getByRole('button', { name: '返回登录页' }).click()
   await page.getByRole('button', { name: '注册', exact: true }).click()
-  await page.getByLabel('邮箱', { exact: true }).fill('demo@nova.example')
-  await page.getByLabel('密码', { exact: true }).fill('NovaDemo2026!')
+  await page.getByLabel('邮箱', { exact: true }).fill('demo@demo.com')
+  await page.getByLabel('密码', { exact: true }).fill('123456')
   await expect(page.getByText(/密码强度/)).toBeVisible()
-  await expect(page.locator('meter')).toHaveAttribute('value', '4')
+  await expect(page.locator('meter')).toHaveAttribute('value', '0')
   await page.getByRole('button', { name: '获取验证码', exact: true }).click()
   await verify(page)
-  await expect(page.getByText('演示码 2468 · 没有发送真实邮件', { exact: true })).toBeVisible()
+  await expect(page.getByText('验证码已发出', { exact: true })).toBeVisible()
+  await expect(page.locator('main')).not.toContainText('1234')
   await expect(page.getByLabel('验证码', { exact: true })).toHaveAttribute('maxlength', '4')
 })
 
@@ -572,7 +627,7 @@ test('capability switches: username identifier, trimmed modes and pages, unified
   // Password login was removed: the form falls back to code sign-in without a tablist.
   await expect(page.getByRole('tablist')).toHaveCount(0)
   await expect(page.getByLabel('账号', { exact: true })).toBeVisible()
-  await page.getByRole('button', { name: '填入示例', exact: true }).click()
+  await page.locator('input[autocomplete="username"]').fill('demo')
   await expect(page.getByLabel('账号', { exact: true })).toHaveValue('demo')
   await preview(page)
   await expect(page.locator('[data-page="devices"]')).toHaveCount(0)
@@ -616,7 +671,7 @@ test('event log records authenticated and logout around a real sign-in', async (
   await expect(page.getByRole('heading', { name: '欢迎回来', exact: true })).toBeVisible()
   const host = await hostPanel(page)
   const log = host.locator('[data-event-log] li')
-  await expect(log.filter({ hasText: 'authenticated' }).first()).toContainText('demo@nova.example')
+  await expect(log.filter({ hasText: 'authenticated' }).first()).toContainText('demo@demo.com')
   await expect(log.filter({ hasText: 'logout' }).first()).toBeVisible()
 })
 
@@ -729,36 +784,28 @@ test('password changes validate locally, focus the invalid field and recover aft
   await confirm.click()
   await expect(dialog.getByLabel('当前密码', { exact: true })).toBeFocused()
   await expect(dialog.locator('[aria-invalid="true"]')).toHaveCount(3)
-  await dialog.getByLabel('当前密码', { exact: true }).fill('NovaDemo2026!')
-  await dialog.getByLabel('新密码', { exact: true }).fill('NovaNext2026!')
+  await dialog.getByLabel('当前密码', { exact: true }).fill('123456')
+  await dialog.getByLabel('新密码', { exact: true }).fill('654321')
   await dialog.getByLabel('确认新密码', { exact: true }).fill('Different2026!')
   await confirm.click()
   await expect(dialog.getByText('两次输入的密码不一致。', { exact: true })).toBeVisible()
   await expect(dialog.getByLabel('确认新密码', { exact: true })).toBeFocused()
-  expect((await new AxeBuilder({ page }).include('dialog[open]').analyze()).violations).toEqual([])
-  await dialog.getByLabel('确认新密码', { exact: true }).fill('NovaNext2026!')
+  expect((await createAxeBuilder(page).include('dialog[open]').analyze()).violations).toEqual([])
+  await dialog.getByLabel('确认新密码', { exact: true }).fill('654321')
   await confirm.click()
   await expect(dialog).not.toBeVisible()
 })
 
-test('header quick toggle switches light/dark anytime and preserves the accent', async ({
+test('theme tools stay in the account and the saved choice applies on the next sign-in', async ({
   page,
 }) => {
-  const shell = page.locator('.nova-demo').first()
-  await expect(shell).toHaveAttribute('data-theme', 'light')
-  await expect(shell).toHaveAttribute('data-accent', 'blue')
-  await page.getByRole('button', { name: '切换深色模式' }).click()
-  await expect(shell).toHaveAttribute('data-theme', 'dark')
-  await expect(shell).toHaveAttribute('data-accent', 'blue')
-  // The choice persists through the storage key and survives a reload.
-  await page.reload()
-  await expect(shell).toHaveAttribute('data-theme', 'dark')
-  await page.getByRole('button', { name: '切换浅色模式' }).click()
-  await expect(shell).toHaveAttribute('data-theme', 'light')
-  // The toggle stays reachable in the header while signed in.
+  await expect(page.getByRole('button', { name: '切换深色模式' })).toHaveCount(0)
   await login(page)
   await page.getByRole('button', { name: '切换深色模式' }).click()
-  await expect(shell).toHaveAttribute('data-theme', 'dark')
+  await expect(page.locator('.nova-demo').first()).toHaveAttribute('data-theme', 'dark')
+  await page.reload()
+  await expect(page.locator('.nova-demo').first()).toHaveAttribute('data-theme', 'dark')
+  await expect(page.getByRole('button', { name: '切换浅色模式' })).toHaveCount(0)
 })
 
 test('rate limiting rejects the second send with remaining seconds', async ({ page }) => {
@@ -768,12 +815,12 @@ test('rate limiting rejects the second send with remaining seconds', async ({ pa
     .selectOption('limited')
   await settingsDialog.getByRole('button', { name: '返回登录页', exact: true }).click()
   await page.getByRole('tab', { name: '验证码登录', exact: true }).click()
-  await page.getByLabel('邮箱', { exact: true }).fill('demo@nova.example')
+  await page.getByLabel('邮箱', { exact: true }).fill('demo@demo.com')
   await page.getByRole('button', { name: '获取验证码', exact: true }).click()
   await verify(page)
-  await expect(page.getByText('演示码 246810 · 没有发送真实邮件', { exact: true })).toBeVisible()
+  await expect(page.getByText('验证码已发出', { exact: true })).toBeVisible()
   await page.getByRole('button', { name: '注册', exact: true }).click()
-  await page.getByLabel('邮箱', { exact: true }).fill('demo@nova.example')
+  await page.getByLabel('邮箱', { exact: true }).fill('demo@demo.com')
   await page.getByRole('button', { name: '获取验证码', exact: true }).click()
   // A rejected send keeps the challenge dialog open with the throttle error.
   const limitedDialog = page.getByRole('dialog', { name: '安全验证', exact: true })
@@ -794,7 +841,7 @@ test('storage fault surfaces storageError; OAuth placeholders render through #au
   await storageToggle.uncheck()
   await host.getByRole('checkbox', { name: /#authFooter/ }).check()
   await host.getByRole('button', { name: '返回登录页' }).click()
-  await expect(page.getByRole('group', { name: '第三方登录占位' })).toBeVisible()
+  await expect(page.getByRole('group', { name: '其他登录方式' })).toBeVisible()
   await expect(page.getByRole('button', { name: 'GitHub' })).toBeDisabled()
   await expect(page.getByRole('button', { name: 'Google' })).toBeDisabled()
 })
@@ -811,8 +858,8 @@ test('multi-instance view renders two independently themed auth roots', async ({
   const rootB = page.locator('.nova-account[data-accent="teal"]')
   await expect(rootA).toHaveCount(1)
   await expect(rootB).toHaveCount(1)
-  await rootA.getByLabel('邮箱', { exact: true }).fill('demo@nova.example')
-  await rootA.getByLabel('密码', { exact: true }).fill('NovaDemo2026!')
+  await rootA.getByLabel('邮箱', { exact: true }).fill('demo@demo.com')
+  await rootA.getByLabel('密码', { exact: true }).fill('123456')
   await rootA.getByRole('button', { name: '登录', exact: true }).click()
   const slider = rootA.getByRole('slider')
   await expect(slider).toBeEnabled()
@@ -1150,7 +1197,7 @@ test('charts resize with their workspace, remain accessible in dark mode and fit
       })
       .toBe(true)
   }
-  const results = await new AxeBuilder({ page })
+  const results = await createAxeBuilder(page)
     .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
     .analyze()
   expect(results.violations).toEqual([])
@@ -1160,36 +1207,23 @@ test('charts resize with their workspace, remain accessible in dark mode and fit
   })
 })
 
-test('demo configuration is in account pages and auth examples follow the selected flow', async ({
+test('consumer authentication hides test data while account tools remain available after sign-in', async ({
   page,
 }) => {
-  await expect(page.getByRole('button', { name: '体验工具', exact: true })).toHaveCount(0)
-  const guide = page.getByRole('complementary', { name: '演示填写说明' })
-  await expect(guide).toContainText('demo@nova.example')
-  await expect(guide).toContainText('NovaDemo2026!')
-  await guide.getByRole('button', { name: '填入示例', exact: true }).click()
-  await expect(page.getByLabel('邮箱', { exact: true })).toHaveValue('demo@nova.example')
-  await expect(page.getByLabel('密码', { exact: true })).toHaveValue('NovaDemo2026!')
-  const config = await settings(page)
-  await config.getByRole('combobox', { name: '网络响应', exact: true }).selectOption('offline')
-  await config.getByRole('button', { name: '返回登录页', exact: true }).click()
-  await page.getByRole('button', { name: '用户中心预览', exact: true }).click()
-  await expect(page.getByRole('heading', { name: '演示设置', exact: true })).toBeVisible()
-  await page
-    .locator('[data-demo-settings]')
-    .getByRole('button', { name: '恢复正常', exact: true })
-    .click()
-  const integration = await hostPanel(page)
-  await integration.getByRole('combobox', { name: '验证码长度 codeLength' }).selectOption('4')
-  await integration.getByRole('button', { name: '返回登录页', exact: true }).click()
-  await page.getByRole('button', { name: '注册', exact: true }).click()
-  await expect(guide).toContainText('2468')
-  await expect(guide).toContainText('先点击获取验证码')
-  await guide.getByRole('button', { name: '填入示例', exact: true }).click()
-  await expect(page.getByLabel('验证码', { exact: true })).toHaveValue('2468')
-  await expect(page.getByRole('checkbox')).not.toBeChecked()
+  for (const mode of ['password', 'register', 'reset']) {
+    if (mode === 'register') await page.getByRole('button', { name: '注册', exact: true }).click()
+    if (mode === 'reset') {
+      await page.getByRole('button', { name: '← 返回登录', exact: true }).click()
+      await page.getByRole('button', { name: '忘记密码？', exact: true }).click()
+    }
+    await expect(page.getByRole('complementary', { name: '演示填写说明' })).toHaveCount(0)
+    await expect(page.getByRole('button', { name: '用户中心预览', exact: true })).toHaveCount(0)
+    await expect(page.getByRole('button', { name: '填入示例', exact: true })).toHaveCount(0)
+    await expect(page.locator('main')).not.toContainText('demo@demo.com')
+    await expect(page.locator('main')).not.toContainText('123456')
+  }
   await page.getByRole('button', { name: '← 返回登录', exact: true }).click()
-  await page.getByRole('button', { name: '忘记密码？', exact: true }).click()
-  await expect(guide).toContainText('2468')
-  await expect(guide).not.toContainText('NovaDemo2026!')
+  await login(page)
+  await hostPanel(page)
+  await expect(page.locator('[data-demo-integration]')).toBeVisible()
 })

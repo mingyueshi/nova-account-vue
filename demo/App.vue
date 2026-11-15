@@ -25,8 +25,8 @@ import type {
   PasswordStrength,
   SessionUser,
 } from '../src'
-import { createDemoAuthAdapter, defaultSettings, demoUser } from './auth'
-import { createDemoAccountAdapter, DEMO_ACCOUNT_VALUES } from './account'
+import { createDemoAuthAdapter, createDemoIdentities, defaultSettings } from './auth'
+import { createDemoAccountAdapter } from './account'
 import SceneGallery from './SceneGallery.vue'
 import ComponentGallery from './ComponentGallery.vue'
 import IconGallery from './IconGallery.vue'
@@ -34,10 +34,10 @@ const ChartGallery = defineAsyncComponent(() => import('./ChartGallery.vue'))
 const OverviewActivity = defineAsyncComponent(() => import('./OverviewActivity.vue'))
 import NovaIcon from '../src/components/NovaIcon.vue'
 import ProfileSlotEditor from './ProfileSlotEditor.vue'
-import DemoAuthGuide from './DemoAuthGuide.vue'
 import './demo.css'
 import './workspace.css'
 const settings = reactive(defaultSettings())
+const identities = createDemoIdentities()
 const signedIn = ref(false)
 const locale = ref<NovaLocale>('zh-CN')
 const timeZone = ref('Asia/Shanghai')
@@ -136,7 +136,7 @@ const isComponentPage = computed(() =>
   ['custom:fields', 'custom:buttons', 'custom:dialogs'].includes(page.value),
 )
 function openDemoPage(target: AccountPage) {
-  if (!signedIn.value) preview()
+  if (!signedIn.value) return
   page.value = target
 }
 function openComponent(name: string) {
@@ -237,7 +237,7 @@ function clearEventLog() {
 }
 /** Changing the persistence target re-initializes the shell, like a host restart would. */
 watch(storageChoice, () => {
-  sessionUser.value = signedIn.value ? demoUser() : null
+  sessionUser.value = signedIn.value ? { ...identities.current.user } : null
   shellKey.value++
   logEvent(
     'storageKey',
@@ -273,8 +273,9 @@ const instances = reactive<
 function createAdapter(): NovaAdapter {
   return {
     simulated: true,
-    auth: createDemoAuthAdapter({ settings: () => settings }),
+    auth: createDemoAuthAdapter({ settings: () => settings, identities }),
     account: createDemoAccountAdapter({
+      identities,
       settings: () => settings,
       wait: async (signal) => {
         // Configuration must stay reachable even while simulated business requests fail.
@@ -298,11 +299,6 @@ function createAdapter(): NovaAdapter {
   }
 }
 const adapter = shallowRef(createAdapter())
-function preview() {
-  if (settings.network === 'offline' || settings.auth === 'fail') page.value = 'custom:settings'
-  account.value?.preview(demoUser())
-  signedIn.value = true
-}
 function resetDemo() {
   visitedCharts.value = false
   visitedIcons.value = false
@@ -322,7 +318,7 @@ function resetDemo() {
 }
 /** initialUser applies at mount; the shell remounts so the prop takes effect. */
 function enterRestoredSession() {
-  sessionUser.value = demoUser()
+  sessionUser.value = { ...identities.current.user }
   page.value = 'overview'
   shellKey.value++
   signedIn.value = true
@@ -518,15 +514,8 @@ function onStorageChange(
             <NovaAuthForm
               v-if="!instance.signedIn"
               :adapter="instance.adapter"
-              simulated
               @authenticated="instance.signedIn = true"
-              ><template #footer="auth"
-                ><DemoAuthGuide
-                  :mode="auth.mode"
-                  :busy="auth.busy"
-                  :reset-stage="auth.resetStage"
-                  :fill="auth.fill" /></template
-            ></NovaAuthForm>
+            />
             <div v-else class="demo-stack">
               <p class="na:m-0 na:text-sm">此实例已登录，状态独立于另一实例。</p>
               <NovaButton @click="instance.signedIn = false">退出此实例</NovaButton>
@@ -694,8 +683,7 @@ function onStorageChange(
                     </select></label
                   >
                   <p class="demo-note">
-                    用户名模式下演示账号为
-                    demo（“填入示例”会同步切换）；动态切换会取消旧验证流程并清除密码、验证码。
+                    动态切换会取消旧验证流程并清除密码、验证码。测试账号填写规则见项目文档。
                   </p>
                   <div role="group" aria-label="登录方式裁剪" class="demo-grid">
                     <label v-for="mode in modeItems" :key="mode" class="demo-check"
@@ -716,8 +704,7 @@ function onStorageChange(
                     </select></label
                   >
                   <p class="demo-note">
-                    仅调整登录表单展示；演示码同步为对应长度（4 位时为
-                    2468）。账户中心安全表单不受影响。
+                    调整登录表单的验证码长度，对应测试值见项目文档。账户中心安全表单不受影响。
                   </p>
                   <label
                     ><input v-model="strengthOn" type="checkbox" /> 注入 passwordStrength
@@ -869,8 +856,7 @@ function onStorageChange(
                     插槽（TOTP 形式演示）</label
                   >
                   <p class="demo-note">
-                    开启后内置安全页被插槽替换：验证码 {{ DEMO_ACCOUNT_VALUES.code }}，当前密码
-                    {{ DEMO_ACCOUNT_VALUES.currentPassword }}。
+                    开启后内置安全页被插槽替换；确认码见项目文档，当前密码使用该账号最近设置的值。
                   </p>
                   <label
                     ><input v-model="customProfile" type="checkbox" /> 资料页改用 #profile
@@ -947,7 +933,7 @@ function onStorageChange(
             :appearance="appearance"
           />
         </template>
-        <template #tools="theme">
+        <template v-if="signedIn" #tools="theme">
           <NovaButton
             variant="ghost"
             :aria-label="
@@ -959,9 +945,6 @@ function onStorageChange(
               resolvedThemeMode(theme.appearance) === 'dark' ? '浅色' : '深色'
             }}</span></NovaButton
           >
-          <NovaButton v-if="!signedIn" variant="ghost" @click="preview"
-            >用户中心预览<NovaIcon name="chevron" :size="16"
-          /></NovaButton>
         </template>
         <template #captcha="captcha">
           <form
@@ -1000,25 +983,14 @@ function onStorageChange(
             @retry="captcha.retry"
           />
         </template>
-        <template #authFooter="auth">
-          <DemoAuthGuide
-            v-if="enabledModes.includes(auth.mode)"
-            :mode="auth.mode"
-            :busy="auth.busy"
-            :reset-stage="auth.resetStage"
-            :fill="auth.fill"
-            :identifier="identifier"
-            :code-length="settings.codeLength"
-            :locale="locale"
-          />
+        <template #authFooter>
           <div v-if="oauthOn">
-            <div role="group" aria-label="第三方登录占位" class="demo-stack">
+            <div role="group" aria-label="其他登录方式" class="demo-stack">
               <div class="demo-grid demo-oauth">
                 <NovaButton type="button" disabled>GitHub</NovaButton>
                 <NovaButton type="button" disabled>Google</NovaButton>
                 <NovaButton type="button" disabled>微软账户</NovaButton>
               </div>
-              <p class="demo-note">仅演示占位（宿主 #authFooter 插槽），未接入任何第三方服务。</p>
             </div>
           </div>
         </template>
@@ -1066,10 +1038,7 @@ function onStorageChange(
                     : '开启两步验证'
               }}</NovaButton>
             </form>
-            <p class="demo-note">
-              演示验证器固定显示 {{ DEMO_ACCOUNT_VALUES.code }}；真实验证器每 30
-              秒轮换，且服务端必须自行校验。
-            </p>
+
             <div role="group" aria-label="危险区" class="demo-stack demo-danger">
               <p class="demo-note">
                 <strong>危险区（演示）</strong>：注销当前演示账户，展示宿主实现的二次确认流程。
@@ -1089,12 +1058,7 @@ function onStorageChange(
             </template>
           </NovaDialog>
         </template>
-        <template #securityFormTools="{ fill: fillSecurity }"
-          ><NovaButton variant="ghost" @click="fillSecurity(DEMO_ACCOUNT_VALUES)"
-            >填入示例</NovaButton
-          ></template
-        >
-        <template #footer><span v-if="signedIn">交互演示 · 请勿输入真实资料</span></template>
+        <template #footer><span v-if="signedIn">Nova Account</span></template>
       </NovaAccount>
       <p v-if="layout === 'embedded'" class="demo-hostbody">
         以上是 layout="embedded" 的 NovaAccount：保留 header 与

@@ -238,7 +238,7 @@ describe('NovaAccountCenter', () => {
     await button(wrapper, '获取演示码').trigger('click')
     await button(wrapper, '取消').trigger('click')
     await button(wrapper, '更换').trigger('click')
-    resolve({ expiresAt: Date.now() + 120000, retryAfter: 30, demoCode: '246810' })
+    resolve({ expiresAt: Date.now() + 120000, retryAfter: 30, demoCode: '123456' })
     await flushPromises()
     expect(wrapper.get('dialog[open]').text()).not.toContain('演示验证码：')
     expect(wrapper.get('dialog[open] button[type="submit"]').attributes('disabled')).toBeDefined()

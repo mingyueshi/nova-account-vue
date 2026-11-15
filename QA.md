@@ -1,5 +1,46 @@
 # Nova Account Vue 开发版验证
 
+## 2026-11-15 消费者认证流程与细节优化
+
+- 认证页仅保留品牌、真实表单操作和必要反馈：移除填写说明、自动填充、免登录预览、登录前工具按钮和固定验证码提示。测试输入统一在 [演示账号与操作说明](docs/demo-credentials.md)，中英文 README 同步入口与当前行为。
+- 滑块以单条中性轨道、44px 手柄和轻量箭头融入表单，去掉前一轮的装饰图片和拼块；连续位移、指针捕获、取消、反向拖动、末端释放和键盘提交的行为保留。获取验证码按钮收进验证码输入框，未发送时不占反馈行空间。
+- 默认邮箱 `demo@demo.com`、密码和验证码 `123456`，用户名模式 `demo`。注册支持新邮箱；退出后可重新登录，重置或修改密码、换绑邮箱会更新实际后续登录输入；刷新恢复初始数据，密码不写入浏览器存储。适配器不返回明文验证码。
+- `npm run check` 通过：261 项单元/组件/SSR 测试、12 项打包回归，以及 lint、格式、类型、构建和体积检查。NovaCaptcha 行覆盖率 100%、分支 91.52%。账户 JS 40,042 bytes gzip，CSS 6,340 bytes，均在现有预算内。最终独立 tarball 的 ESM、SSR、严格 TypeScript、无 ECharts 基础入口和可选图表入口检查通过。
+- 已查看 1440px 桌面、390/320px 手机与深色验证弹窗截图，并检查注册、找回密码页面。Chrome 原生触摸模拟覆盖取消不提交、再拖动后成功；这属于模拟验证，未声称真机验收。截图及诊断脚本保存在忽略目录 `output/playwright/`。
+- 最终源码的完整浏览器回归 **324/324** 通过（Chrome、Firefox、WebKit 各 108 项，无重试），包含注册后退出重新登录、重置后新密码登录、内联验证码操作、窄屏、拖动与深浅主题。新界面改动仅在本地，未提交 Git 或部署。
+
+## 2026-11-15 滑块外观与拖动修复（前一阶段记录）
+
+此阶段的图片拼块外观已被上方的简洁验证条替代，以下保留当时的验证证据。
+
+- 原控件只有平台默认范围条：Chrome 手柄是小圆点，WebKit 是容易与背景混淆的白色手柄，背景图没有移动拼块；此前端到端流程主要使用 End/Enter，未覆盖真实拖动。新增 44px 可见手柄、主题色箭头、进度填充及图片拼块，滑块与拼块按连续位移联动。
+- 指针手势仅从手柄启动，记录起始位置与轨道宽度，拖动中不重复测量布局；统一处理 Pointer Events，捕获指针后可移出控件继续拖动，末端释放才提交。途中释放可接着拖或反向拖；取消、换题与忙态终止手势。原生 range 继续提供键盘和无障碍语义，adapter 响应仍为 `{value:100}`。
+- 三浏览器新增拖动回归 9/9：1280/320px 浅色、390px 深色，检查可见尺寸、轨迹比例、图片联动、点轨道不跳过验证、中途释放、反向拖动及控件外松手；每个状态也运行 axe。Chrome CDP 原生触摸模拟额外通过，覆盖末端取消不提交、再次拖动后提交；没有将其声称为真机触摸验收。
+- 最终 `npm run check` 通过：258 项单元/组件/SSR 测试与 12 项打包回归，NovaCaptcha 行覆盖率 100%、分支 90.19%；lint、格式、类型、构建及体积检查通过。账户 JS 40,565 bytes gzip，仍在 40 KiB 预算内，CSS 6,233 bytes；为新增的跨浏览器轨道/手柄样式将 CSS 预算从 6 KiB 调整到 6.5 KiB。最终源码的独立 tarball ESM/SSR/严格 TS 与可选图表入口验证通过。
+- 三引擎完整回归 324/324。最后补充拖动中隐藏提示、忙态恢复提示，以及背景图完整等比显示，避免 320px 起始拼块被裁掉；此后再次通过三引擎拖动 9/9 与 Chrome 原生触摸模拟 1/1。裁剪检查测量可见轮廓，不用包含被裁切场景内容的 SVG 组边界。本轮滑块改动保留在本地，未提交、推送或部署。
+
+## 2026-11-15 Firefox 扫描与依赖升级修复
+
+- Firefox 崩溃根因为 [Mozilla 2090055](https://bugzilla.mozilla.org/show_bug.cgi?id=2090055)：axe 在页面环境、Playwright 定位器在隔离环境读取同一 ARIA 引用属性，触发原生空指针。对照中无扫描时通过，扫描后失败；恢复焦点、旧扫描模式、清理 axe 状态都不能修复。与 [Playwright 43967](https://github.com/microsoft/playwright/issues/43967) 的复现一致。
+- 通过 AxeBuilder 公开的 `axeSource` 选项，在 Firefox 测试中采用 [axe-core 5561](https://github.com/dequelabs/axe-core/pull/5561) 的非空属性优先逻辑。补丁检查固定的 axe-core 4.14.0 版本与唯一源码目标，升级时要求复核；不禁用扫描规则，不修改浏览器全局 API 或业务组件。属性为空时保留脚本引用与 ElementInternals 回退。此处理规避当前测试触发路径，不能宣称已修复 Firefox 原生引擎。
+- 原完整 axe 用例与 3 项新增回归定向通过 4/4。新增用例覆盖定位器/扫描交替读取、错误名称仍报告违规、脚本引用仍正确解析。所有扫描入口统一使用该构造器。
+- 在独立工作区 `codex/fix-dependency-upgrade-regressions` 处理 Dependabot #11：保留其依赖升级，Playwright 补到 1.65.1，并按 Prettier 3.10.0 格式化 DemoAuthGuide、SceneGallery、NovaAccountCenter 三个文件。TS7 暂缓：三个目录保留 TypeScript 5.9.3，Dependabot 忽略 TypeScript >=7，等待 lint 与声明工具链兼容。
+- 当前工作区及升级工作区的 `npm run check` 均通过：各 256 项单元/组件/SSR 测试、12 项打包回归，以及 lint、格式、类型、构建与体积预算。
+- 当前工作区与升级工作区的三引擎完整回归各 315/315，共 630 项：每套 Chrome、Firefox、WebKit 各 105/105，通过全部外观、业务、图表、布局及新增 ARIA/主题继承用例。升级工作区的独立 tarball ESM/SSR/严格 TypeScript 与 Nuxt 3/4 typecheck/build/SSR/CSS 验证也通过。升级分支的远端结果以 [PR #11 checks](https://github.com/mingyueshi/nova-account-vue/pull/11/checks) 为准。
+- 已向 #11 推送修复提交 `959c04a`，未合并。该提交的远端 Linux [库与浏览器工作流](https://github.com/mingyueshi/nova-account-vue/actions/runs/43656160170) 和 [Nuxt 工作流](https://github.com/mingyueshi/nova-account-vue/actions/runs/43656160175) 均成功：依赖检查、Node 22.12/24 完整检查和独立消费者、三浏览器、Nuxt 3/4 全部通过。三浏览器各 105 项，无失败重试记录。此记录对应 PR 提交，不代表未合并的远端 main 已变绿。
+
+## 2026-11-15 WebKit 深色样式复核
+
+以下记录首次验证，包括当时尚未修复的 Firefox 失败；后续处理见上节。
+
+- 根因是测试所用 WebKit build 2370 的原生 `<select>` 样式缓存缺陷，对应上游 [WebKit 326092](https://bugs.webkit.org/show_bug.cgi?id=326092) 和 [修复提交](https://github.com/WebKit/WebKit/pull/75823)。下拉框参与样式计算时，从旧祖先样式解析选项并缓存祖先链，导致面板已绘制深色、`getComputedStyle()` 却仍报告浅色变量。标题不在这条缓存链上，仍返回深色前景，axe 因此读到错误组合。
+- 原始完整用例复现的是 1 条 `color-contrast` 违规、2 个标题节点；断言 diff 的 `+93` 不是 93 个违规节点。等待 1 秒或关闭容器查询仍失败，面板无颜色过渡，不能归因为“深色动画尚未落定”。
+- 纯 HTML 对照不依赖 Vue、axe、容器查询或项目 CSS：插入、隐藏后显示、可见下拉框的 3 个场景在旧引擎均失败，替换为 `<input>` 的 3 个场景均通过。升级 Playwright / playwright-core 到 1.65.1、WebKit 到 build 2388 后，这 6 个对照场景及原完整深色 axe 用例均通过。
+- 固定新工具链版本及 lockfile，保留现有动画结束等待和全部 axe 规则；没有增加 sleep、强制重绘或页面主题补丁。新增 3 个具名引擎回归用例，并在真实设置/宿主集成页面扫描前检查面板与主题根节点的变量、面板与标题的前景色是否一致。
+- `npm run check` 通过：256 项单元/组件/SSR 测试、12 项打包回归，以及 lint、格式、类型、构建和体积预算。
+- 本机 macOS 三引擎首次矩阵：Chrome 102/102、WebKit 102/102、Firefox 101/102，共 305 项通过。Firefox 的完整 axe 流程在填写登录邮箱时发生 `Page crashed`，未到深色页断言；失败 trace 与矩阵报告保留在忽略目录 `output/playwright/theme-investigation/`。不将此次运行记为 306/306。
+- Firefox 单 worker 定向复跑和开启浏览器日志后的复跑仍失败；日志与 macOS 崩溃报告确认为内容进程 SIGSEGV。旧 Firefox build 1555 的额外对照未能启动（`Could not find profile folder`），因此无法据此判断崩溃是否由此次升级引入。该问题尚未解决，未增加重试或绕过检查；本轮也未验证真实 Safari 或远端 Linux CI。
+
 ## 2026-11-14 运行时输入与依赖追加复核
 
 - 补齐快照边界校验、翻译覆盖类型防护、邮箱格式校验和消息焦点恢复。纠正 prop 注释，明确内部图标解析函数与独立头像枚举；Lucide 移到开发依赖并保留打包许可检查；ESM-only 提供明确的 require 错误指引。加入已验证的开发 Node/npm 元数据。

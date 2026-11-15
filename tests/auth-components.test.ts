@@ -6,6 +6,10 @@ import type { AuthAdapter } from '../src/types'
 
 const wrappers: VueWrapper[] = []
 afterEach(() => wrappers.splice(0).forEach((wrapper) => wrapper.unmount()))
+async function pointerEvent(element: Element, type: string, options: PointerEventInit) {
+  element.dispatchEvent(new PointerEvent(type, { bubbles: true, cancelable: true, ...options }))
+  await flushPromises()
+}
 function adapter(kind: 'slider' | 'custom' = 'slider'): AuthAdapter {
   return {
     challenge: vi.fn(async () => ({ id: 'challenge', kind, expiresAt: Date.now() + 100_000 })),
@@ -34,19 +38,88 @@ describe('authentication components', () => {
     })
     wrappers.push(wrapper)
     const slider = wrapper.get('input[type="range"]')
-    await slider.setValue(40)
-    await slider.trigger('pointerup')
+    vi.spyOn(slider.element, 'getBoundingClientRect').mockReturnValue({
+      left: 0,
+      width: 248,
+    } as DOMRect)
+    Object.defineProperty(slider.element, 'setPointerCapture', { value: vi.fn() })
+    const pointer = { pointerId: 1, button: 0, isPrimary: true }
+    await pointerEvent(slider.element, 'pointerdown', { ...pointer, clientX: 24 })
+    await pointerEvent(slider.element, 'pointermove', { ...pointer, clientX: 104 })
+    expect(wrapper.get('.nova-captcha-prompt').isVisible()).toBe(false)
+    await pointerEvent(slider.element, 'pointerup', { ...pointer, clientX: 104 })
+    expect((slider.element as HTMLInputElement).valueAsNumber).toBe(40)
     expect(wrapper.emitted('submit')).toBeUndefined()
     await slider.trigger('keydown', { key: 'Enter' })
     expect(wrapper.get('[role="alert"]').text()).not.toBe('')
-    await slider.setValue(100)
-    await slider.trigger('pointerup')
+    await pointerEvent(slider.element, 'pointerdown', { ...pointer, clientX: 104 })
+    await pointerEvent(slider.element, 'pointermove', { ...pointer, clientX: 224 })
+    expect(wrapper.emitted('submit')).toBeUndefined()
+    await pointerEvent(slider.element, 'pointerup', { ...pointer, clientX: 224 })
     expect(wrapper.emitted('submit')).toEqual([[{ value: 100 }]])
     await wrapper.setProps({
       challenge: { id: 'replacement', kind: 'slider', expiresAt: Date.now() + 100_000 },
     })
     expect(slider.element).toHaveProperty('value', '0')
-    expect(wrapper.get('[role="alert"]').text()).toBe('')
+    expect(wrapper.find('[role="alert"]').exists()).toBe(false)
+  })
+
+  it('ignores track jumps and secondary pointers, and never submits a cancelled drag', async () => {
+    const wrapper = mount(NovaCaptcha, {
+      props: { challenge: { id: 'cancel', kind: 'slider', expiresAt: Date.now() + 100_000 } },
+    })
+    wrappers.push(wrapper)
+    const slider = wrapper.get('input[type="range"]')
+    vi.spyOn(slider.element, 'getBoundingClientRect').mockReturnValue({
+      left: 0,
+      width: 248,
+    } as DOMRect)
+    const pointer = { pointerId: 1, button: 0, isPrimary: true }
+    await pointerEvent(slider.element, 'pointerdown', { ...pointer, clientX: 240 })
+    await pointerEvent(slider.element, 'pointermove', { ...pointer, clientX: 240 })
+    await pointerEvent(slider.element, 'pointerup', { ...pointer, clientX: 240 })
+    expect(slider.element).toHaveProperty('value', '0')
+    await pointerEvent(slider.element, 'pointerdown', { ...pointer, button: 2 })
+    await pointerEvent(slider.element, 'pointerdown', { ...pointer, isPrimary: false })
+    await pointerEvent(slider.element, 'pointerdown', { ...pointer, clientX: 24 })
+    await pointerEvent(slider.element, 'pointerdown', { ...pointer, pointerId: 2, clientX: 24 })
+    await pointerEvent(slider.element, 'pointermove', { ...pointer, pointerId: 2, clientX: 224 })
+    await pointerEvent(slider.element, 'pointerup', { ...pointer, pointerId: 2, clientX: 224 })
+    expect(slider.element).toHaveProperty('value', '0')
+    await pointerEvent(slider.element, 'pointermove', { ...pointer, clientX: 224 })
+    await pointerEvent(slider.element, 'pointercancel', pointer)
+    await pointerEvent(slider.element, 'pointerup', { ...pointer, clientX: 224 })
+    expect(wrapper.emitted('submit')).toBeUndefined()
+    await wrapper.setProps({ busy: true })
+    await pointerEvent(slider.element, 'pointerdown', { ...pointer, clientX: 224 })
+    await pointerEvent(slider.element, 'pointermove', { ...pointer, clientX: 224 })
+    expect(wrapper.emitted('submit')).toBeUndefined()
+  })
+
+  it('invalidates an in-flight drag when the challenge is replaced or becomes busy', async () => {
+    const wrapper = mount(NovaCaptcha, {
+      props: { challenge: { id: 'first', kind: 'slider', expiresAt: Date.now() + 100_000 } },
+    })
+    wrappers.push(wrapper)
+    const slider = wrapper.get('input[type="range"]')
+    vi.spyOn(slider.element, 'getBoundingClientRect').mockReturnValue({
+      left: 0,
+      width: 248,
+    } as DOMRect)
+    const pointer = { pointerId: 1, button: 0, isPrimary: true, pointerType: 'touch' }
+    await pointerEvent(slider.element, 'pointerdown', { ...pointer, clientX: 24 })
+    await pointerEvent(slider.element, 'pointermove', { ...pointer, clientX: 104 })
+    await wrapper.setProps({
+      challenge: { id: 'next', kind: 'slider', expiresAt: Date.now() + 100_000 },
+    })
+    await pointerEvent(slider.element, 'pointermove', { ...pointer, clientX: 224 })
+    await pointerEvent(slider.element, 'pointerup', { ...pointer, clientX: 224 })
+    expect(slider.element).toHaveProperty('value', '0')
+    expect(wrapper.emitted('submit')).toBeUndefined()
+    await pointerEvent(slider.element, 'pointerdown', { ...pointer, clientX: 24 })
+    await wrapper.setProps({ busy: true })
+    await pointerEvent(slider.element, 'pointerup', { ...pointer, clientX: 224 })
+    expect(wrapper.emitted('submit')).toBeUndefined()
   })
 
   it('blocks verification and retry while busy, moves focus to status, then allows explicit retry', async () => {
@@ -64,6 +137,7 @@ describe('authentication components', () => {
     await wrapper.setProps({ busy: true, error: 'Verification failed' })
     await flushPromises()
     expect(document.activeElement).toBe(wrapper.get('[role="status"]').element)
+    expect(wrapper.get('.nova-captcha-prompt').isVisible()).toBe(true)
     await slider.trigger('keydown', { key: 'Enter' })
     await wrapper.get('button').trigger('click')
     expect(wrapper.emitted('submit')).toBeUndefined()
@@ -71,9 +145,9 @@ describe('authentication components', () => {
     await wrapper.setProps({ busy: false })
     await wrapper.get('button').trigger('click')
     expect(wrapper.emitted('retry')).toHaveLength(1)
-    expect(wrapper.get('[role="status"]').text()).toContain('仅模拟交互')
+    expect(wrapper.get('[role="status"]').text()).toBe('')
     await wrapper.setProps({ simulated: false })
-    expect(wrapper.get('[role="status"]').text()).not.toContain('仅模拟交互')
+    expect(wrapper.get('[role="status"]').text()).toBe('')
   })
 
   it('keeps password visibility and single-login keyboard navigation local to the form', async () => {
