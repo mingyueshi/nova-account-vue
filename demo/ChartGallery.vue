@@ -122,7 +122,7 @@ function togglePlayback() {
   if (playing.value) return stop()
   if (sample.value !== 'normal' || !props.active) return
   playing.value = true
-  note.value = '正在回放模拟记录，每 1.8 秒推进一天。'
+  note.value = '正在回放，点击暂停可停留在当前日期。'
   timer = setInterval(advance, 1800)
 }
 function reset() {
@@ -335,7 +335,7 @@ onBeforeUnmount(() => {
       </aside>
     </div>
     <p role="status" class="demo-chart-status">
-      {{ note || '图表支持悬停提示、图例筛选和底部范围缩放。回放仅更新本页模拟数据。' }}
+      {{ note || '悬停查看数值，拖动图表底部滑轨调整时间范围。' }}
     </p>
     <details class="demo-panel demo-chart-data">
       <summary>

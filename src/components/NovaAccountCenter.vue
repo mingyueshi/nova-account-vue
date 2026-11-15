@@ -251,7 +251,7 @@ onMounted(() => {
   window.addEventListener('beforeunload', beforeUnload)
   if (content.value && typeof ResizeObserver !== 'undefined') {
     contentObserver = new ResizeObserver(([entry]) => {
-      if (entry) readerWide.value = entry.contentRect.width >= 1040
+      if (entry) readerWide.value = entry.contentRect.width >= 900
     })
     contentObserver.observe(content.value)
   }
@@ -685,6 +685,7 @@ defineExpose({ refresh, fillSecurity })
   >
     <aside
       data-account-sidebar
+      :aria-label="t('account.navigation')"
       class="na:flex na:shrink-0 na:flex-col na:border-b na:border-[var(--na-line)] na:bg-[var(--na-surface)] na:md:w-60 na:md:overflow-y-auto na:md:border-r na:md:border-b-0"
     >
       <div v-if="snapshot" class="na:hidden na:items-center na:gap-3 na:px-6 na:py-8 na:md:flex">
@@ -765,7 +766,7 @@ defineExpose({ refresh, fillSecurity })
         </button>
       </nav>
       <p
-        v-if="simulated"
+        v-if="simulated && t('account.memory')"
         class="na:mt-auto na:hidden na:px-7 na:py-6 na:text-xs na:leading-5 na:text-[var(--na-muted)] na:md:block"
       >
         {{ t('account.memory') }}
@@ -795,7 +796,7 @@ defineExpose({ refresh, fillSecurity })
             <p :class="muted" class="na:mt-2 na:mb-0">{{ currentTab.description }}</p>
           </div>
           <span
-            v-if="simulated"
+            v-if="simulated && t('account.demo')"
             class="na:rounded-full na:border na:border-[var(--na-line)] na:bg-[var(--na-surface)] na:px-3 na:py-1.5 na:text-xs na:text-[var(--na-muted)]"
             >{{ t('account.demo') }}</span
           >
@@ -816,6 +817,7 @@ defineExpose({ refresh, fillSecurity })
         <p
           v-if="busy && page === 'messages'"
           ref="messageBusy"
+          class="na:sr-only"
           role="status"
           tabindex="-1"
           :class="muted"
@@ -881,7 +883,21 @@ defineExpose({ refresh, fillSecurity })
                             count: snapshot.devices.length,
                             simulated: simulated ? t('account.simulated') : '',
                           })
-                        : t('account.manage')
+                        : tab.id === 'profile'
+                          ? t(
+                              snapshot.profile.bio
+                                ? 'account.profileComplete'
+                                : 'account.profileIncomplete',
+                            )
+                          : tab.id === 'security'
+                            ? t(
+                                snapshot.security.twoStepEnabled
+                                  ? 'security.enabled'
+                                  : 'account.protectAccount',
+                              )
+                            : t('account.notificationCount', {
+                                count: Object.values(snapshot.notifications).filter(Boolean).length,
+                              })
                     }}</span>
                   </div>
                   <NovaIcon
@@ -898,7 +914,7 @@ defineExpose({ refresh, fillSecurity })
               </h2>
               <ul class="na:m-0 na:list-none na:p-0">
                 <li
-                  v-for="entry in snapshot.activity.slice(0, 4)"
+                  v-for="entry in snapshot.activity.slice(0, 3)"
                   :key="entry.id"
                   class="na:flex na:flex-wrap na:gap-3 na:border-t na:border-[var(--na-line)] na:py-4"
                 >
@@ -973,7 +989,15 @@ defineExpose({ refresh, fillSecurity })
                             :style="{ backgroundColor: avatar.color }"
                             @click="profile.avatar = avatar.id"
                           >
-                            {{ profile.avatar === avatar.id ? '✓' : 'N' }}
+                            <NovaIcon
+                              v-if="profile.avatar === avatar.id"
+                              name="check"
+                              :size="20"
+                            /><span v-else>{{
+                              (profile.nickname || snapshot.profile.nickname)
+                                .slice(0, 1)
+                                .toUpperCase()
+                            }}</span>
                           </button>
                         </div>
                       </div>
@@ -1030,7 +1054,9 @@ defineExpose({ refresh, fillSecurity })
                       :disabled="busy"
                       :hint="t('profile.count', { count: profile.bio.length, max: 120 })"
                     />
-                    <p v-if="simulated" :class="muted" class="na:m-0">{{ t('profile.demo') }}</p>
+                    <p v-if="simulated && t('profile.demo')" :class="muted" class="na:m-0">
+                      {{ t('profile.demo') }}
+                    </p>
                   </div>
                 </section>
                 <div
@@ -1041,9 +1067,11 @@ defineExpose({ refresh, fillSecurity })
                     {{ dirty ? t('profile.dirty') : t('profile.clean') }}
                   </p>
                   <div class="na:flex na:gap-3">
-                    <NovaButton variant="secondary" @click="discardDraft">{{
-                      t('common.cancel')
-                    }}</NovaButton
+                    <NovaButton
+                      variant="secondary"
+                      :disabled="!dirty || busy"
+                      @click="discardDraft"
+                      >{{ t('common.cancel') }}</NovaButton
                     ><NovaButton variant="primary" type="submit" :disabled="!dirty || busy"
                       ><NovaIcon v-if="!busy" name="save" :size="16" />{{
                         busy ? t('common.saving') : t('profile.save')
@@ -1058,11 +1086,11 @@ defineExpose({ refresh, fillSecurity })
           <section v-else-if="page === 'security'" class="nova-security-grid na:space-y-6">
             <div class="nova-security-settings na:grid na:gap-5">
               <slot name="security" :snapshot="snapshot" :adapter="adapter" :refresh="refresh">
-                <div :class="panel" class="na:space-y-6">
+                <div :class="panel" class="nova-security-controls na:space-y-6">
                   <div class="na:flex na:items-center na:justify-between na:gap-4">
                     <div>
                       <h2 class="na:m-0 na:text-sm na:font-semibold">
-                        {{ t('security.password') }}
+                        <NovaIcon name="security" :size="18" />{{ t('security.password') }}
                       </h2>
                       <p class="na:mt-2 na:mb-0" :class="muted">
                         {{
@@ -1086,7 +1114,9 @@ defineExpose({ refresh, fillSecurity })
                     class="na:flex na:items-center na:justify-between na:gap-4 na:border-t na:border-[var(--na-line)] na:pt-6"
                   >
                     <div class="na:min-w-0">
-                      <h2 class="na:m-0 na:text-sm na:font-semibold">{{ t('security.email') }}</h2>
+                      <h2 class="na:m-0 na:text-sm na:font-semibold">
+                        <NovaIcon name="messages" :size="18" />{{ t('security.email') }}
+                      </h2>
                       <p class="na:mt-2 na:mb-0 na:break-all" :class="muted">
                         {{ snapshot.email }}
                       </p>
@@ -1105,7 +1135,7 @@ defineExpose({ refresh, fillSecurity })
                   >
                     <div>
                       <h2 class="na:m-0 na:text-sm na:font-semibold">
-                        {{ t('security.twoStep') }}
+                        <NovaIcon name="check" :size="18" />{{ t('security.twoStep') }}
                       </h2>
                       <p class="na:mt-2 na:mb-0" :class="muted">
                         {{
@@ -1126,7 +1156,9 @@ defineExpose({ refresh, fillSecurity })
                     >
                   </div>
                 </div>
-                <p :class="muted">{{ simulated ? t('security.demo') : t('security.slot') }}</p>
+                <p v-if="!simulated || t('security.demo')" :class="muted">
+                  {{ simulated ? t('security.demo') : t('security.slot') }}
+                </p>
               </slot>
             </div>
             <section :class="panel" class="nova-security-activity">
@@ -1163,7 +1195,10 @@ defineExpose({ refresh, fillSecurity })
                 </li>
               </ul>
               <p v-if="!visibleActivities.length" :class="muted">{{ t('security.empty') }}</p>
-              <div class="na:mt-3 na:flex na:items-center na:justify-between">
+              <div
+                v-if="activityPages > 1"
+                class="na:mt-3 na:flex na:items-center na:justify-between"
+              >
                 <span class="na:text-xs na:text-[var(--na-muted)]"
                   >{{ activityPage + 1 }} / {{ activityPages }}</span
                 >
@@ -1243,7 +1278,7 @@ defineExpose({ refresh, fillSecurity })
                 </article>
               </div>
             </div>
-            <p v-if="simulated" :class="muted">{{ t('devices.demo') }}</p>
+            <p v-if="simulated && t('devices.demo')" :class="muted">{{ t('devices.demo') }}</p>
           </section>
 
           <form
@@ -1270,7 +1305,11 @@ defineExpose({ refresh, fillSecurity })
                   class="na:h-6 na:w-11 na:shrink-0 na:cursor-pointer na:accent-[var(--na-brand)]"
               /></label>
             </div>
-            <aside class="nova-notification-preview" :class="panel">
+            <aside
+              class="nova-notification-preview"
+              :class="panel"
+              :aria-label="t('notifications.preview')"
+            >
               <div class="nova-preview-heading">
                 <NovaIcon name="notifications" />
                 <div>
@@ -1306,7 +1345,9 @@ defineExpose({ refresh, fillSecurity })
                 </p>
               </div>
             </aside>
-            <p v-if="simulated" :class="muted">{{ t('notifications.demo') }}</p>
+            <p v-if="simulated && t('notifications.demo')" :class="muted">
+              {{ t('notifications.demo') }}
+            </p>
             <div
               data-account-savebar
               class="na:flex na:flex-wrap na:items-center na:justify-between na:gap-4"
@@ -1315,7 +1356,7 @@ defineExpose({ refresh, fillSecurity })
                 {{ dirty ? t('profile.dirty') : t('profile.clean') }}
               </p>
               <div class="na:flex na:gap-3">
-                <NovaButton variant="secondary" @click="discardDraft">{{
+                <NovaButton variant="secondary" :disabled="!dirty || busy" @click="discardDraft">{{
                   t('common.cancel')
                 }}</NovaButton
                 ><NovaButton variant="primary" type="submit" :disabled="!dirty || busy"
@@ -1328,7 +1369,9 @@ defineExpose({ refresh, fillSecurity })
           </form>
 
           <section v-else-if="page === 'messages'" class="nova-message-page na:space-y-5">
-            <div class="na:flex na:flex-wrap na:items-center na:justify-between na:gap-4">
+            <div
+              class="nova-message-toolbar na:flex na:flex-wrap na:items-center na:justify-between na:gap-4"
+            >
               <div role="group" :aria-label="t('messages.filter')" class="na:flex na:gap-2">
                 <NovaButton
                   :variant="messageFilter === 'all' ? 'primary' : 'secondary'"
@@ -1396,10 +1439,13 @@ defineExpose({ refresh, fillSecurity })
                     ><span class="na:sr-only">{{ t('messages.viewDetails') }}</span></button
                   ><NovaButton
                     v-if="!message.read"
+                    :title="t('messages.mark')"
                     variant="ghost"
                     :disabled="busy"
                     @click="markRead(message.id, $event)"
-                    >{{ t('messages.mark') }}</NovaButton
+                    ><NovaIcon name="check" :size="16" /><span class="na:sr-only">{{
+                      t('messages.mark')
+                    }}</span></NovaButton
                   >
                 </article>
                 <div v-if="!visibleMessages.length" class="na:py-12 na:text-center">
@@ -1491,7 +1537,9 @@ defineExpose({ refresh, fillSecurity })
         novalidate
         @submit.prevent="submitSecurity"
       >
-        <p v-if="simulated" :class="muted" class="na:mt-0">{{ t('security.formDemo') }}</p>
+        <p v-if="simulated && t('security.formDemo')" :class="muted" class="na:mt-0">
+          {{ t('security.formDemo') }}
+        </p>
         <template v-if="modal === 'password' || modal === 'email' || modal === 'twoStep'">
           <NovaField
             v-model="securityValues.currentPassword"
@@ -1549,7 +1597,9 @@ defineExpose({ refresh, fillSecurity })
             </p></template
           >
           <template v-if="modal === 'twoStep'"
-            ><p :class="muted">{{ t('security.confirmationHelp') }}</p>
+            ><p v-if="t('security.confirmationHelp')" :class="muted">
+              {{ t('security.confirmationHelp') }}
+            </p>
             <NovaField
               v-model="securityValues.code"
               :label="t('security.confirmationCode')"

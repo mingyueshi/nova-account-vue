@@ -64,7 +64,7 @@ describe('profile slot editor', () => {
       expect.objectContaining({ revision: '5' }),
     )
     expect(refresh).toHaveBeenCalled()
-    expect(wrapper.find('[role="status"]').text()).toContain('核心资料已通过适配器保存')
+    expect(wrapper.find('[role="status"]').text()).toContain('个人资料已保存')
     // Reset returns to the snapshot values.
     await wrapper
       .findAll('button')
@@ -85,7 +85,7 @@ describe('profile slot editor', () => {
     await tagInput.setValue('')
     await add()
     expect(scene.text()).toContain('标签不能为空。')
-    await tagInput.setValue('演示')
+    await tagInput.setValue('阅读')
     await add()
     expect(scene.text()).toContain('标签已存在。')
     for (const tag of ['前端', '设计', '管理']) {

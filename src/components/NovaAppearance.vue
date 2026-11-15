@@ -101,9 +101,11 @@ function update(value: Partial<Appearance>) {
           <p></p>
         </div>
       </div>
-      <NovaButton variant="primary" class="na:mt-4" tabindex="-1">{{
-        t('appearance.button')
-      }}</NovaButton>
+      <span
+        class="nova-appearance-sample na:mt-4 na:inline-flex na:rounded-xl na:bg-[var(--na-brand)] na:px-4 na:py-3 na:text-sm na:font-medium na:text-[var(--na-on-brand)]"
+        aria-hidden="true"
+        >{{ t('appearance.button') }}</span
+      >
     </div>
     <div class="na:flex na:flex-wrap na:items-center na:justify-between na:gap-3">
       <p class="na:text-xs na:text-[var(--na-muted)]">

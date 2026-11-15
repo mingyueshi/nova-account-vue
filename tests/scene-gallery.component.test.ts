@@ -91,7 +91,7 @@ describe('scene gallery interactions', () => {
     expect(wrapper.find('[role="status"]').exists()).toBe(false)
     await vi.advanceTimersByTimeAsync(700)
     await flushPromises()
-    expect(wrapper.find('[role="status"]').text()).toContain('已保存《接入笔记》到内存')
+    expect(wrapper.find('[role="status"]').text()).toContain('草稿《接入笔记》已保存')
     await button(wrapper, '清空').trigger('click')
     expect(wrapper.find('.demo-scene-preview').exists()).toBe(false)
     expect(wrapper.find('[role="status"]').exists()).toBe(false)
@@ -168,11 +168,11 @@ describe('scene gallery interactions', () => {
     expect(dialog.text()).toContain('¥228.00')
     await dialog
       .findAll('button')
-      .find((item) => item.text() === '模拟支付')!
+      .find((item) => item.text() === '确认支付')!
       .trigger('click')
     await vi.advanceTimersByTimeAsync(800)
     await flushPromises()
-    expect(dialog.text()).toContain('模拟支付完成，订单等待发货。')
+    expect(dialog.text()).toContain('支付成功，订单等待发货。')
     expect(dialog.text()).toContain('待发货')
     await dialog
       .findAll('button')
@@ -190,7 +190,7 @@ describe('scene gallery interactions', () => {
   it('isolates payment progress and receipts when another order is opened', async () => {
     const wrapper = create()
     await wrapper.get('[data-order-id="NO-2026-0817"]').trigger('click')
-    await button(wrapper, '模拟支付').trigger('click')
+    await button(wrapper, '确认支付').trigger('click')
     await wrapper
       .get('dialog[open]')
       .findAll('button')
@@ -207,7 +207,7 @@ describe('scene gallery interactions', () => {
       .trigger('click')
     await wrapper.get('[data-order-id="NO-2026-0817"]').trigger('click')
     expect(wrapper.get('dialog[open]').text()).toContain('待发货')
-    expect(wrapper.get('dialog[open]').text()).toContain('模拟支付完成，订单等待发货。')
+    expect(wrapper.get('dialog[open]').text()).toContain('支付成功，订单等待发货。')
     expect(wrapper.get('dialog[open]').find('[aria-busy]').exists()).toBe(false)
   })
 

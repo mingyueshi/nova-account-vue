@@ -281,7 +281,7 @@ describe('demo pages inside the account center', () => {
     const wrapper = create()
     await enter(wrapper)
     await wrapper.get('[data-page="custom:orders"]').trigger('click')
-    await button(wrapper, 'NovaDialog ↗').trigger('click')
+    await wrapper.get('[data-page="custom:dialogs"]').trigger('click')
     expect(wrapper.get('h1').text()).toBe('对话框')
     expect(wrapper.get('[data-page="custom:dialogs"]').attributes('aria-current')).toBe('page')
     await wrapper.get('[data-page="custom:buttons"]').trigger('click')

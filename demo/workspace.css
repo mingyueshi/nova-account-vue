@@ -1037,3 +1037,314 @@
   height: 44px;
   border-radius: 12px;
 }
+
+/* Consumer account pages: controls first, reading space second. */
+.nova-demo .nova-overview-profile,
+.nova-demo .nova-overview-activity,
+.nova-demo .nova-profile-grid,
+.nova-demo .nova-security-controls,
+.nova-demo .nova-security-activity,
+.nova-demo .nova-notification-options,
+.nova-demo .nova-notification-preview,
+.nova-demo .nova-message-list,
+.nova-demo .nova-message-reader {
+  border-radius: 12px;
+}
+.nova-demo .nova-overview-profile {
+  padding: 24px;
+}
+.nova-demo .nova-overview-main {
+  gap: 20px;
+}
+.nova-demo .nova-overview-shortcuts {
+  gap: 12px;
+}
+.nova-demo .nova-overview-shortcuts > button {
+  padding: 18px 20px;
+  gap: 12px;
+}
+.nova-demo .nova-overview-activity li {
+  display: grid;
+  grid-template-columns: 6px minmax(0, 1fr);
+  gap: 8px 12px;
+}
+.nova-demo .nova-overview-activity li > time {
+  grid-column: 2;
+}
+.nova-demo .nova-profile-grid {
+  gap: 28px;
+  padding: 28px;
+}
+.nova-demo .nova-profile-preview {
+  padding-bottom: 20px;
+  gap: 8px;
+}
+.nova-demo .nova-profile-preview p {
+  margin: 0;
+}
+.nova-demo .nova-profile-fields {
+  gap: 24px;
+}
+.nova-demo .nova-profile-fields h2 {
+  margin: 0;
+}
+.nova-demo .nova-profile-identity input[readonly] {
+  background: var(--na-canvas);
+  color: var(--na-muted);
+}
+.nova-demo [data-account-savebar] {
+  position: sticky;
+  bottom: -32px;
+  z-index: 2;
+  margin-top: 20px;
+  padding: 16px 0;
+  border-top: 1px solid var(--na-line);
+  background: var(--na-canvas);
+}
+.nova-demo .nova-security-controls > div {
+  min-height: 72px;
+  align-items: center;
+}
+.nova-demo .nova-security-controls > div > button {
+  flex-shrink: 0;
+  min-width: 64px;
+}
+.nova-demo .nova-security-activity li {
+  padding-block: 18px;
+}
+.nova-demo .nova-notification-options {
+  padding: 8px 24px;
+}
+.nova-demo .nova-notification-options > label {
+  min-height: 100px;
+  padding-block: 22px;
+}
+.nova-demo .nova-notification-preview {
+  padding: 24px;
+}
+.nova-demo .nova-notification-previews {
+  margin-top: 20px;
+}
+.nova-demo .nova-notification-previews article {
+  padding-block: 16px;
+}
+.nova-demo .nova-message-workspace {
+  gap: 20px;
+}
+.nova-demo .nova-message-list {
+  padding: 8px 20px;
+}
+.nova-demo .nova-message-list article {
+  position: relative;
+  display: grid;
+  grid-template-columns: 6px minmax(0, 1fr) auto;
+  gap: 12px;
+  padding-block: 18px;
+}
+.nova-demo .nova-message-list article > button[data-message-open] {
+  min-width: 0;
+  grid-column: 2;
+}
+.nova-demo .nova-message-list article > button:last-child:not([data-message-open]) {
+  grid-column: 3;
+  align-self: start;
+  min-width: 44px;
+  padding: 10px;
+}
+.nova-demo .nova-message-list article[data-message-selected='true'] {
+  margin-inline: -12px;
+  padding-inline: 12px;
+  border-radius: 8px;
+}
+.nova-demo .nova-message-reader {
+  min-height: 420px;
+  padding: 28px;
+}
+.nova-demo .nova-message-reader h2 {
+  font-size: 20px;
+  line-height: 1.5;
+}
+.nova-demo .nova-reader-empty {
+  align-content: center;
+  min-height: 360px;
+}
+.nova-demo .nova-device-heading {
+  gap: 16px;
+  margin-bottom: 20px;
+}
+.nova-demo .nova-device-card h3 {
+  line-height: 1.5;
+}
+.nova-demo .nova-appearance {
+  gap: 24px;
+}
+.nova-demo .nova-appearance-preview {
+  padding: 24px;
+}
+.nova-demo .demo-article-preview {
+  line-height: 1.8;
+}
+.nova-demo .demo-order-inspector {
+  padding: 24px;
+}
+@container account-content (min-width: 900px) {
+  .nova-demo .nova-profile-grid {
+    grid-template-columns: 240px minmax(0, 1fr);
+  }
+  .nova-demo .nova-profile-avatar {
+    padding-right: 24px;
+  }
+}
+@container account-content (min-width: 900px) {
+  .nova-demo .nova-overview:has(.nova-overview-extension) .nova-overview-shortcuts {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+  .nova-demo .nova-overview:has(.nova-overview-extension) .nova-overview-main {
+    display: contents;
+  }
+  .nova-demo .nova-overview:has(.nova-overview-extension) .nova-overview-profile {
+    grid-column: 1 / -1;
+    grid-row: 1;
+  }
+  .nova-demo .nova-overview:has(.nova-overview-extension) .nova-overview-activity {
+    grid-column: 2;
+    align-self: stretch;
+  }
+  .nova-demo .nova-overview-extension {
+    display: grid;
+    grid-column: 1;
+    align-self: stretch;
+  }
+  .nova-demo .nova-overview-extension > section {
+    height: 100%;
+  }
+  .nova-demo .nova-overview:has(.nova-overview-extension) .nova-overview-activity,
+  .nova-demo .nova-overview-extension {
+    grid-row: 3;
+  }
+  .nova-demo .nova-overview:has(.nova-overview-extension) {
+    grid-template-columns: minmax(0, 1.35fr) minmax(340px, 0.85fr);
+  }
+  .nova-demo .nova-overview-activity {
+    padding: 24px;
+  }
+  .nova-demo .nova-security-grid {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+  .nova-demo .nova-notification-layout {
+    grid-template-columns: minmax(0, 1.2fr) minmax(320px, 0.8fr);
+  }
+  .nova-demo .nova-notification-layout > [data-account-savebar] {
+    grid-row: 2;
+  }
+  .nova-demo .nova-message-workspace.is-wide {
+    grid-template-columns: minmax(320px, 0.85fr) minmax(0, 1.15fr);
+  }
+}
+@container account-content (max-width: 639px) {
+  .nova-demo .nova-overview-profile {
+    gap: 16px;
+    padding: 20px;
+  }
+  .nova-demo .nova-overview-profile > button {
+    width: 100%;
+  }
+  .nova-demo .nova-overview-shortcuts {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .nova-demo .nova-overview-shortcuts > button {
+    padding: 16px 12px;
+    gap: 10px;
+  }
+  .nova-demo .nova-overview-shortcuts > button > svg:last-child {
+    display: none;
+  }
+  .nova-demo .nova-profile-grid {
+    gap: 24px;
+    padding: 20px;
+  }
+  .nova-demo .nova-profile-avatar {
+    padding-bottom: 24px;
+    border-bottom: 1px solid var(--na-line);
+  }
+  .nova-demo .nova-profile-preview {
+    gap: 6px 12px;
+    padding-bottom: 16px;
+  }
+  .nova-demo .nova-profile-avatar fieldset {
+    display: grid;
+    gap: 12px;
+  }
+  .nova-demo .nova-profile-avatar fieldset > div {
+    margin: 0;
+  }
+  .nova-demo .nova-profile-avatar fieldset legend {
+    margin-bottom: 12px;
+  }
+  .nova-demo .nova-profile-fields {
+    gap: 20px;
+  }
+  .nova-demo .nova-profile-fields textarea {
+    min-height: 120px;
+  }
+  .nova-demo .nova-notification-layout {
+    gap: 20px;
+  }
+  .nova-demo .nova-notification-layout > [data-account-savebar] {
+    grid-row: 2;
+  }
+  .nova-demo .nova-notification-options {
+    padding: 4px 20px;
+  }
+  .nova-demo .nova-notification-options > label {
+    min-height: 96px;
+  }
+  .nova-demo .nova-notification-preview {
+    padding: 20px;
+  }
+  .nova-demo .nova-message-list {
+    padding-inline: 16px;
+  }
+  .nova-demo .nova-message-page > div:first-child > button {
+    padding-inline: 12px;
+    font-size: 12px;
+  }
+  .nova-demo .nova-security-controls {
+    padding: 20px;
+  }
+  .nova-demo .nova-security-controls > div {
+    gap: 12px;
+  }
+}
+@media (max-width: 639px) {
+  .nova-demo [data-account-savebar] {
+    bottom: -24px;
+    gap: 12px;
+    padding-block: 12px;
+  }
+  .nova-demo [data-account-savebar] > div {
+    gap: 8px;
+  }
+}
+
+.nova-demo .nova-security-controls h2 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.nova-demo .nova-security-controls h2 > svg {
+  flex-shrink: 0;
+  color: var(--na-muted);
+}
+
+.nova-demo .nova-notification-layout > [data-account-savebar] {
+  margin-top: 0;
+}
+.nova-demo .nova-message-list button[data-message-open] > p {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+}

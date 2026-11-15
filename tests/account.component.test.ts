@@ -127,8 +127,8 @@ describe('NovaAccountCenter', () => {
     state.activity = state.activity.slice(0, 1)
     await wrapper.vm.refresh()
     await flushPromises()
-    expect(activity.text()).toContain('1 / 1')
-    expect(activity.get('[aria-label="下一页安全活动"]').attributes('disabled')).toBeDefined()
+    expect(activity.find('[aria-label="下一页安全活动"]').exists()).toBe(false)
+    expect(activity.find('[aria-label="上一页安全活动"]').exists()).toBe(false)
     await activity
       .findAll('button')
       .find((item) => item.text() === '设备')!

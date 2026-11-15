@@ -109,6 +109,8 @@ These are presentation options, not server authorization. Aborting an operation 
 
 ### Integrated demo controls
 
+Consumer-facing account and business pages keep implementation notes in [Workspace guide](docs/demo-workspaces.md). The authentication brand stays at the upper left; profile and notification drafts keep their save/discard guards.
+
 Sign in or register to enter the account. Runtime settings and integration controls live in the account sidebar; their entries remain available when business pages are trimmed or simulated requests fail. Return to sign-in to try the configured flow. Authentication pages contain only the form, verification and feedback needed to proceed. Test credentials are documented in [Demo accounts and flows](docs/demo-credentials.md), without inline credential hints or fill shortcuts. Theme controls appear after sign-in.
 
 The `NovaAuthForm` footer and `NovaAccount` authFooter slots receive `{ mode, resetStage, busy, fill }`. Reset stages are `verify` and `password`; filling fields does not issue or verify a code. The account page slot also exposes `setAppearance` and `storageError` for host-owned integration tools. No sample credentials enter the library bundle.

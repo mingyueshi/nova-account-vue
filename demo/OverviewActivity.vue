@@ -44,7 +44,7 @@ const option = computed<NovaChartOption>(() => ({
         <p>最近记录所在的 7 天 · 共 {{ total }} 次</p>
       </div>
       <NovaButton variant="ghost" @click="$emit('explore')"
-        >查看数据演示<NovaIcon name="chevron" :size="16"
+        >查看统计<NovaIcon name="chevron" :size="16"
       /></NovaButton>
     </div>
     <NovaChart
@@ -55,6 +55,5 @@ const option = computed<NovaChartOption>(() => ({
       :description="days.map((day, index) => `${day}：${count[index]}次`).join('，')"
     />
     <p v-else class="demo-scene-meta">暂无账户活动记录。</p>
-    <p class="demo-scene-meta">按 UTC 日期汇总当前账户记录；记录为空的日期显示为 0。</p>
   </section>
 </template>

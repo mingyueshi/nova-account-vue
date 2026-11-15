@@ -149,3 +149,5 @@ SSR采用确定性初始light（或显式传入mode）；system和storage在onMo
 load/mutate 验证快照的必需结构及字段类型，非法 payload 不会写入 snapshot，返回 INVALID_RESPONSE 并保留旧有效状态；不把非法 messages 伪装成有效的空列表。unread 派生值另外检查数组和 read 标志，防止宿主直接改写暴露的 ref 导致异常。非字符串 messages 覆盖退回当前内置文案，空字符串依然允许。换绑邮箱发码前校验邮箱形态；最终所有权和安全策略归服务端。
 
 Profile.avatar 使用 iris/teal/sun/graphite，表示头像预设，与 Accent 品牌配色是不同类型，不能按 accent 更名迁移头像。resolveNovaIcon 是内部模块函数，不承诺公共导出；公共图标 API 为 NovaIcon / NOVA_ICON_NAMES。NovaChart 的 ready 在引擎实例创建时触发，error 携带底层错误字符串；二者通过组件事件绑定。
+
+独立演示的消费者文案通过 typed `messages` 覆盖；静态模拟说明被设为空时，对应提示段落不渲染。库默认 `simulated` 文案与安全操作门槛保留。场景边界见[用户中心说明](demo-workspaces.md)。

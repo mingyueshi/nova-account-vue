@@ -63,7 +63,7 @@ async function saveProfile() {
       mutationContext(),
     )
     await props.refresh()
-    note.value = '核心资料已通过适配器保存；扩展字段仅保留在本页内存。'
+    note.value = '个人资料已保存。'
   } catch (cause) {
     note.value = cause instanceof Error ? cause.message : '保存失败，请重试。'
   } finally {
@@ -98,11 +98,11 @@ function onAvatarFile(event: Event) {
   input.value = ''
   if (!file || avatarBusy.value) return
   if (!file.type.startsWith('image/')) {
-    avatarError.value = '仅支持图片文件（演示校验，服务端同样必须校验）。'
+    avatarError.value = '请选择图片文件。'
     return
   }
   if (file.size > MAX_AVATAR_BYTES) {
-    avatarError.value = '图片不能超过 2 MB（演示校验）。'
+    avatarError.value = '图片不能超过 2 MB。'
     return
   }
   avatarBusy.value = true
@@ -159,7 +159,7 @@ watch(
     if (extrasErrors.site && value.trim()) extrasErrors.site = ''
   },
 )
-const profileTags = ref(['演示', '组件库'])
+const profileTags = ref(['阅读', '摄影'])
 const tagDraft = ref('')
 const tagError = ref('')
 function addTag() {
@@ -217,9 +217,7 @@ function removeTag(tag: string) {
         </div>
       </div>
       <p v-if="avatarError" role="alert" class="demo-scene-meta">{{ avatarError }}</p>
-      <p class="demo-scene-meta">
-        头像经适配器的 uploadAvatar 能力保存（类型 / ≤ 2 MB 由适配器校验）；数据仅保存在本页内存。
-      </p>
+      <p class="demo-scene-meta">支持图片文件，大小不超过 2 MB。</p>
     </section>
     <section class="demo-scene-panel">
       <div class="demo-scene-fields">
@@ -249,7 +247,7 @@ function removeTag(tag: string) {
           autocomplete="tel"
           :error="extrasErrors.phone"
         />
-        <NovaField v-model="extras.birthday" label="生日" type="date" hint="浏览器原生日期选择器" />
+        <NovaField v-model="extras.birthday" label="生日" type="date" />
         <div class="demo-scene-field">
           <label class="demo-scene-label" for="profile-slot-job">职位</label>
           <select id="profile-slot-job" v-model="extras.job" class="demo-scene-select">
@@ -282,8 +280,8 @@ function removeTag(tag: string) {
         <NovaField
           :model-value="snapshot.profile.id"
           label="用户 ID"
-          disabled
-          hint="服务端下发，不可修改"
+          readonly
+          hint="账户标识不可修改"
         />
       </div>
       <NovaField
@@ -320,9 +318,6 @@ function removeTag(tag: string) {
         </div>
         <p v-if="tagError" role="alert" class="demo-scene-meta">{{ tagError }}</p>
       </div>
-      <p class="demo-scene-meta">
-        昵称与简介经适配器契约保存；职位、电话、标签等扩展字段仅保存在本页内存，真实接入由宿主扩展契约。
-      </p>
     </section>
     <div class="demo-scene-row">
       <NovaButton type="submit" variant="primary" :busy="saving">保存资料</NovaButton>

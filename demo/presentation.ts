@@ -1,0 +1,60 @@
+import type { NovaLocale, NovaMessages } from '../src'
+
+// The component's simulated defaults stay explicit for library consumers.
+// This standalone experience keeps its implementation notes in documentation.
+const quietKeys = [
+  'account.demo',
+  'account.memory',
+  'account.simulated',
+  'profile.demo',
+  'security.demoPassword',
+  'security.demoSuffix',
+  'security.demo',
+  'security.formDemo',
+  'security.confirmationHelp',
+  'devices.demo',
+  'notifications.demo',
+] satisfies (keyof NovaMessages)[]
+const quiet = Object.fromEntries(quietKeys.map((key) => [key, ''])) as Partial<NovaMessages>
+export const consumerMessages: Record<NovaLocale, Partial<NovaMessages>> = {
+  'zh-CN': {
+    ...quiet,
+    'profile.clean': '所有更改已保存',
+    'profile.demoSaved': '个人资料已保存。',
+    'profile.avatarDemoSaved': '头像已更新。',
+    'notifications.demoSaved': '通知偏好已保存。',
+    'devices.demoRevoked': '设备会话已退出。',
+    'devices.demoAllRevoked': '其他设备会话已退出。',
+    'security.getDemoCode': '获取验证码',
+    'security.confirmDemo': '确认',
+    'security.twoStepDemo': '两步验证',
+    'security.confirmationCode': '确认码',
+    'security.passwordDone': '密码已更新，下次登录请使用新密码。',
+    'security.emailDone': '邮箱已更新，下次登录请使用新邮箱。',
+    'security.twoStepDone': '两步验证设置已更新。',
+    'appearance.accent': '主题颜色',
+    'appearance.storageHint': '更改即时生效',
+    'appearance.previewTitle': '效果预览',
+    'appearance.previewText': '当前设置会应用到整个账户空间。',
+  },
+  'en-US': {
+    ...quiet,
+    'profile.clean': 'All changes saved',
+    'profile.demoSaved': 'Profile saved.',
+    'profile.avatarDemoSaved': 'Avatar updated.',
+    'notifications.demoSaved': 'Notification preferences saved.',
+    'devices.demoRevoked': 'Device signed out.',
+    'devices.demoAllRevoked': 'Other devices signed out.',
+    'security.getDemoCode': 'Get code',
+    'security.confirmDemo': 'Confirm',
+    'security.twoStepDemo': 'Two-step verification',
+    'security.confirmationCode': 'Confirmation code',
+    'security.passwordDone': 'Password updated. Use your new password next time.',
+    'security.emailDone': 'Email updated. Use your new email next time.',
+    'security.twoStepDone': 'Two-step verification settings updated.',
+    'appearance.accent': 'Theme color',
+    'appearance.storageHint': 'Changes apply immediately',
+    'appearance.previewTitle': 'Preview',
+    'appearance.previewText': 'Your settings apply throughout your account.',
+  },
+}

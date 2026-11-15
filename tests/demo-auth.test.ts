@@ -267,3 +267,32 @@ it('shares account password and email mutations with later authentication', asyn
     ),
   ).rejects.toMatchObject({ code: 'CREDENTIALS_INVALID' })
 })
+
+it('removes only the active identity when deleting an account', async () => {
+  const identities = createDemoIdentities()
+  identities.register('new@demo.com', '654321')
+  identities.removeCurrent()
+  const adapter = createDemoAuthAdapter({ ...options, identities })
+  await expect(
+    adapter.login(
+      {
+        email: 'new@demo.com',
+        method: 'password',
+        password: '654321',
+        proof: (await proof(adapter, 'login-password', 'new@demo.com')).token,
+      },
+      context(),
+    ),
+  ).rejects.toMatchObject({ code: 'CREDENTIALS_INVALID' })
+  await expect(
+    adapter.login(
+      {
+        email: DEMO_EMAIL,
+        method: 'password',
+        password: DEMO_PASSWORD,
+        proof: (await proof(adapter, 'login-password')).token,
+      },
+      context(),
+    ),
+  ).resolves.toHaveProperty('user.email', DEMO_EMAIL)
+})

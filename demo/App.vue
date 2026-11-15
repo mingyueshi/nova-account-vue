@@ -36,6 +36,7 @@ import NovaIcon from '../src/components/NovaIcon.vue'
 import ProfileSlotEditor from './ProfileSlotEditor.vue'
 import './demo.css'
 import './workspace.css'
+import { consumerMessages } from './presentation'
 const settings = reactive(defaultSettings())
 const identities = createDemoIdentities()
 const signedIn = ref(false)
@@ -50,7 +51,7 @@ const extraPages: AccountExtraPage[] = [
   {
     id: 'custom:charts',
     label: '数据概览',
-    description: '查看任务与订单趋势，体验动态图表。',
+    description: '了解任务进展与订单趋势。',
     group: '业务场景',
   },
   {
@@ -77,7 +78,7 @@ const extraPages: AccountExtraPage[] = [
   {
     id: 'custom:orders',
     label: '我的订单',
-    description: '查看订单详情与状态，体验模拟支付。',
+    description: '查看商品明细，跟进订单进度。',
     symbol: '▤',
     group: '业务场景',
   },
@@ -139,15 +140,7 @@ function openDemoPage(target: AccountPage) {
   if (!signedIn.value) return
   page.value = target
 }
-function openComponent(name: string) {
-  openDemoPage(
-    name === 'NovaDialog'
-      ? 'custom:dialogs'
-      : name === 'NovaButton'
-        ? 'custom:buttons'
-        : 'custom:fields',
-  )
-}
+
 const page = ref<AccountPage>('overview')
 const pageLabels: Record<AccountPage, string> = {
   overview: '账户概览',
@@ -216,6 +209,10 @@ const demoMessages = {
   'auth.welcome': '登录你的 Nova 演示账户',
   'auth.login': '进入演示',
 } satisfies Partial<NovaMessages>
+const presentationMessages = computed(() => ({
+  ...consumerMessages[locale.value],
+  ...(messagesOn.value ? demoMessages : {}),
+}))
 const brandName = ref('nova')
 const controlledAppearanceOn = ref(false)
 const controlledAppearance = ref<Appearance>({ mode: 'light', accent: 'blue' })
@@ -287,12 +284,13 @@ function createAdapter(): NovaAdapter {
         await new Promise((resolve) => setTimeout(resolve, config.network === 'slow' ? 3000 : 350))
         if (signal.aborted) throw new NovaError('CANCELLED', '操作已取消。')
         if (config.network === 'offline')
-          throw new NovaError('NETWORK', '模拟网络不可用，请在用户中心的演示设置恢复正常后重试。')
-        if (config.auth === 'fail') throw new NovaError('REJECTED', '模拟请求被拒绝，状态未改变。')
+          throw new NovaError('NETWORK', '网络连接暂时不可用，请稍后重试。')
+        if (config.auth === 'fail')
+          throw new NovaError('REJECTED', '请求暂时无法完成，请稍后重试。')
         if (sessionArmed.value) {
           sessionArmed.value = false
           scheduleSessionExpiredReturn()
-          throw new NovaError('SESSION_EXPIRED', '登录状态已过期（模拟 401），请重新登录。')
+          throw new NovaError('SESSION_EXPIRED', '登录状态已过期，请重新登录。')
         }
       },
     }),
@@ -330,8 +328,7 @@ let flowTimer: ReturnType<typeof setTimeout> | undefined
 function scheduleSessionExpiredReturn() {
   clearTimeout(sessionTimer)
   sessionTimer = setTimeout(() => {
-    if (signedIn.value)
-      forceReturnToAuth('登录状态已过期（模拟 401），已清除本地会话并返回登录页。')
+    if (signedIn.value) forceReturnToAuth('登录状态已过期，请重新登录。')
   }, 1400)
 }
 function forceReturnToAuth(note: string) {
@@ -358,7 +355,8 @@ function armConflict() {
   )
 }
 function confirmDelete() {
-  forceReturnToAuth('演示账户注销完成：这是内存模拟，刷新页面后账户会复原。')
+  identities.removeCurrent()
+  forceReturnToAuth('账号已注销。')
 }
 /** Effective mode: 'system' resolves through matchMedia at interaction time. */
 function resolvedThemeMode(appearance: Appearance): 'light' | 'dark' {
@@ -494,7 +492,7 @@ function onStorageChange(
 <template>
   <div :class="layout === 'embedded' ? 'demo-embedded' : undefined">
     <p v-if="sessionNote" role="status" class="demo-banner">{{ sessionNote }}</p>
-    <p v-if="flowNote" role="status" class="demo-banner">{{ flowNote }}</p>
+    <p v-if="flowNote && isConfigPage" role="status" class="demo-banner">{{ flowNote }}</p>
     <div v-if="multiInstance" class="demo-multi-bar">
       <p class="demo-note">
         两个独立的 NovaTheme
@@ -545,7 +543,7 @@ function onStorageChange(
         :pages="enabledPages"
         :extra-pages="extraPages"
         :two-step="twoStepOn"
-        :messages="messagesOn ? demoMessages : undefined"
+        :messages="presentationMessages"
         :brand="brandName"
         :appearance="controlledAppearanceOn ? controlledAppearance : undefined"
         :storage-key="storageKey"
@@ -650,9 +648,7 @@ function onStorageChange(
                       <option value="embedded">嵌入宿主页面</option>
                     </select></label
                   >
-                  <p class="demo-note">
-                    嵌入模式保留 header/footer、高度随内容；组件主题独立于宿主页面配色。
-                  </p>
+                  <p class="demo-note">嵌入模式高度随内容；组件主题独立于宿主页面配色。</p>
                   <div role="group" aria-label="受控页面导航" class="demo-stack">
                     <p class="demo-note">
                       受控导航 v-model:page。当前页面：{{ pageLabels[page] }}。宿主赋值 page
@@ -923,7 +919,6 @@ function onStorageChange(
             :active-scene="sceneSection"
             :active="isScenePage"
             :appearance="appearance"
-            @components="openComponent"
           />
           <ComponentGallery
             v-if="visitedComponents"
@@ -998,12 +993,8 @@ function onStorageChange(
           <ProfileSlotEditor :snapshot="snapshot" :adapter="accountAdapter" :refresh="refresh" />
         </template>
         <template v-if="customSecurity" #security="{ snapshot, adapter: accountAdapter, refresh }">
-          <div class="demo-stack">
-            <h2 class="na:m-0 na:text-base na:font-semibold">宿主二次认证（TOTP 形式演示）</h2>
-            <p class="demo-note">
-              本区块由 #security
-              插槽渲染，替换内置安全页。真实接入请在此实现验证器绑定、恢复码等服务端流程。
-            </p>
+          <div class="demo-stack demo-panel">
+            <h2 class="na:m-0 na:text-base na:font-semibold">两步验证</h2>
             <p class="na:m-0 na:text-sm">
               当前状态：<strong>{{
                 snapshot.security.twoStepEnabled ? '已开启两步验证' : '未开启两步验证'
@@ -1041,15 +1032,13 @@ function onStorageChange(
 
             <div role="group" aria-label="危险区" class="demo-stack demo-danger">
               <p class="demo-note">
-                <strong>危险区（演示）</strong>：注销当前演示账户，展示宿主实现的二次确认流程。
+                <strong>注销账号</strong>：注销后将退出当前账号，并停止使用该账号登录。
               </p>
-              <NovaButton @click="deleteOpen = true">注销演示账户…</NovaButton>
+              <NovaButton @click="deleteOpen = true">注销账号…</NovaButton>
             </div>
           </div>
-          <NovaDialog :open="deleteOpen" title="注销演示账户？" @close="deleteOpen = false">
-            <p>
-              这是内存模拟注销：确认后会清除本页演示状态并返回登录页，刷新后账户复原。真实接入需要在服务端执行账户注销、冷静期与数据删除流程。
-            </p>
+          <NovaDialog :open="deleteOpen" title="注销账号？" @close="deleteOpen = false">
+            <p>注销后将退出当前账号，且无法再使用该账号登录。确认继续？</p>
             <template #footer>
               <div class="demo-grid">
                 <NovaButton @click="deleteOpen = false">取消</NovaButton>

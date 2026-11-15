@@ -74,6 +74,9 @@ export function createDemoIdentities() {
       users.set(email, record)
       return this.activate(record)
     },
+    removeCurrent() {
+      users.delete(active.user.email)
+    },
     changeEmail(email: string) {
       if (users.has(email)) fail('EMAIL_TAKEN', '该邮箱已被使用。')
       users.delete(active.user.email)
@@ -220,7 +223,7 @@ export function createDemoAuthAdapter(
         if (now() < rateUntil)
           fail(
             'RATE_LIMITED',
-            `发送过于频繁（模拟限流），请约 ${Math.max(1, Math.ceil((rateUntil - now()) / 1000))} 秒后再试。`,
+            `发送过于频繁，请约 ${Math.max(1, Math.ceil((rateUntil - now()) / 1000))} 秒后再试。`,
           )
         rateUntil = now() + 20_000
       }

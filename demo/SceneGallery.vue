@@ -4,14 +4,12 @@ import { computed, nextTick, onBeforeUnmount, reactive, ref, useId, watch } from
 import type { Appearance } from '../src'
 import { NovaButton, NovaDialog, NovaField, NovaTheme } from '../src'
 import NovaIcon from '../src/components/NovaIcon.vue'
-import DemoUsage from './DemoUsage.vue'
 import { useWorkspace } from './useWorkspace'
 import './scene-gallery.css'
 
 const props = withDefaults(defineProps<{ appearance?: Appearance; active?: boolean }>(), {
   active: true,
 })
-defineEmits<{ components: [name: string] }>()
 const previewId = useId()
 const taskDetailId = useId()
 const { root: workspace, wide } = useWorkspace()
@@ -20,46 +18,6 @@ function focusInvalid(event?: Event) {
   void nextTick(() => form?.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus())
 }
 const activeScene = defineModel<string>('activeScene', { default: 'tasks' })
-const scenes = [
-  {
-    key: 'tasks',
-    parts: ['NovaField', 'NovaButton'],
-    steps: [
-      '添加一条任务，按 Enter 即可提交。',
-      '勾选完成，按状态筛选；搜索标题可快速定位。',
-      '删除后可以撤销，切换账户页会保留当前任务。',
-    ],
-  },
-  {
-    key: 'editor',
-    parts: ['NovaField', 'NovaButton'],
-    steps: [
-      '填写标题与正文，也可以填入示例内容。',
-      '打开预览检查排版，然后保存草稿。',
-      '保存后继续编辑，状态会提示尚未保存的修改。',
-    ],
-  },
-  {
-    key: 'comments',
-    parts: ['NovaField', 'NovaButton'],
-    steps: [
-      '发布你的看法，最新的评论会显示在最前面。',
-      '点赞可以再次点击取消；按最受赞排序查看讨论。',
-    ],
-  },
-  {
-    key: 'orders',
-    parts: ['NovaButton', 'NovaDialog'],
-    steps: [
-      '按订单状态筛选，或搜索商品与订单号。',
-      '打开待支付订单的详情，查看金额后体验模拟支付。',
-      '模拟支付后，订单进入待发货状态，不会产生真实交易。',
-    ],
-  },
-]
-const currentScene = computed(
-  () => scenes.find((scene) => scene.key === activeScene.value) ?? scenes[0]!,
-)
 const timers = new Set<ReturnType<typeof setTimeout>>()
 function later(action: () => void, delay: number) {
   const timer = setTimeout(() => {
@@ -196,7 +154,7 @@ function savePost(event?: Event) {
   later(() => {
     savedPost.value = draft
     postBusy.value = false
-    postSaved.value = `已保存《${draft.title.trim()}》到内存（演示，刷新即清空）。`
+    postSaved.value = `草稿《${draft.title.trim()}》已保存。`
   }, 700)
 }
 function clearPost() {
@@ -241,7 +199,7 @@ const comments = ref<Comment[]>([
     id: 1,
     author: '林岚',
     at: '昨天 14:02',
-    body: '字段的前缀插槽正好能做单位提示。',
+    body: '把每天想做的事情记下来，完成一项就划掉，感觉很有成就感。',
     likes: 6,
     liked: false,
   },
@@ -249,7 +207,7 @@ const comments = ref<Comment[]>([
     id: 2,
     author: '陈默',
     at: '周一 09:30',
-    body: '列表空态和错误态的对比很清楚。',
+    body: '我习惯先做最重要的一件事，下午再集中回复消息。',
     likes: 2,
     liked: false,
   },
@@ -257,7 +215,7 @@ const comments = ref<Comment[]>([
     id: 3,
     author: '苏黎',
     at: '3 天前',
-    body: '希望补充一个树形列表的场景。',
+    body: '周末会回顾一下这一周的记录，看看还有什么可以调整。',
     likes: 0,
     liked: false,
   },
@@ -407,7 +365,7 @@ function payOrder() {
   later(() => {
     order.status = 'processing'
     payingIds.delete(order.id)
-    paymentNotes[order.id] = '模拟支付完成，订单等待发货。'
+    paymentNotes[order.id] = '支付成功，订单等待发货。'
   }, 800)
 }
 function resetOrderFilter() {
@@ -591,8 +549,7 @@ function resetOrderFilter() {
                     selectedTask.done ? '恢复为进行中' : '标记为完成'
                   }}</NovaButton
                 >
-                <p class="demo-scene-meta">详情仅保存在本页内存，刷新后重置。</p></template
-              >
+              </template>
               <div v-else class="demo-empty">
                 <NovaIcon name="tasks" />
                 <h3>选择一条任务</h3>
@@ -662,7 +619,7 @@ function resetOrderFilter() {
                     >
                   </div>
                   <NovaButton v-if="!post.title && !post.body" variant="ghost" @click="fillPost"
-                    >填入示例内容</NovaButton
+                    >使用写作模板</NovaButton
                   ><NovaButton v-else variant="ghost" :disabled="postBusy" @click="clearPost"
                     ><NovaIcon name="trash" :size="16" />清空</NovaButton
                   >
@@ -723,7 +680,7 @@ function resetOrderFilter() {
                     :error="commentError"
                   />
                   <div class="demo-comment-compose-footer">
-                    <span class="demo-scene-meta">以演示用户身份参与讨论</span
+                    <span class="demo-scene-meta">分享你的想法</span
                     ><NovaButton type="submit" variant="primary" :busy="commentBusy"
                       >发布</NovaButton
                     >
@@ -907,9 +864,9 @@ function resetOrderFilter() {
                     <p>
                       {{
                         inspectedOrder.status === 'pending'
-                          ? '核对商品与金额后，可打开详情体验模拟支付。'
+                          ? '核对商品与金额，完成支付后开始处理订单。'
                           : inspectedOrder.status === 'processing'
-                            ? '模拟支付已完成，订单等待发货。'
+                            ? '订单已支付，等待发货。'
                             : inspectedOrder.status === 'shipped'
                               ? '商品已发出，请留意签收。'
                               : '本次订单已完成。'
@@ -925,7 +882,6 @@ function resetOrderFilter() {
                 <p class="demo-scene-meta">列表与摘要状态同步更新。</p>
               </aside>
             </div>
-            <p class="demo-scene-meta">所有订单与支付均为模拟，不会产生真实交易。</p>
             <NovaDialog
               v-if="activeOrder"
               :open="true"
@@ -956,9 +912,9 @@ function resetOrderFilter() {
               <p v-else class="demo-scene-meta demo-payment-note">
                 {{
                   paying
-                    ? '正在处理模拟支付，可以关闭此窗口后继续浏览。'
+                    ? '正在确认支付结果，请稍候。'
                     : activeOrder.status === 'pending'
-                      ? '点击下方按钮体验支付反馈，不会真实扣款。'
+                      ? '请核对商品明细与合计金额后确认支付。'
                       : '当前订单状态与列表同步。'
                 }}
               </p>
@@ -970,7 +926,7 @@ function resetOrderFilter() {
                     variant="primary"
                     :busy="paying"
                     @click="payOrder"
-                    >模拟支付</NovaButton
+                    >确认支付</NovaButton
                   >
                 </div></template
               ></NovaDialog
@@ -979,10 +935,5 @@ function resetOrderFilter() {
         </NovaTheme>
       </section>
     </div>
-    <DemoUsage
-      :components="currentScene.parts"
-      :steps="currentScene.steps"
-      @component="$emit('components', $event)"
-    />
   </div>
 </template>

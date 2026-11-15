@@ -50,7 +50,7 @@ export function createInitialAccount(time: number): AccountSnapshot {
         id: 'current',
         name: 'Mac · Chrome',
         platform: 'macOS',
-        location: '上海 · 示例',
+        location: '上海',
         lastActiveAt: at(),
         current: true,
       },
@@ -58,7 +58,7 @@ export function createInitialAccount(time: number): AccountSnapshot {
         id: 'phone',
         name: 'iPhone · Safari',
         platform: 'iOS',
-        location: '杭州 · 示例',
+        location: '杭州',
         lastActiveAt: at(-86_400_000),
         current: false,
       },
@@ -66,7 +66,7 @@ export function createInitialAccount(time: number): AccountSnapshot {
         id: 'desktop',
         name: 'Windows · Edge',
         platform: 'Windows',
-        location: '北京 · 示例',
+        location: '北京',
         lastActiveAt: at(-259_200_000),
         current: false,
       },
@@ -75,35 +75,35 @@ export function createInitialAccount(time: number): AccountSnapshot {
       {
         id: 'new-device',
         title: '新设备登录提醒',
-        summary: '一条模拟设备提醒，帮助体验消息详情。',
-        body: '这是一条虚构的安全消息。演示账户在一台示例 Mac 上开启了会话。\n\n本页没有检测你的设备、位置或真实登录记录。',
+        summary: '你的账户在 Mac · Chrome 上登录。',
+        body: '你的账户在上海通过 Mac · Chrome 登录。\n\n如果这不是你的操作，请前往登录设备退出该会话，并及时修改密码。',
         category: 'security',
         createdAt: at(-900_000),
         read: false,
       },
       {
         id: 'welcome-space',
-        title: '欢迎体验新的账户空间',
+        title: '欢迎使用账户空间',
         summary: '资料、安全与偏好，集中在一个地方。',
-        body: '现在可以在账户空间中编辑虚构资料、调整通知偏好，并体验安全设置。\n\n所有变化只存在于当前页面内存。',
+        body: '个人资料、通知偏好和安全设置，现在都可以在账户空间中统一管理。\n\n从完善个人简介开始，让大家更好地认识你。',
         category: 'product',
         createdAt: at(-7_200_000),
         read: false,
       },
       {
         id: 'hello',
-        title: '你好，Nova 探索者',
-        summary: '你的演示账户已经准备好了。',
-        body: '你可以从选择头像、填写一个虚构昵称开始。\n\n请不要填写真实资料；这里没有创建真实账户。',
+        title: '开始完善个人资料',
+        summary: '上传头像，写一句喜欢的个人简介。',
+        body: '选择喜欢的头像，更新你的昵称与简介。\n\n你的个人资料会在账户空间中展示，也可以随时修改。',
         category: 'account',
         createdAt: at(-86_400_000),
         read: false,
       },
       {
         id: 'security',
-        title: '了解你的安全设置',
-        summary: '密码、邮箱与两步验证均可模拟体验。',
-        body: '两步验证使用公开固定演示码，没有绑定验证器、二维码、密钥或真实第二因素。它不会保护任何真实账户。',
+        title: '定期检查登录设备',
+        summary: '及时退出不再使用的设备，保护账户安全。',
+        body: '在登录设备中查看最近活动。发现不熟悉的设备时，可以退出单个会话或一次退出其他设备。',
         category: 'security',
         createdAt: at(-172_800_000),
         read: true,
@@ -112,16 +112,16 @@ export function createInitialAccount(time: number): AccountSnapshot {
         id: 'notifications',
         title: '让通知更合你的习惯',
         summary: '选择想看到的产品、邮件与安全提醒。',
-        body: '通知开关只影响本页演示状态，不关联真实订阅，不会发送邮件或推送。',
+        body: '在通知偏好中选择产品动态、邮件摘要和安全提醒。\n\n修改完成后，请保存偏好，让通知更合你的习惯。',
         category: 'product',
         createdAt: at(-259_200_000),
         read: false,
       },
       {
         id: 'about',
-        title: '关于这份体验资料',
-        summary: '所有内容均为固定的虚构示例。',
-        body: '消息、地点、资料与动态均为本地虚构示例，不代表实际发生的事件。已读状态仅保留在当前页面。',
+        title: '资料更新小贴士',
+        summary: '保存修改前，你可以随时取消编辑。',
+        body: '编辑资料或通知偏好时，离开页面前会提醒你保存尚未提交的修改。',
         category: 'account',
         createdAt: at(-345_600_000),
         read: true,
@@ -131,29 +131,29 @@ export function createInitialAccount(time: number): AccountSnapshot {
       {
         id: 'ready',
         category: 'account',
-        title: '账户体验已准备好',
-        description: '资料和设备均为本地模拟数据。',
+        title: '个人资料已更新',
+        description: '头像、昵称与个人简介已保存。',
         at: at(),
       },
       {
         id: 'login',
         category: 'devices',
-        title: '示例登录记录',
-        description: '虚构事件：示例设备开启了模拟会话。',
+        title: '新设备登录',
+        description: 'Mac · Chrome 在上海登录。',
         at: at(-900_000),
       },
       {
         id: 'device',
         category: 'devices',
-        title: '示例设备记录已添加',
-        description: '未检测或授权任何真实设备。',
+        title: '设备登录',
+        description: 'iPhone · Safari 在杭州登录。',
         at: at(-86_400_000),
       },
       {
         id: 'password',
         category: 'credentials',
-        title: '示例密码已设置',
-        description: '不代表任何真实凭据。',
+        title: '登录密码已设置',
+        description: '账户密码设置完成。',
         at: at(-172_800_000),
       },
     ],
@@ -197,8 +197,8 @@ export function createDemoAccountAdapter({
     next.activity.unshift({
       id: `activity-external-${next.revision}`,
       category: 'account',
-      title: '另一台设备修改了资料（模拟并发）',
-      description: '外部修改仅存在于本页模拟状态；重新加载快照或刷新页面后可见。',
+      title: '其他设备更新了个人资料',
+      description: '资料发生变动，请刷新后查看最新内容。',
       at: new Date(now()).toISOString(),
     })
     next.activity = next.activity.slice(0, 24)
@@ -218,7 +218,7 @@ export function createDemoAccountAdapter({
       id: `activity-${next.revision}`,
       category,
       title,
-      description: '仅更新本页模拟状态，不影响真实账户。',
+      description: '更改已保存，可在相应页面查看。',
       at: new Date(now()).toISOString(),
     })
     next.activity = next.activity.slice(0, 24)
@@ -303,7 +303,7 @@ export function createDemoAccountAdapter({
           if (identities) identities.current.password = input.newPassword
         },
         'credentials',
-        '密码修改演示已完成',
+        '登录密码已更新',
       )
     },
     async requestEmailChangeCode(input, context) {
@@ -311,8 +311,8 @@ export function createDemoAccountAdapter({
       const email = input.email.trim().toLowerCase()
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) fail('EMAIL_INVALID', '请输入有效的邮箱地址。')
       if (identities?.find(email)) fail('EMAIL_TAKEN', '该邮箱已被使用。')
-      if (state.email === email) fail('EMAIL_UNCHANGED', '当前已是此示例邮箱。')
-      if (emailIssue && now() < emailIssue.resendAt) fail('CODE_COOLDOWN', '请稍后再获取演示码。')
+      if (state.email === email) fail('EMAIL_UNCHANGED', '当前已绑定此邮箱。')
+      if (emailIssue && now() < emailIssue.resendAt) fail('CODE_COOLDOWN', '请稍后再获取验证码。')
       const issue = ++issueCounter
       await pause(context)
       if (issue !== issueCounter) fail('CANCELLED', '已有新的发码请求，本次结果已失效。')
@@ -324,11 +324,11 @@ export function createDemoAccountAdapter({
         issue = emailIssue?.id
       await pause(context)
       if (!emailIssue || issue !== emailIssue.id || emailIssue.email !== email)
-        fail('EMAIL_CODE_REQUIRED', '请先验证示例密码并获取本次邮箱演示码。')
+        fail('EMAIL_CODE_REQUIRED', '请先验证当前密码并获取邮箱验证码。')
       if (now() >= emailIssue.expiresAt)
         fail('EMAIL_CODE_EXPIRED', '邮箱验证码已过期，请重新获取。')
       if (input.code.trim() !== DEMO_ACCOUNT_VALUES.code)
-        fail('EMAIL_CODE_INVALID', '演示验证码不正确。')
+        fail('EMAIL_CODE_INVALID', '验证码不正确，请重新输入。')
       const result = commit(
         context,
         (next) => {
@@ -336,7 +336,7 @@ export function createDemoAccountAdapter({
           identities?.changeEmail(email)
         },
         'credentials',
-        '邮箱更换演示已完成',
+        '绑定邮箱已更新',
       )
       emailIssue = undefined
       return result
@@ -348,7 +348,7 @@ export function createDemoAccountAdapter({
         (next) => {
           const device = next.devices.find((item) => item.id === id)
           if (!device) fail('DEVICE_NOT_FOUND', '未找到此设备，请刷新列表。')
-          if (device.current) fail('CURRENT_DEVICE_PROTECTED', '不能退出当前演示设备。')
+          if (device.current) fail('CURRENT_DEVICE_PROTECTED', '请使用退出登录结束当前设备的会话。')
           next.devices = next.devices.filter((item) => item.id !== id)
         },
         'devices',
@@ -399,11 +399,9 @@ export function createDemoAccountAdapter({
     },
     async uploadAvatar(input, context) {
       if (input.dataUrl !== null) {
-        if (!input.dataUrl.startsWith('data:image/'))
-          fail('AVATAR_TYPE', '仅支持图片文件（演示校验，服务端同样必须校验）。')
+        if (!input.dataUrl.startsWith('data:image/')) fail('AVATAR_TYPE', '请选择图片文件。')
         // Base64 data URLs carry ~4/3 overhead; 2.8M chars ≈ a 2 MB image.
-        if (input.dataUrl.length > 2_800_000)
-          fail('AVATAR_SIZE', '头像图片不能超过 2 MB（演示校验）。')
+        if (input.dataUrl.length > 2_800_000) fail('AVATAR_SIZE', '头像图片不能超过 2 MB。')
       }
       await pause(context)
       if (input.dataUrl === null && !state.profile.avatarUrl) return snapshot()
@@ -413,13 +411,13 @@ export function createDemoAccountAdapter({
           next.profile = { ...next.profile, avatarUrl: input.dataUrl ?? '' }
         },
         'account',
-        input.dataUrl === null ? '演示头像已移除' : '演示头像已更新',
+        input.dataUrl === null ? '头像已移除' : '头像已更新',
       )
     },
     async setTwoStep(input, context) {
       checkPassword(input.currentPassword)
       if (input.code.trim() !== DEMO_ACCOUNT_VALUES.code)
-        fail('DEMO_CODE_ONLY', '请输入固定模拟验证码；这不是真实两步验证。')
+        fail('DEMO_CODE_ONLY', '确认码不正确，请重新输入。')
       await pause(context)
       if (state.security.twoStepEnabled === input.enabled) return snapshot()
       return commit(
@@ -428,7 +426,7 @@ export function createDemoAccountAdapter({
           next.security.twoStepEnabled = input.enabled
         },
         'credentials',
-        input.enabled ? '两步验证开启演示已完成' : '两步验证关闭演示已完成',
+        input.enabled ? '已开启两步验证' : '已关闭两步验证',
       )
     },
   }

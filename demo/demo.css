@@ -461,8 +461,8 @@ label.demo-check {
 
 /* Consumer-facing authentication: quiet brand, focused form, no demo toolbar. */
 .nova-demo.demo-auth > div > header {
-  justify-content: center;
-  min-height: 96px;
+  justify-content: flex-start;
+  min-height: 80px;
   border-bottom: 0;
   background: transparent;
 }
@@ -483,5 +483,23 @@ label.demo-check {
   }
   .nova-demo.demo-auth > div > main {
     padding: 20px 24px 40px;
+  }
+}
+
+/* Keep the brand anchored consistently before and after authentication. */
+.nova-demo > div > header {
+  min-height: 64px;
+  padding-inline: 32px;
+}
+.nova-demo > div > footer {
+  display: none;
+}
+.nova-demo h1[tabindex='-1']:focus {
+  outline: none;
+}
+@media (max-width: 639px) {
+  .nova-demo > div > header {
+    min-height: 60px;
+    padding-inline: 20px;
   }
 }

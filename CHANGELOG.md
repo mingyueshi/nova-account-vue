@@ -25,6 +25,8 @@
 
 ### Changed
 
+- Refined consumer account pages: status-aware overview shortcuts, clearer profile and security sections, notification save actions before mobile previews, compact message actions with stable loading feedback, and named complementary regions. Single-page security activity hides pagination; appearance samples are noninteractive. Authentication brands align upper left. Demo-only implementation notes move to `docs/demo-workspaces.md` via localized host messages, preserving library simulated defaults. Account deletion removes the active in-memory identity until refresh.
+
 - Authentication demo now uses consumer-facing forms without credential hints, fill shortcuts or preview bypasses. Simple test inputs live in `docs/demo-credentials.md`. Registration, password reset and security changes share in-memory identities; new credentials work after sign-out until refresh. Code requests sit inside the verification-code field. The slider uses a compact neutral track and visible white handle instead of a decorative puzzle.
 
 - Bundle Lucide exclusively as a development dependency while retaining license inventory checks. ESM-only require conditions provide actionable import guidance; no CommonJS implementation is added. Pin the development Node/npm versions through .nvmrc and packageManager.
