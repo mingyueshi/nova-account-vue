@@ -609,8 +609,7 @@ function resetOrderFilter() {
                 role="status"
                 class="demo-inline-notice"
               >
-                <span>{{ taskNote }}</span
-                ><button
+                <span>{{ taskNote }}</span><button
                   v-if="removedTask"
                   type="button"
                   class="demo-link-button"
@@ -892,8 +891,7 @@ function resetOrderFilter() {
                     >
                     <div class="demo-scene-grow">
                       <div class="demo-comment-byline">
-                        <strong>{{ comment.author }}</strong
-                        ><span>{{ comment.at }}</span
+                        <strong>{{ comment.author }}</strong><span>{{ comment.at }}</span
                         ><span v-if="comment.author === '你'" class="demo-own-label">我</span>
                       </div>
                       <p class="demo-comment-body">{{ comment.body }}</p>
@@ -1015,8 +1013,7 @@ function resetOrderFilter() {
                         :aria-haspopup="!wide ? 'dialog' : undefined"
                         @click="selectOrder(order.id, $event)"
                       >
-                        {{ order.id }}</button
-                      ><time>{{ order.placedAt }}</time>
+                        {{ order.id }}</button><time>{{ order.placedAt }}</time>
                     </div>
                     <span class="demo-scene-status" :data-status="order.status"
                       ><span aria-hidden="true">●</span>{{ statusLabels[order.status] }}</span
@@ -1033,8 +1030,7 @@ function resetOrderFilter() {
                       </p>
                     </div>
                     <div class="demo-order-amount">
-                      <strong>{{ cny.format(orderTotal(order)) }}</strong
-                      ><span
+                      <strong>{{ cny.format(orderTotal(order)) }}</strong><span
                         >共
                         {{ order.items.reduce((count, item) => count + item.qty, 0) }} 件商品</span
                       >
@@ -1049,8 +1045,7 @@ function resetOrderFilter() {
                           : order.status === 'shipped'
                             ? '商品已发出，请留意签收。'
                             : '订单已完成，感谢你的支持。'
-                    }}</span
-                    ><NovaButton
+                    }}</span><NovaButton
                       :variant="order.status === 'pending' ? 'primary' : 'secondary'"
                       :data-order-id="order.id"
                       :aria-label="`${order.status === 'pending' ? '查看并支付' : '查看详情'}订单 ${order.id}`"
@@ -1084,8 +1079,9 @@ function resetOrderFilter() {
                 <ul class="demo-order-detail-items">
                   <li v-for="item in inspectedOrder.items" :key="item.name">
                     <div>
-                      <strong>{{ item.name }}</strong
-                      ><span>{{ cny.format(item.price) }} × {{ item.qty }}</span>
+                      <strong>{{ item.name }}</strong><span
+                        >{{ cny.format(item.price) }} × {{ item.qty }}</span
+                      >
                     </div>
                     <strong>{{
                       cny.format((Math.round(item.price * 100) * item.qty) / 100)
@@ -1129,16 +1125,16 @@ function resetOrderFilter() {
               ><div class="demo-order-dialog-meta">
                 <span class="demo-scene-status" :data-status="activeOrder.status">{{
                   statusLabels[activeOrder.status]
-                }}</span
-                ><span>下单于 {{ activeOrder.placedAt }}</span>
+                }}</span><span>下单于 {{ activeOrder.placedAt }}</span>
               </div>
               <p class="demo-scene-meta demo-order-number">订单号 {{ activeOrder.id }}</p>
               <h3 class="demo-order-dialog-title">{{ activeOrder.title }}</h3>
               <ul class="demo-order-detail-items">
                 <li v-for="item in activeOrder.items" :key="item.name">
                   <div>
-                    <strong>{{ item.name }}</strong
-                    ><span>单价 {{ cny.format(item.price) }} · 数量 {{ item.qty }}</span>
+                    <strong>{{ item.name }}</strong><span
+                      >单价 {{ cny.format(item.price) }} · 数量 {{ item.qty }}</span
+                    >
                   </div>
                   <strong>{{ cny.format((Math.round(item.price * 100) * item.qty) / 100) }}</strong>
                 </li>
