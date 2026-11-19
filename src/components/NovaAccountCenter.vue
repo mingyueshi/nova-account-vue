@@ -1028,7 +1028,8 @@ defineExpose({ refresh, fillSecurity })
         >
           {{ t('common.processing') }}
         </p>
-        <p v-if="!snapshot && busy" role="status" :class="muted">{{ t('account.loading') }}</p>
+        <p v-if="!page" role="status" :class="muted">{{ t('account.noPages') }}</p>
+        <p v-else-if="!snapshot && busy" role="status" :class="muted">{{ t('account.loading') }}</p>
         <template v-if="snapshot">
           <section v-if="page === 'overview'" class="nova-overview na:space-y-6">
             <div class="nova-overview-main na:space-y-6">

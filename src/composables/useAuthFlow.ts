@@ -1,4 +1,5 @@
 import { useNovaLocale } from '../locale'
+import type { NovaMessageKey } from '../locales'
 import {
   computed,
   getCurrentInstance,
@@ -235,10 +236,12 @@ export function useAuthFlow(
     return !fieldErrors.password
   }
   function validateCode() {
-    fieldMessages.code = fields.code.trim() ? '' : () => t('flow.codeRequired')
-    if (!delivery.value) fieldMessages.code = () => t('flow.deliveryRequired')
-    else if (delivery.value.expiresAt <= now()) fieldMessages.code = () => t('flow.codeExpired')
-    return !fieldErrors.code
+    let errorKey: NovaMessageKey | undefined
+    if (!delivery.value) errorKey = 'flow.deliveryRequired'
+    else if (delivery.value.expiresAt <= now()) errorKey = 'flow.codeExpired'
+    else if (!fields.code.trim()) errorKey = 'flow.codeRequired'
+    fieldMessages.code = errorKey ? () => t(errorKey) : ''
+    return errorKey === undefined
   }
   // Revalidate only built-in errors already shown; host messages remain host-owned.
   watch(

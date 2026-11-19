@@ -1,7 +1,9 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { defineComponent, h, ref } from 'vue'
 import { mount, type VueWrapper } from '@vue/test-utils'
+import NovaTheme from '../src/components/NovaTheme.vue'
 import { useAuthFlow, type AuthFlowOptions } from '../src/composables/useAuthFlow'
+import type { NovaMessages } from '../src/locales'
 import type { AuthAdapter, AuthResult, CodeDelivery, Challenge, CaptchaProof } from '../src/types'
 
 const user: AuthResult = {
@@ -34,16 +36,18 @@ const wrappers: VueWrapper[] = []
 function setup(
   adapter: AuthAdapter | (() => AuthAdapter) = createAdapter(),
   options: AuthFlowOptions = {},
+  messages?: Partial<NovaMessages>,
 ) {
   let flow!: ReturnType<typeof useAuthFlow>
-  const wrapper = mount(
-    defineComponent({
-      setup() {
-        flow = useAuthFlow(adapter, { now: () => 1_000, ...options })
-        return () => h('div')
-      },
-    }),
-  )
+  const FlowProbe = defineComponent({
+    setup() {
+      flow = useAuthFlow(adapter, { now: () => 1_000, ...options })
+      return () => h('div')
+    },
+  })
+  const wrapper = messages
+    ? mount(NovaTheme, { props: { messages }, slots: { default: () => h(FlowProbe) } })
+    : mount(FlowProbe)
   wrappers.push(wrapper)
   flow.fill({ email: 'person@example.test', password: 'a-secret-password' })
   return flow
@@ -209,6 +213,30 @@ describe('useAuthFlow', () => {
     expect(flow.fieldErrors.consent).toContain('同意')
     expect(adapter.register).not.toHaveBeenCalled()
   })
+
+  it.each([
+    { delivery: 'missing', errorKey: 'flow.deliveryRequired' },
+    { delivery: 'expired', errorKey: 'flow.codeExpired' },
+    { delivery: 'fresh', errorKey: 'flow.codeRequired' },
+  ] as const)(
+    'blocks code submission with $delivery delivery and blank $errorKey text',
+    async ({ delivery, errorKey }) => {
+      let time = 1_000
+      const adapter = createAdapter()
+      const flow = setup(adapter, { now: () => time }, { [errorKey]: '' })
+      flow.mode.value = 'code'
+      if (delivery !== 'missing') {
+        await flow.requestCode()
+        await flow.verifyChallenge({ value: 100 })
+      }
+      if (delivery === 'expired') time = deadline
+
+      await flow.submit()
+
+      expect(flow.fieldErrors.code).toBe('')
+      expect(adapter.login).not.toHaveBeenCalled()
+    },
+  )
 
   it('revalidates corrected built-in errors while preserving host-owned messages', async () => {
     const flow = setup(createAdapter())
