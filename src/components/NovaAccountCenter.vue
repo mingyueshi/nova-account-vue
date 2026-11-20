@@ -8,8 +8,12 @@ import type {
   AccountExtraPage,
   AccountSnapshot,
   NotificationPreferences,
+  NotificationChannel,
+  NotificationPreferenceRow,
+  NotificationPreferenceChange,
   Profile,
 } from '../types'
+import { NOTIFICATION_CHANNELS } from '../types'
 import { useAccount } from '../composables/useAccount'
 import NovaButton from './NovaButton.vue'
 import NovaField from './NovaField.vue'
@@ -195,6 +199,65 @@ const preferenceOptions = computed<
     description: t('notifications.securityDescription'),
   },
 ])
+const matrixRows = computed(() =>
+  typeof props.adapter.updateNotificationPreferences === 'function'
+    ? snapshot.value?.notificationPreferences
+    : undefined,
+)
+// Keep only edited cells. All other values are read directly from the latest snapshot.
+const matrixEdits = reactive(new Map<string, NotificationPreferenceChange>())
+function cellKey(eventId: string, channel: NotificationChannel) {
+  return `${channel}:${eventId}`
+}
+function cellEnabled(row: NotificationPreferenceRow, channel: NotificationChannel) {
+  return matrixEdits.get(cellKey(row.eventId, channel))?.enabled ?? row.channels[channel]?.enabled
+}
+function editCell(row: NotificationPreferenceRow, channel: NotificationChannel, event: Event) {
+  const enabled = (event.target as HTMLInputElement).checked
+  const key = cellKey(row.eventId, channel)
+  if (enabled === row.channels[channel]?.enabled) matrixEdits.delete(key)
+  else matrixEdits.set(key, { eventId: row.eventId, channel, enabled })
+}
+watch(
+  [matrixRows, () => snapshot.value?.profile.id],
+  ([rows, accountId], [previousRows, previousAccountId]) => {
+    if (!!rows !== !!previousRows && snapshot.value)
+      Object.assign(notifications, snapshot.value.notifications)
+    if (!rows || accountId !== previousAccountId) {
+      matrixEdits.clear()
+      return
+    }
+    const byEvent = new Map(rows.map((row) => [row.eventId, row.channels]))
+    for (const [key, edit] of matrixEdits) {
+      const cell = byEvent.get(edit.eventId)?.[edit.channel]
+      if (!cell || cell.readOnly || cell.enabled === edit.enabled) matrixEdits.delete(key)
+    }
+  },
+  { flush: 'sync' },
+)
+const notificationPreview = computed(() => {
+  if (!matrixRows.value) return preferenceOptions.value.filter((item) => notifications[item.key])
+  return matrixRows.value.flatMap((row) => {
+    const channels = NOTIFICATION_CHANNELS.filter((channel) => cellEnabled(row, channel))
+    return channels.length
+      ? [
+          {
+            key: row.eventId,
+            label: row.label,
+            description: channels
+              .map((channel) => t(`notifications.channel.${channel}`))
+              .join(t('notifications.channelSeparator')),
+          },
+        ]
+      : []
+  })
+})
+const savedNotificationCount = computed(() =>
+  matrixRows.value
+    ? matrixRows.value.filter((row) => Object.values(row.channels).some((cell) => cell.enabled))
+        .length
+    : Object.values(snapshot.value?.notifications ?? {}).filter(Boolean).length,
+)
 const panel =
   'na:rounded-2xl na:border na:border-[var(--na-line)] na:bg-[var(--na-surface)] na:p-5 na:sm:p-7'
 const muted = 'na:text-sm na:leading-6 na:text-[var(--na-muted)]'
@@ -215,7 +278,9 @@ function notificationsChanged(reference: AccountSnapshot | null) {
   )
 }
 const profileDirty = computed(() => profileChanged(snapshot.value))
-const notificationsDirty = computed(() => notificationsChanged(snapshot.value))
+const notificationsDirty = computed(() =>
+  matrixRows.value ? matrixEdits.size > 0 : notificationsChanged(snapshot.value),
+)
 const dirty = computed(() =>
   page.value === 'profile'
     ? profileDirty.value
@@ -230,7 +295,10 @@ function syncDrafts(target: 'all' | 'profile' | 'notifications' = 'all') {
     const { nickname, bio, avatar } = snapshot.value.profile
     Object.assign(profile, { nickname, bio, avatar })
   }
-  if (target !== 'profile') Object.assign(notifications, snapshot.value.notifications)
+  if (target !== 'profile') {
+    Object.assign(notifications, snapshot.value.notifications)
+    matrixEdits.clear()
+  }
 }
 // Compare with the previous snapshot: clean fields follow server changes, local drafts survive.
 function syncCleanFields<T extends object>(draft: T, previous: T | undefined, current: T) {
@@ -464,7 +532,13 @@ async function removeAvatar() {
 async function saveNotifications() {
   if (!dirty.value) return
   const result = await mutate(
-    (context) => props.adapter.updateNotifications({ ...notifications }, context),
+    (context) =>
+      matrixRows.value && props.adapter.updateNotificationPreferences
+        ? props.adapter.updateNotificationPreferences(
+            Array.from(matrixEdits.values(), (edit) => ({ ...edit })),
+            context,
+          )
+        : props.adapter.updateNotifications({ ...notifications }, context),
     props.simulated ? t('notifications.demoSaved') : t('notifications.saved'),
   )
   if (result) syncDrafts('notifications')
@@ -1102,8 +1176,7 @@ defineExpose({ refresh, fillSecurity })
                                     : 'account.protectAccount',
                                 )
                               : t('account.notificationCount', {
-                                  count: Object.values(snapshot.notifications).filter(Boolean)
-                                    .length,
+                                  count: savedNotificationCount,
                                 })
                       }}</span
                     >
@@ -1502,7 +1575,58 @@ defineExpose({ refresh, fillSecurity })
             class="nova-notification-layout na:space-y-5"
             @submit.prevent="saveNotifications"
           >
-            <div :class="panel" class="nova-notification-options">
+            <div v-if="matrixRows" :class="panel" class="nova-notification-options">
+              <table
+                v-if="matrixRows.length"
+                class="na:w-full na:table-fixed na:border-collapse na:text-center na:text-sm"
+                :aria-label="t('page.notifications')"
+              >
+                <thead>
+                  <tr>
+                    <th scope="col" class="na:text-left">{{ t('notifications.event') }}</th>
+                    <th
+                      v-for="channel in NOTIFICATION_CHANNELS"
+                      :key="channel"
+                      scope="col"
+                      class="na:py-3"
+                    >
+                      {{ t(`notifications.channel.${channel}`) }}
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr
+                    v-for="row in matrixRows"
+                    :key="row.eventId"
+                    class="na:border-t na:border-[var(--na-line)]"
+                  >
+                    <th scope="row" class="na:py-4 na:text-left na:wrap-anywhere">
+                      {{ row.label }}
+                    </th>
+                    <td v-for="channel in NOTIFICATION_CHANNELS" :key="channel">
+                      <input
+                        v-if="row.channels[channel]"
+                        type="checkbox"
+                        role="switch"
+                        :aria-label="`${row.label} · ${t(`notifications.channel.${channel}`)}`"
+                        :checked="cellEnabled(row, channel)"
+                        :disabled="busy || row.channels[channel]?.readOnly"
+                        class="na:h-6 na:w-8 na:accent-[var(--na-brand)]"
+                        @change="editCell(row, channel, $event)"
+                      />
+                      <template v-else
+                        ><span aria-hidden="true">—</span
+                        ><span class="na:sr-only">{{
+                          t('notifications.unsupported')
+                        }}</span></template
+                      >
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+              <p v-else :class="muted">{{ t('notifications.empty') }}</p>
+            </div>
+            <div v-else :class="panel" class="nova-notification-options">
               <label
                 v-for="option in preferenceOptions"
                 :key="option.key"
@@ -1522,6 +1646,7 @@ defineExpose({ refresh, fillSecurity })
               /></label>
             </div>
             <aside
+              v-if="!matrixRows || matrixRows.length"
               class="nova-notification-preview"
               :class="panel"
               :aria-label="t('notifications.preview')"
@@ -1534,10 +1659,7 @@ defineExpose({ refresh, fillSecurity })
                 </div>
               </div>
               <div class="nova-notification-previews">
-                <article
-                  v-for="option in preferenceOptions.filter((item) => notifications[item.key])"
-                  :key="option.key"
-                >
+                <article v-for="option in notificationPreview" :key="option.key">
                   <NovaIcon
                     :name="
                       option.key === 'security'
@@ -1553,10 +1675,7 @@ defineExpose({ refresh, fillSecurity })
                   </div>
                   <NovaIcon name="check" :size="16" />
                 </article>
-                <p
-                  v-if="!preferenceOptions.some((item) => notifications[item.key])"
-                  class="nova-preview-empty"
-                >
+                <p v-if="!notificationPreview.length" class="nova-preview-empty">
                   {{ t('notifications.previewEmpty') }}
                 </p>
               </div>

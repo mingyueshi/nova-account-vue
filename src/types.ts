@@ -88,6 +88,20 @@ export interface NotificationPreferences {
   email: boolean
   security: boolean
 }
+export const NOTIFICATION_CHANNELS = ['email', 'inApp', 'push'] as const
+export type NotificationChannel = (typeof NOTIFICATION_CHANNELS)[number]
+export interface NotificationPreferenceRow {
+  /** Stable event ID. The host supplies the localized display label. */
+  eventId: string
+  label: string
+  /** An omitted channel is unsupported. Read-only cells still show their saved value. */
+  channels: Partial<Record<NotificationChannel, { enabled: boolean; readOnly?: boolean }>>
+}
+export interface NotificationPreferenceChange {
+  eventId: string
+  channel: NotificationChannel
+  enabled: boolean
+}
 export interface Device {
   id: string
   name: string
@@ -117,6 +131,7 @@ export interface AccountSnapshot {
   profile: Profile
   email: string
   notifications: NotificationPreferences
+  notificationPreferences?: NotificationPreferenceRow[]
   devices: Device[]
   messages: AccountMessage[]
   security: { twoStepEnabled: boolean; passwordUpdatedAt?: string }
@@ -130,6 +145,11 @@ export interface AccountAdapter {
   updateProfile(profile: Omit<Profile, 'id'>, context: MutationContext): Promise<AccountSnapshot>
   updateNotifications(
     preferences: NotificationPreferences,
+    context: MutationContext,
+  ): Promise<AccountSnapshot>
+  /** Apply the changed, editable cells together at the supplied revision. */
+  updateNotificationPreferences?(
+    changes: NotificationPreferenceChange[],
     context: MutationContext,
   ): Promise<AccountSnapshot>
   changePassword(

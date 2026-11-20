@@ -6,6 +6,7 @@ import {
   createDemoAccountAdapter,
   createInitialAccount,
   DEMO_ACCOUNT_VALUES,
+  demoNotificationPreferences,
 } from '../demo/account'
 import type { AccountAdapter, AccountPage, CodeDelivery } from '../src/types'
 
@@ -471,6 +472,120 @@ describe('NovaAccountCenter', () => {
     expect(wrapper.emitted('logout')).toBeUndefined()
     await button(wrapper, '放弃并离开').trigger('click')
     expect(wrapper.emitted('logout')).toHaveLength(1)
+  })
+})
+
+describe('notification channel matrix', () => {
+  const instant = () => Promise.resolve()
+  function matrixAdapter() {
+    return createDemoAccountAdapter({
+      wait: instant,
+      notificationPreferences: demoNotificationPreferences,
+    })
+  }
+  const mail = 'input[aria-label="产品动态 · 邮件"]'
+  const productPush = 'input[aria-label="产品动态 · 推送"]'
+  const securityPush = 'input[aria-label="安全提醒 · 推送"]'
+
+  it('preserves an edited cell and adopts other server cells on refresh after a revision conflict', async () => {
+    const adapter = matrixAdapter()
+    const write = vi.spyOn(adapter, 'updateNotificationPreferences')
+    const legacy = vi.spyOn(adapter, 'updateNotifications')
+    const wrapper = await create(false, adapter)
+    await wrapper.get('[data-page="notifications"]').trigger('click')
+    expect(wrapper.get('input[aria-label="安全提醒 · 邮件"]').attributes('disabled')).toBeDefined()
+    expect(wrapper.find('input[aria-label="账户摘要 · 推送"]').exists()).toBe(false)
+    await wrapper.get(mail).setValue(true)
+    expect(wrapper.get('.nova-notification-previews').text()).toContain('邮件、站内')
+    // A second client changes both a sibling channel and a different event.
+    await adapter.updateNotificationPreferences!(
+      [
+        { eventId: 'product', channel: 'push', enabled: true },
+        { eventId: 'security', channel: 'push', enabled: true },
+      ],
+      { revision: '0', requestId: 'external', signal: new AbortController().signal },
+    )
+    await wrapper.get('form.nova-notification-layout').trigger('submit')
+    await flushPromises()
+    expect(wrapper.get('[role="alert"]').text()).toContain('重新加载')
+    expect(wrapper.get('[data-account-savebar]').attributes('data-dirty')).toBe('true')
+    await wrapper.vm.refresh()
+    await flushPromises()
+    for (const selector of [mail, productPush, securityPush])
+      expect(wrapper.get(selector).element).toHaveProperty('checked', true)
+    await wrapper.get('[data-page="devices"]').trigger('click')
+    await button(wrapper, '继续编辑').trigger('click')
+    await wrapper.get('form.nova-notification-layout').trigger('submit')
+    await flushPromises()
+    expect(write).toHaveBeenLastCalledWith(
+      [{ eventId: 'product', channel: 'email', enabled: true }],
+      expect.objectContaining({ revision: '1' }),
+    )
+    expect(legacy).not.toHaveBeenCalled()
+    expect(wrapper.get('[data-account-savebar]').attributes('data-dirty')).toBe('false')
+    await wrapper.vm.refresh()
+    expect(wrapper.get(mail).element).toHaveProperty('checked', true)
+  })
+
+  it('matches stable event IDs across reordering and drops accepted, removed or locked edits', async () => {
+    const state = createInitialAccount(Date.now(), demoNotificationPreferences)
+    const adapter = { ...matrixAdapter(), load: async () => structuredClone(state) }
+    const wrapper = await create(false, adapter)
+    await wrapper.get('[data-page="notifications"]').trigger('click')
+    for (const selector of [mail, productPush, securityPush, 'input[aria-label="账户摘要 · 站内"]'])
+      await wrapper.get(selector).setValue(true)
+    const [product, security] = state.notificationPreferences!
+    state.notificationPreferences = [security, product]
+    product.channels.push!.readOnly = true
+    security.channels.push!.enabled = true
+    await wrapper.vm.refresh()
+    await flushPromises()
+    expect(wrapper.get(mail).element).toHaveProperty('checked', true)
+    expect(wrapper.get(productPush).element).toHaveProperty('checked', false)
+    expect(wrapper.get(productPush).attributes('disabled')).toBeDefined()
+    expect(wrapper.get(securityPush).element).toHaveProperty('checked', true)
+    await wrapper.get(mail).setValue(false)
+    expect(wrapper.get('[data-account-savebar]').attributes('data-dirty')).toBe('false')
+    await wrapper.get(mail).setValue(true)
+    await button(wrapper, '退出登录').trigger('click')
+    await button(wrapper, '放弃并离开').trigger('click')
+    expect(wrapper.emitted('logout')).toHaveLength(1)
+    expect(wrapper.get(mail).element).toHaveProperty('checked', false)
+  })
+
+  it('keeps the three-switch save path when a matrix has no writer', async () => {
+    const base = matrixAdapter()
+    const legacy = vi.spyOn(base, 'updateNotifications')
+    const wrapper = await create(false, { ...base, updateNotificationPreferences: undefined })
+    await wrapper.get('[data-page="notifications"]').trigger('click')
+    expect(wrapper.findAll('input[role="switch"]')).toHaveLength(3)
+    await wrapper.get('input[aria-label="邮件摘要"]').setValue(true)
+    await wrapper.get('form.nova-notification-layout').trigger('submit')
+    await flushPromises()
+    expect(legacy).toHaveBeenCalledWith(
+      { email: true, product: true, security: true },
+      expect.anything(),
+    )
+  })
+
+  it('clears drafts when the matrix disappears and shows an empty matrix when supplied', async () => {
+    const state = createInitialAccount(Date.now(), demoNotificationPreferences)
+    const wrapper = await create(false, {
+      ...matrixAdapter(),
+      load: async () => structuredClone(state),
+    })
+    await wrapper.get('[data-page="notifications"]').trigger('click')
+    await wrapper.get(mail).setValue(true)
+    delete state.notificationPreferences
+    await wrapper.vm.refresh()
+    await flushPromises()
+    expect(wrapper.get('[data-account-savebar]').attributes('data-dirty')).toBe('false')
+    expect(wrapper.findAll('input[role="switch"]')).toHaveLength(3)
+    state.notificationPreferences = []
+    await wrapper.vm.refresh()
+    await flushPromises()
+    expect(wrapper.findAll('input[role="switch"]')).toHaveLength(0)
+    expect(wrapper.get('main').text()).toContain('暂无通知事件')
   })
 })
 

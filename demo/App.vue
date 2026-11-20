@@ -35,7 +35,7 @@ import type {
   SessionUser,
 } from '../src'
 import { createDemoAuthAdapter, createDemoIdentities, defaultSettings } from './auth'
-import { createDemoAccountAdapter } from './account'
+import { createDemoAccountAdapter, demoNotificationPreferences } from './account'
 import SceneGallery from './SceneGallery.vue'
 import ComponentGallery from './ComponentGallery.vue'
 import IconGallery from './IconGallery.vue'
@@ -283,6 +283,7 @@ function createAdapter(): NovaAdapter {
     simulated: true,
     auth: createDemoAuthAdapter({ settings: () => settings, identities }),
     account: createDemoAccountAdapter({
+      notificationPreferences: demoNotificationPreferences,
       identities,
       settings: () => settings,
       wait: async (signal) => {

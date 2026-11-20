@@ -133,6 +133,8 @@ export function createFetchAdapter(options: FetchAdapterOptions): NovaAdapter {
         request('/profile', context, decode.snapshot, input, 'PATCH'),
       updateNotifications: (input, context) =>
         request('/notifications', context, decode.snapshot, input, 'PATCH'),
+      updateNotificationPreferences: (changes, context) =>
+        request('/notification-preferences', context, decode.snapshot, { changes }, 'PATCH'),
       changePassword: (input, context) => request('/password', context, decode.snapshot, input),
       requestEmailChangeCode: (input, context) =>
         request('/email/code', context, decode.delivery, input),

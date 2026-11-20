@@ -4,6 +4,7 @@ import {
   createInitialAccount,
   DEMO_ACCOUNT_VALUES,
 } from '../demo/account'
+import { isAccountSnapshot } from '../src/snapshot'
 import { useAccount } from '../src/composables/useAccount'
 import { effectScope, shallowRef } from 'vue'
 import type { AccountAdapter, AccountSnapshot, MutationContext, RequestContext } from '../src/types'
@@ -20,6 +21,7 @@ describe('malformed snapshot isolation', () => {
     'email',
     'profile',
     'notifications',
+    'notificationPreferences',
     'devices',
     'messages',
     'security',
@@ -41,6 +43,20 @@ describe('malformed snapshot isolation', () => {
         scope.stop()
       }
     })
+  it('rejects duplicate event IDs, empty labels and malformed notification cells', () => {
+    const row = { eventId: 'updates', label: 'Updates', channels: { email: { enabled: true } } }
+    for (const matrix of [
+      [row, row],
+      [{ ...row, label: '' }],
+      [{ ...row, eventId: ' ' }],
+      [{ ...row, channels: { email: { enabled: 1 } } }],
+      [{ ...row, channels: { email: { enabled: true, readOnly: 'yes' } } }],
+      [{ ...row, channels: { sms: { enabled: true } } }],
+    ])
+      expect(
+        isAccountSnapshot({ ...createInitialAccount(Date.now()), notificationPreferences: matrix }),
+      ).toBe(false)
+  })
   it('retains the last valid snapshot after a malformed mutation and tolerates direct invalid message assignment', async () => {
     const scope = effectScope()
     const account = scope.run(() => useAccount(createDemoAccountAdapter({ wait: instant })))!

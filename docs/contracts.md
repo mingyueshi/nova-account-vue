@@ -57,6 +57,30 @@ interface MutationContext extends RequestContext {
 - `markMessageRead(id, context)` / `markAllMessagesRead(context)`，服务端授权/幂等。
 - `setTwoStep({enabled,currentPassword,code}, context)` 仅是扩展工作流钩子，**不是 TOTP/MFA 实现**。
 
+### 按事件和渠道设置通知
+
+宿主可同时提供快照字段 `notificationPreferences` 和方法 `updateNotificationPreferences(changes, context)`，在通知页启用矩阵。快照仍包含原有的 `notifications` 三个布尔值。缺少任一矩阵能力时，页面显示原有三个开关，调用 `updateNotifications`。空数组表示当前没有通知事件。
+
+```ts
+const notificationPreferences: NotificationPreferenceRow[] = [
+  {
+    eventId: 'new-login',
+    label: '新设备登录',
+    channels: {
+      email: { enabled: true, readOnly: true },
+      inApp: { enabled: true },
+      push: { enabled: false },
+    },
+  },
+]
+```
+
+事件 ID 在账户内唯一且稳定，显示名称和顺序由宿主提供。省略的渠道表示该事件不支持此渠道。用户若仅开启上例的推送，保存方法收到 `[{ eventId: 'new-login', channel: 'push', enabled: true }]`。宿主按 `context.revision` 校验版本和可编辑范围，一次应用全部修改并返回完整快照。
+
+刷新按事件 ID 和渠道合并草稿。未编辑项跟随最新快照，仍可编辑且值有差异的草稿保留，服务端已采纳、删除或锁定的单元格会移出草稿。保存失败保留编辑，取消或确认放弃后恢复最新快照。
+
+### 安全操作与导航
+
 默认生产安全页只读。真实安全修改通过 `security` 插槽替换为接入方的 recent-auth / passkey / TOTP 等完整流程；不要把 `simulated:true` 当成开启生产安全流程的办法。`profile` 插槽可整体替换资料页（props 同 `security`：snapshot/adapter/refresh），未保存守卫随之由宿主实现。
 
 资料/偏好页面 dirty 时导航/退出会询问放弃；`beforeunload` 仅在浏览器挂载且有未保存数据时使用。组件卸载会清除监听。宿主路由强制卸载不自动接管路由确认，需在宿主导航设计中实现阻止离开。

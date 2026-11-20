@@ -1,4 +1,4 @@
-import type { AccountSnapshot } from './types'
+import { NOTIFICATION_CHANNELS, type AccountSnapshot } from './types'
 
 const object = (value: unknown): value is Record<string, unknown> =>
   !!value && typeof value === 'object' && !Array.isArray(value)
@@ -7,6 +7,29 @@ const strings = (value: Record<string, unknown>, keys: string[]) =>
 const optionalString = (value: unknown) => value === undefined || typeof value === 'string'
 const list = (value: unknown, check: (item: Record<string, unknown>) => boolean) =>
   Array.isArray(value) && value.every((item) => object(item) && check(item))
+
+function validNotificationMatrix(value: unknown) {
+  const ids = new Set<string>()
+  return list(value, (row) => {
+    if (
+      typeof row.eventId !== 'string' ||
+      !row.eventId.trim() ||
+      ids.has(row.eventId) ||
+      typeof row.label !== 'string' ||
+      !row.label.trim() ||
+      !object(row.channels)
+    )
+      return false
+    ids.add(row.eventId)
+    return Object.entries(row.channels).every(
+      ([channel, cell]) =>
+        NOTIFICATION_CHANNELS.some((key) => key === channel) &&
+        object(cell) &&
+        typeof cell.enabled === 'boolean' &&
+        (cell.readOnly === undefined || typeof cell.readOnly === 'boolean'),
+    )
+  })
+}
 
 /** Reject malformed adapter payloads before any render or reactive snapshot replacement. */
 export function isAccountSnapshot(value: unknown): value is AccountSnapshot {
@@ -19,6 +42,8 @@ export function isAccountSnapshot(value: unknown): value is AccountSnapshot {
     optionalString(profile.avatarUrl) &&
     object(notifications) &&
     ['product', 'email', 'security'].every((key) => typeof notifications[key] === 'boolean') &&
+    (value.notificationPreferences === undefined ||
+      validNotificationMatrix(value.notificationPreferences)) &&
     object(security) &&
     typeof security.twoStepEnabled === 'boolean' &&
     optionalString(security.passwordUpdatedAt) &&

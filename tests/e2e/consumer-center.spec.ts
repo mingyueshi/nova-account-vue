@@ -67,7 +67,7 @@ for (const width of [320, 390, 1440]) {
       ).not.toBeVisible()
     else await expect(bar.getByRole('button', { name: '保存资料', exact: true })).toBeDisabled()
     await navigate(page, 'notifications')
-    const toggle = page.getByRole('switch', { name: '邮件摘要', exact: true })
+    const toggle = page.getByRole('switch', { name: '产品动态 · 邮件', exact: true })
     await toggle.check()
     await navigate(page, 'messages', false)
     const guard = page.getByRole('dialog', { name: '还有未保存的修改', exact: true })

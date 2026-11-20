@@ -4,6 +4,7 @@ import type {
   AccountSnapshot,
   Activity,
   MutationContext,
+  NotificationPreferenceRow,
   RequestContext,
 } from '../src/types'
 import { DEMO_EMAIL } from './auth'
@@ -17,7 +18,30 @@ export const DEMO_ACCOUNT_VALUES = {
   code: '123456',
 } as const
 
+export const demoNotificationPreferences: NotificationPreferenceRow[] = [
+  {
+    eventId: 'product',
+    label: '产品动态',
+    channels: { email: { enabled: false }, inApp: { enabled: true }, push: { enabled: false } },
+  },
+  {
+    eventId: 'security',
+    label: '安全提醒',
+    channels: {
+      email: { enabled: true, readOnly: true },
+      inApp: { enabled: true },
+      push: { enabled: false },
+    },
+  },
+  {
+    eventId: 'digest',
+    label: '账户摘要',
+    channels: { email: { enabled: true }, inApp: { enabled: false } },
+  },
+]
+
 interface DemoAccountOptions {
+  notificationPreferences?: NotificationPreferenceRow[]
   wait?: (signal: AbortSignal) => Promise<void>
   now?: () => number
   settings?: () => DemoSettings
@@ -31,10 +55,14 @@ const assertActive = (context: RequestContext) => {
   if (context.signal.aborted) fail('CANCELLED', '操作已取消。')
 }
 
-export function createInitialAccount(time: number): AccountSnapshot {
+export function createInitialAccount(
+  time: number,
+  notificationPreferences?: NotificationPreferenceRow[],
+): AccountSnapshot {
   const at = (offset = 0) => new Date(time + offset).toISOString()
   return {
     revision: '0',
+    ...(notificationPreferences && { notificationPreferences: clone(notificationPreferences) }),
     profile: {
       id: 'nova-demo',
       nickname: 'Nova',
@@ -166,8 +194,9 @@ export function createDemoAccountAdapter({
   now = Date.now,
   settings,
   identities,
+  notificationPreferences,
 }: DemoAccountOptions = {}): AccountAdapter {
-  let state = createInitialAccount(now())
+  let state = createInitialAccount(now(), notificationPreferences)
   let issueCounter = 0
   let emailIssue: { id: number; email: string; expiresAt: number; resendAt: number } | undefined
   const snapshot = () => clone(state)
@@ -233,7 +262,7 @@ export function createDemoAccountAdapter({
     async load(context) {
       await pause(context)
       if (identities && state.profile.id !== identities.current.user.id) {
-        state = createInitialAccount(now())
+        state = createInitialAccount(now(), notificationPreferences)
         state.profile.id = identities.current.user.id
         state.profile.nickname = identities.current.user.displayName
       }
@@ -283,6 +312,24 @@ export function createDemoAccountAdapter({
             product: preferences.product,
             email: preferences.email,
             security: preferences.security,
+          }
+        },
+        'account',
+        '通知偏好已更新',
+      )
+    },
+    async updateNotificationPreferences(changes, context) {
+      await pause(context)
+      return commit(
+        context,
+        (next) => {
+          for (const { eventId, channel, enabled } of changes) {
+            const row = next.notificationPreferences?.find((item) => item.eventId === eventId)
+            const cell =
+              row && Object.hasOwn(row.channels, channel) ? row.channels[channel] : undefined
+            if (!cell || cell.readOnly || typeof enabled !== 'boolean')
+              fail('PREFERENCES_INVALID', '此通知选项无法修改。')
+            cell.enabled = enabled
           }
         },
         'account',

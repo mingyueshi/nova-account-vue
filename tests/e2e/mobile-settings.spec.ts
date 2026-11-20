@@ -127,7 +127,7 @@ for (const width of [320, 390]) {
     await page.setViewportSize({ width, height: 568 })
     await signIn(page)
     await nav(page, 'notifications')
-    const mail = page.getByRole('switch', { name: '邮件摘要', exact: true })
+    const mail = page.getByRole('switch', { name: '产品动态 · 邮件', exact: true })
     const savebar = page.locator('[data-account-savebar]')
     await mail.check()
     await expect(savebar.getByRole('button', { name: '保存偏好', exact: true })).toBeInViewport()
