@@ -117,7 +117,7 @@ import { createRequire } from 'node:module'
 import { createSSRApp, h } from 'vue'
 import { renderToString } from '@vue/server-renderer'
 import * as library from 'nova-account'
-for (const name of ['NovaAccount','NovaTheme','NovaAuthForm','NovaAccountCenter','NovaAppearance','NovaButton','NovaIcon','NOVA_ICON_NAMES','NovaField','NovaDialog','NovaCaptcha','useAppearance','useAuthFlow','useAccount','NovaError','NOVA_ERROR_CODES','provideNovaLocale','useNovaLocale','zhCN','enUS']) assert(name in library, 'missing export ' + name)
+for (const name of ['NovaAccount','NovaTheme','NovaAuthForm','NovaAccountCenter','NovaAppearance','NovaButton','NovaIcon','NOVA_ICON_NAMES','NovaField','NovaMfaSetup','NovaRecoveryCodes','NovaDialog','NovaCaptcha','useAppearance','useAuthFlow','useAccount','NovaError','NOVA_ERROR_CODES','provideNovaLocale','useNovaLocale','zhCN','enUS']) assert(name in library, 'missing export ' + name)
 assert(!('createDemoAdapter' in library))
 const requireHost = createRequire(import.meta.url)
 assert.throws(() => requireHost('nova-account'), {code:'ERR_REQUIRE_ESM',message:/await import/})

@@ -92,6 +92,8 @@ The account demo includes live activity aggregation, task/order trends, date fil
 
 Provide real adapters and runtime response validation. Replace `captcha` and `security` slots with the host's real verification and reauthentication flows. The `simulated` flag is a disclosure switch and does not grant permissions. `initialUser` is display data for a server-verified session, not proof of authentication.
 
+Use `NovaMfaSetup` in the `security` slot with the optional `account.mfa` adapter. It displays the host-issued authenticator setup key, optional QR code and recovery codes. `NovaRecoveryCodes` is also available independently. [Enrollment contract and example](docs/contracts.md#验证器设置与恢复码)
+
 The host must handle authorization, CSRF, password policy and storage, rate limiting, email delivery, session revocation, revision conflicts and unknown outcomes. Aborting a request only suppresses stale UI updates; it does not undo server work. Request IDs are correlation IDs, not durable idempotency keys. Only appearance settings may optionally use localStorage; credentials and account data are never persisted by the library.
 
 See [contracts](docs/contracts.md), [fetch adapter skeleton](docs/adapter.md), [production checklist](docs/production-checklist.md), [Nuxt integration](docs/nuxt.md), [changelog](CHANGELOG.md) and [QA evidence](QA.md). Visual screenshot artifacts and axe scans do not constitute screen-reader, real-device or production-backend acceptance.

@@ -140,7 +140,25 @@ export interface AccountSnapshot {
 export interface MutationContext extends RequestContext {
   revision: string
 }
+/** Short-lived, host-issued material for a single authenticator enrollment. */
+export interface TotpEnrollment {
+  id: string
+  expiresAt: number
+  manualKey: string
+  /** Inline PNG produced by the host. The manual key also works without a camera. */
+  qrCodeDataUrl?: string
+  digits?: 6 | 8
+}
+export interface MfaSetupAdapter {
+  beginTotp(context: MutationContext): Promise<TotpEnrollment>
+  confirmTotp(
+    input: { enrollmentId: string; code: string },
+    context: MutationContext,
+  ): Promise<{ recoveryCodes: string[] }>
+}
 export interface AccountAdapter {
+  /** Optional enrollment capability for NovaMfaSetup in the security slot. */
+  mfa?: MfaSetupAdapter
   load(context: RequestContext): Promise<AccountSnapshot>
   updateProfile(profile: Omit<Profile, 'id'>, context: MutationContext): Promise<AccountSnapshot>
   updateNotifications(

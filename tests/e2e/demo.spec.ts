@@ -1,3 +1,4 @@
+import { readFile } from 'node:fs/promises'
 import { test, expect, type Page } from '@playwright/test'
 import { createAxeBuilder } from './axe'
 import { lightPalettes } from '../../src/palettes'
@@ -612,9 +613,23 @@ test('TOTP security slot enables two-step; the danger zone returns to the auth p
   await host.getByRole('checkbox', { name: /#security 插槽/ }).check()
   await navigate(page, 'security')
   await expect(page.getByRole('heading', { name: '两步验证' })).toBeVisible()
-  await page.getByLabel('当前密码', { exact: true }).fill('123456')
+  await page.getByRole('button', { name: '设置身份验证器', exact: true }).click()
+  const qr = page.getByRole('img', { name: '绑定身份验证器的二维码' })
+  await expect(qr).toBeVisible()
+  await expect(qr).toHaveJSProperty('complete', true)
+  await expect(qr).not.toHaveJSProperty('naturalWidth', 0)
   await page.getByLabel('验证器验证码', { exact: true }).fill('123456')
-  await page.getByRole('button', { name: '开启两步验证', exact: true }).click()
+  await page.getByRole('button', { name: '确认绑定', exact: true }).click()
+  const codes = page.getByRole('region', { name: '恢复码', exact: true })
+  await expect(codes.getByRole('listitem')).toHaveCount(4)
+  const download = page.waitForEvent('download')
+  await codes.getByRole('button', { name: '下载文本文件' }).click()
+  const file = await download
+  expect(file.suggestedFilename()).toBe('recovery-codes.txt')
+  const displayedCodes = await codes.getByRole('listitem').allTextContents()
+  expect(await readFile(await file.path(), 'utf8')).toBe(displayedCodes.join('\n') + '\n')
+  await codes.getByRole('button', { name: '我已保存恢复码' }).click()
+  await expect(codes).toHaveCount(0)
   await expect(page.locator('.nova-security-settings strong').first()).toHaveText('已开启两步验证')
   await page.getByRole('button', { name: '注销账号…', exact: true }).click()
   const confirm = page.getByRole('dialog', { name: '注销账号？', exact: true })

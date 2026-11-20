@@ -17,6 +17,7 @@ import {
   NovaDialog,
   NovaError,
   NovaField,
+  NovaMfaSetup,
   NovaTheme,
 } from '../src'
 import type {
@@ -493,7 +494,7 @@ function submitMath(captcha: { busy: boolean; submit: (response: unknown) => Pro
   mathAnswer.value = ''
   void captcha.submit({ answer })
 }
-async function submitTotp(
+async function disableTotp(
   accountAdapter: AccountAdapter,
   snapshot: AccountSnapshot,
   refresh: () => Promise<AccountSnapshot | undefined>,
@@ -504,7 +505,7 @@ async function submitTotp(
   try {
     await accountAdapter.setTwoStep(
       {
-        enabled: !snapshot.security.twoStepEnabled,
+        enabled: false,
         currentPassword: totp.password,
         code: totp.code,
       },
@@ -915,7 +916,7 @@ function onStorageChange(
                     插槽（TOTP 形式演示）</label
                   >
                   <p class="demo-note">
-                    开启后内置安全页被插槽替换；确认码见项目文档，当前密码使用该账号最近设置的值。
+                    开启后可体验验证器绑定与恢复码保存。演示验证码见项目文档。
                   </p>
                   <label
                     ><input v-model="customProfile" type="checkbox" /> 资料页改用 #profile
@@ -1063,10 +1064,13 @@ function onStorageChange(
                 snapshot.security.twoStepEnabled ? '已开启两步验证' : '未开启两步验证'
               }}</strong>
             </p>
+            <p class="demo-note">请使用演示文档中的固定验证码体验绑定流程。</p>
+            <NovaMfaSetup :adapter="accountAdapter" :snapshot="snapshot" @enrolled="refresh()" />
             <form
+              v-if="snapshot.security.twoStepEnabled"
               class="demo-stack"
               :aria-busy="totp.busy"
-              @submit.prevent="submitTotp(accountAdapter, snapshot, refresh)"
+              @submit.prevent="disableTotp(accountAdapter, snapshot, refresh)"
             >
               <NovaField
                 v-model="totp.password"
@@ -1085,11 +1089,7 @@ function onStorageChange(
                 :error="totp.error"
               />
               <NovaButton type="submit" variant="primary" :disabled="totp.busy">{{
-                totp.busy
-                  ? '处理中…'
-                  : snapshot.security.twoStepEnabled
-                    ? '关闭两步验证'
-                    : '开启两步验证'
+                totp.busy ? '处理中…' : '关闭两步验证'
               }}</NovaButton>
             </form>
 

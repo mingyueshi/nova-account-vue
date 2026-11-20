@@ -15,8 +15,8 @@ const core = graph('nova-account.js')
 const chart = graph('charts.js')
 const total = (files) => [...files.values()].reduce((sum, value) => sum + value, 0)
 const checks = [
-  // Includes mobile navigation, account recovery controls and the optional notification matrix.
-  ['account JS including shared chunks', total(core), 44 * 1024],
+  // Includes mobile navigation, account recovery controls and the notification matrix, TOTP setup and recovery code components.
+  ['account JS including shared chunks', total(core), 46.5 * 1024],
   [
     'account CSS',
     gzipSync(readFileSync(new URL('../dist/nova-account.css', import.meta.url))).byteLength,

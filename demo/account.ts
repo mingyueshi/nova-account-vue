@@ -7,6 +7,7 @@ import type {
   NotificationPreferenceRow,
   RequestContext,
 } from '../src/types'
+import demoTotpQr from './assets/totp-example.png?inline'
 import { DEMO_EMAIL } from './auth'
 import type { DemoSettings, DemoIdentities } from './auth'
 
@@ -197,6 +198,7 @@ export function createDemoAccountAdapter({
   notificationPreferences,
 }: DemoAccountOptions = {}): AccountAdapter {
   let state = createInitialAccount(now(), notificationPreferences)
+  let enrollment: { id: string; accountId: string; expiresAt: number } | undefined
   let issueCounter = 0
   let emailIssue: { id: number; email: string; expiresAt: number; resendAt: number } | undefined
   const snapshot = () => clone(state)
@@ -259,9 +261,53 @@ export function createDemoAccountAdapter({
       fail('PASSWORD_INVALID', '当前密码不正确。')
   }
   return {
+    mfa: {
+      async beginTotp(context) {
+        await pause(context)
+        checkRevision(context)
+        if (state.security.twoStepEnabled) fail('MFA_ENABLED', '此账户已绑定验证器。')
+        enrollment = {
+          id: `demo-totp-${++issueCounter}`,
+          accountId: state.profile.id,
+          expiresAt: now() + 300_000,
+        }
+        return {
+          id: enrollment.id,
+          expiresAt: enrollment.expiresAt,
+          manualKey: 'JBSWY3DPEHPK3PXP',
+          qrCodeDataUrl: demoTotpQr,
+        }
+      },
+      async confirmTotp({ enrollmentId, code }, context) {
+        await pause(context)
+        checkRevision(context)
+        if (
+          !enrollment ||
+          enrollment.id !== enrollmentId ||
+          enrollment.accountId !== state.profile.id ||
+          enrollment.expiresAt <= now() ||
+          state.security.twoStepEnabled
+        )
+          fail('MFA_SETUP_EXPIRED', '绑定已失效，请重新开始。')
+        if (code !== DEMO_ACCOUNT_VALUES.code) fail('MFA_CODE_INVALID', '演示验证码不正确。')
+        commit(
+          context,
+          (next) => {
+            next.security.twoStepEnabled = true
+          },
+          'credentials',
+          '已绑定演示验证器',
+        )
+        enrollment = undefined
+        return {
+          recoveryCodes: ['DEMO-ALPHA-01', 'DEMO-BRAVO-02', 'DEMO-CHARLIE-03', 'DEMO-DELTA-04'],
+        }
+      },
+    },
     async load(context) {
       await pause(context)
       if (identities && state.profile.id !== identities.current.user.id) {
+        enrollment = undefined
         state = createInitialAccount(now(), notificationPreferences)
         state.profile.id = identities.current.user.id
         state.profile.nickname = identities.current.user.displayName
@@ -470,6 +516,7 @@ export function createDemoAccountAdapter({
       return commit(
         context,
         (next) => {
+          enrollment = undefined
           next.security.twoStepEnabled = input.enabled
         },
         'credentials',

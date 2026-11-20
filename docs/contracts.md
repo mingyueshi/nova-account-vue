@@ -47,7 +47,7 @@ interface MutationContext extends RequestContext {
 
 ## 账户接口
 
-`load(context)` 返回 `AccountSnapshot`，包括 revision、profile、email、notifications、devices、messages、security、activity。所有写操作返回完整新 snapshot：
+`load(context)` 返回 `AccountSnapshot`，包括 revision、profile、email、notifications、devices、messages、security、activity。以下账户写操作返回完整新 snapshot：
 
 - `updateProfile({nickname,bio,avatar,avatarUrl?}, context)` / `updateNotifications({product,email,security}, context)`。
 - `uploadAvatar?({dataUrl}, context)` 可选能力：实现后内建资料页出现头像上传（组件负责选文件转 data URL、忙态与移除，`null` 清除）；组件在读取前检查图片 MIME 和 `avatarMaxBytes`（默认 2 MiB），避免过大的 data URL 分配；真实类型、内容、大小和存储仍由适配器 / 服务端验证。`Profile.avatarUrl?` 为服务端下发的图片 URL 或 data URL，空值渲染色块头像。
@@ -82,6 +82,25 @@ const notificationPreferences: NotificationPreferenceRow[] = [
 ### 安全操作与导航
 
 默认生产安全页只读。真实安全修改通过 `security` 插槽替换为接入方的 recent-auth / passkey / TOTP 等完整流程；不要把 `simulated:true` 当成开启生产安全流程的办法。`profile` 插槽可整体替换资料页（props 同 `security`：snapshot/adapter/refresh），未保存守卫随之由宿主实现。
+
+#### 验证器设置与恢复码
+
+`NovaMfaSetup` 和 `NovaRecoveryCodes` 可从 `nova-account` 导入。在独立页面中用 `NovaTheme` 提供主题与语言。在账户中心，直接传入安全插槽已有的参数即可。
+
+```vue
+<NovaAccount :adapter="adapter">
+  <template #security="{ adapter: accountAdapter, snapshot, refresh }">
+    <NovaMfaSetup :adapter="accountAdapter" :snapshot="snapshot" @enrolled="refresh()" />
+  </template>
+</NovaAccount>
+```
+
+宿主可在 `AccountAdapter.mfa` 内提供两个方法。两者都接收带 `revision`、`signal` 和 `requestId` 的 `MutationContext`。缺少该能力时组件不渲染操作。
+
+- `beginTotp(context)` 由用户点击设置触发。返回 `{ id, expiresAt, manualKey, qrCodeDataUrl?, digits? }`。有效期使用 epoch 毫秒，可选二维码使用内联 PNG，验证码默认 6 位，也支持 8 位。宿主按自身策略完成近期身份验证，为当前账户签发短时绑定。
+- `confirmTotp({ enrollmentId, code }, context)` 由服务端校验账户、版本、有效期与 TOTP，原子地启用并消费绑定，再返回 `{ recoveryCodes: string[] }`。没有签发恢复码时返回空数组。宿主需处理重复确认和网络结果不明后的状态核对。组件在成功后发出无参数的 `enrolled`，上例随即刷新 `security.twoStepEnabled`。已有的 `setTwoStep` 仍可供宿主的关闭流程使用。
+- `NovaMfaSetup` 内置恢复码展示。单独使用时，按一次签发挂载 `<NovaRecoveryCodes :codes="codes" @acknowledged="codes = []" />`。支持复制、下载 UTF-8 文本和手动保存。用户明确确认后收起；宿主应同时清空持有的明文。重新签发请挂载新实例。
+- 密钥和恢复码只在客户端当前流程使用。服务端只在签发响应返回明文，快照、SSR 注水、日志和浏览器持久化中均不应包含这些值。真实恢复码的单次核销由服务端执行。
 
 资料/偏好页面 dirty 时导航/退出会询问放弃；`beforeunload` 仅在浏览器挂载且有未保存数据时使用。组件卸载会清除监听。宿主路由强制卸载不自动接管路由确认，需在宿主导航设计中实现阻止离开。
 

@@ -4,6 +4,7 @@ import { createSSRApp, defineComponent, h } from 'vue'
 import { renderToString } from '@vue/server-renderer'
 import NovaAuthForm from '../src/components/NovaAuthForm.vue'
 import NovaTheme from '../src/components/NovaTheme.vue'
+import NovaRecoveryCodes from '../src/components/NovaRecoveryCodes.vue'
 import NovaButton from '../src/components/NovaButton.vue'
 import NovaAccountCenter from '../src/components/NovaAccountCenter.vue'
 import { useAuthFlow } from '../src/composables/useAuthFlow'
@@ -42,12 +43,14 @@ describe('SSR without browser globals', () => {
             {
               default: () => [
                 h(NovaButton, {}, { default: () => 'SSR ready' }),
+                h(NovaRecoveryCodes, { codes: ['private-recovery-code'] }),
                 h(NovaAuthForm, { adapter }),
               ],
             },
           ),
       }),
     )
+    expect(html).not.toContain('private-recovery-code')
     expect(html).toContain('SSR ready')
     expect(html).toContain('欢迎回来')
     expect(html).toContain('data-theme="light"')

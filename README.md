@@ -190,6 +190,8 @@ const messages: Partial<NovaMessages> = { 'auth.welcome': '登录你的账户' }
 | 错误与结果 | `NovaError`, `NOVA_ERROR_CODES`；类型 `NovaErrorCode`, `NovaRequestResult`                                                                             |
 | 类型       | `NovaAdapter`, `AuthAdapter`, `AccountAdapter`, `RequestContext`, `MutationContext`, `NovaLocaleOptions`, `NovaMessages`，以及 snapshots、用户、主题等 |
 
+安全页的 `#security` 插槽可直接使用 `NovaMfaSetup` 接入宿主 TOTP 绑定接口。组件内置二维码、手动密钥和一次性恢复码展示。`NovaRecoveryCodes` 也可以独立使用。[绑定接口与接入示例](docs/contracts.md#验证器设置与恢复码)
+
 详见 [接口与安全边界](docs/contracts.md)、[fetch adapter 模板](docs/adapter.md)、[接入方上线清单](docs/production-checklist.md)、[Nuxt 接入与验证](docs/nuxt.md)、[QA / 验证范围](QA.md)。
 
 ## 独立演示
