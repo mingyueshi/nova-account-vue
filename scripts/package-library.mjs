@@ -16,21 +16,39 @@ import {
   writeFileSync,
 } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { dirname, join, resolve } from 'node:path'
+import { basename, dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import ts from 'typescript'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const receiptName = '.nova-build.json'
 
-function hashFiles(directory, paths) {
+// Use the active npm CLI so Windows does not need to execute an npm.cmd shim.
+export function runNpm(args, options) {
+  if (process.platform !== 'win32') return execFileSync('npm', args, options)
+  const activeCli = process.env.npm_execpath
+  const npmCli =
+    activeCli && basename(activeCli) === 'npm-cli.js'
+      ? activeCli
+      : join(dirname(process.execPath), 'node_modules/npm/bin/npm-cli.js')
+  return execFileSync(process.execPath, [npmCli, ...args], options)
+}
+
+// cpSync prunes a whole directory when its own basename is rejected.
+export function excludeFileNames(...names) {
+  return (file) => !names.includes(basename(file))
+}
+const isBuildInputFile = excludeFileNames('.DS_Store')
+
+function hashFiles(directory, paths, includeFile = () => true) {
   const files = []
   for (const name of paths) {
     const path = join(directory, name)
     if (!existsSync(path)) continue
     if (statSync(path).isDirectory()) {
       for (const entry of readdirSync(path, { recursive: true, withFileTypes: true }))
-        if (entry.isFile()) files.push(join(entry.parentPath, entry.name))
+        if (entry.isFile() && includeFile(entry.name))
+          files.push(join(entry.parentPath, entry.name))
     } else files.push(path)
   }
   return Object.fromEntries(
@@ -44,15 +62,19 @@ function hashFiles(directory, paths) {
   )
 }
 function inputHashes(directory) {
-  return hashFiles(directory, [
-    'src',
-    'package.json',
-    'package-lock.json',
-    '.nvmrc',
-    'tsconfig.json',
-    'vite.config.ts',
-    'scripts',
-  ])
+  return hashFiles(
+    directory,
+    [
+      'src',
+      'package.json',
+      'package-lock.json',
+      '.nvmrc',
+      'tsconfig.json',
+      'vite.config.ts',
+      'scripts',
+    ],
+    isBuildInputFile,
+  )
 }
 export function writeBuildReceipt(directory) {
   writeFileSync(
@@ -149,19 +171,15 @@ export function createLibraryPackage(projectRoot = root, temporaryRoot = tmpdir(
       'scripts',
       ...manifest.files.filter((name) => name !== 'dist'),
     ]))
-      cpSync(join(projectRoot, name), join(directory, name), { recursive: true })
+      cpSync(join(projectRoot, name), join(directory, name), {
+        recursive: true,
+        filter: isBuildInputFile,
+      })
     for (const name of ['package-lock.json', '.nvmrc'])
       if (existsSync(join(projectRoot, name)))
         cpSync(join(projectRoot, name), join(directory, name))
     symlinkSync(join(projectRoot, 'node_modules'), join(directory, 'node_modules'), 'junction')
     const env = { ...process.env }
-    const run = (command, args) =>
-      execFileSync(command, args, {
-        cwd: directory,
-        env,
-        encoding: 'utf8',
-        stdio: ['ignore', 'pipe', 'inherit'],
-      })
     // Keep build output off stdout: callers parse the final package metadata there.
     execFileSync(process.execPath, [join(directory, 'scripts/package-library.mjs'), '--build'], {
       cwd: directory,
@@ -169,7 +187,14 @@ export function createLibraryPackage(projectRoot = root, temporaryRoot = tmpdir(
       stdio: ['ignore', 'pipe', 'inherit'],
     })
     // Build and validation already ran above. Do not recursively invoke root packaging hooks.
-    const [packed] = JSON.parse(run('npm', ['pack', '--json', '--ignore-scripts']))
+    const [packed] = JSON.parse(
+      runNpm(['pack', '--json', '--ignore-scripts'], {
+        cwd: directory,
+        env,
+        encoding: 'utf8',
+        stdio: ['ignore', 'pipe', 'inherit'],
+      }),
+    )
     assert(packed?.filename, 'npm pack must return a tarball')
     return { ...packed, tarball: join(directory, packed.filename), directory, cleanup }
   } catch (error) {

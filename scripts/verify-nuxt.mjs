@@ -1,10 +1,9 @@
 import assert from 'node:assert/strict'
-import { execFileSync } from 'node:child_process'
 import { cpSync, mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { createLibraryPackage } from './package-library.mjs'
+import { createLibraryPackage, excludeFileNames, runNpm } from './package-library.mjs'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const targets = process.argv.slice(2)
@@ -13,12 +12,7 @@ assert(
   targets.every((target) => ['nuxt3', 'nuxt4'].includes(target)),
   'Use nuxt3 or nuxt4',
 )
-const run = (args, cwd = root, capture = false) =>
-  execFileSync('npm', args, {
-    cwd,
-    encoding: 'utf8',
-    stdio: capture ? ['ignore', 'pipe', 'inherit'] : 'inherit',
-  })
+const run = (args, cwd) => runNpm(args, { cwd, stdio: 'inherit' })
 const packed = createLibraryPackage(root)
 const directory = mkdtempSync(join(tmpdir(), 'nova-nuxt-'))
 try {
@@ -27,7 +21,7 @@ try {
     const consumer = join(directory, target)
     cpSync(join(root, 'examples/nuxt', target), consumer, {
       recursive: true,
-      filter: (source) => !/(?:^|\/)(?:node_modules|\.nuxt|\.output)(?:\/|$)/.test(source),
+      filter: excludeFileNames('node_modules', '.nuxt', '.output'),
     })
     cpSync(join(root, 'examples/nuxt/smoke.mjs'), join(directory, 'smoke.mjs'))
     // Rebind only the local tarball; all other versions still come from the example lockfile.

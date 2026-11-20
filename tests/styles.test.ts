@@ -41,16 +41,23 @@ describe('precompiled style isolation', () => {
     expect(source).toContain('prefix(na)')
     expect(source).not.toMatch(/(?:^|\n)(?:body|html|button|input|:root)\s*[{,:]/)
   })
-  it('scopes generated defaults and namespaces internal properties/layers', async () => {
+  it('scopes the library entry even when the compiler emits no banner', async () => {
     const output = await postcss([scopeNovaCss()]).process(
-      '/* tailwindcss */ @layer theme { :root,:host { --na-spacing:.25rem; } } @layer properties { *,::before,::after,::backdrop { --tw-shadow:0 0 #0000; } } .nova-account { color:red; } .na\\:shadow {box-shadow:var(--tw-shadow)} @property --tw-shadow { syntax:"*";inherits:false; }',
-      { from: undefined },
+      '@layer theme { :root,:host { --na-spacing:.25rem; } } @layer properties { *,::before,::after,::backdrop { --tw-shadow:0 0 #0000; } } .nova-account { color:red; } .na\\:shadow {box-shadow:var(--tw-shadow)} @property --tw-shadow { syntax:"*";inherits:false; }',
+      { from: 'src/styles/index.css' },
     )
     expect(output.css).not.toContain(':root')
     expect(output.css).not.toContain('--tw-')
     expect(output.css).toContain('--na-tw-shadow')
     expect(output.css).toContain('@layer nova-theme')
     expect(output.css).toContain('.nova-account ::backdrop')
+  })
+  it('preserves host styles that mention both Tailwind and the library', async () => {
+    const css = '/*! tailwindcss */ @layer theme { :root { --tw-shadow: none } } .nova-account {}'
+    const output = await postcss([scopeNovaCss()]).process(css, {
+      from: 'demo/src/styles/index.css',
+    })
+    expect(output.css).toBe(css)
   })
   for (const mode of ['light', 'dark'])
     for (const accent of Object.keys(lightPalettes)) {

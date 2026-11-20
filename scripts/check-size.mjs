@@ -1,18 +1,32 @@
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
+import { dirname, resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { gzipSync } from 'node:zlib'
+import ts from 'typescript'
 
 // Count local shared chunks as well as entries. Vue / ECharts remain external.
-function graph(name, files = new Map()) {
-  if (files.has(name)) return files
-  const source = readFileSync(new URL(`../dist/${name}`, import.meta.url), 'utf8')
-  files.set(name, gzipSync(source).byteLength)
-  for (const match of source.matchAll(/(?:from\s*|import\s*)["']\.\/([^"']+\.js)["']/g))
-    graph(match[1], files)
+function graph(file, files = new Map()) {
+  if (files.has(file)) return files
+  const source = readFileSync(file, 'utf8')
+  files.set(file, gzipSync(source).byteLength)
+  const script = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, false, ts.ScriptKind.JS)
+  function visit(node) {
+    let specifier
+    if (ts.isImportDeclaration(node) || ts.isExportDeclaration(node))
+      specifier = node.moduleSpecifier
+    if (ts.isCallExpression(node) && node.expression.kind === ts.SyntaxKind.ImportKeyword)
+      specifier = node.arguments[0]
+    if (specifier && ts.isStringLiteralLike(specifier) && /^\.\.?\/.*\.m?js$/.test(specifier.text))
+      graph(resolve(dirname(file), specifier.text), files)
+    ts.forEachChild(node, visit)
+  }
+  visit(script)
   return files
 }
-const core = graph('nova-account.js')
-const chart = graph('charts.js')
+const dist = fileURLToPath(new URL('../dist/', import.meta.url))
+const core = graph(resolve(dist, 'nova-account.js'))
+const chart = graph(resolve(dist, 'charts.js'))
 const total = (files) => [...files.values()].reduce((sum, value) => sum + value, 0)
 const checks = [
   // Includes mobile navigation, account recovery controls and the notification matrix, TOTP setup and recovery code components.

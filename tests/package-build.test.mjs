@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import { execFileSync, spawn } from 'node:child_process'
+import { randomBytes } from 'node:crypto'
 import { once } from 'node:events'
 import {
   cpSync,
@@ -14,6 +15,7 @@ import {
 } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
+import { gzipSync } from 'node:zlib'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import test from 'node:test'
 import {
@@ -21,7 +23,10 @@ import {
   assertFreshBuild,
   writeBuildReceipt,
   createLibraryPackage,
+  excludeFileNames,
+  runNpm,
 } from '../scripts/package-library.mjs'
+import { assertNoDocumentReset } from '../scripts/verify-package-css.mjs'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 // Exact chart entry captured in the failing tarball while index.d.ts was already bundled.
@@ -68,6 +73,90 @@ function freshFixture(t) {
   assertFreshBuild(directory)
   return directory
 }
+test('size budgets follow literal lazy imports, nested re-exports and shared cycles once', (t) => {
+  const directory = temporary(t)
+  mkdirSync(join(directory, 'scripts'))
+  mkdirSync(join(directory, 'dist/chunks'), { recursive: true })
+  cpSync(join(root, 'scripts/check-size.mjs'), join(directory, 'scripts/check-size.mjs'))
+  symlinkSync(join(root, 'node_modules'), join(directory, 'node_modules'), 'junction')
+  const entries = {
+    'nova-account.js':
+      'export const load = () => import("./chunks/lazy.js"); // import "./missing.js"',
+    'chunks/lazy.js': 'export * as shared from "../shared.js";',
+    'shared.js': 'import "./chunks/lazy.js"; import "vue";',
+    'charts.js': 'import "./shared.js"; export const load = () => import("./chart-only.js");',
+    'chart-only.js': 'export default 1;',
+  }
+  for (const [file, code] of Object.entries(entries))
+    writeFileSync(join(directory, 'dist', file), code)
+  writeFileSync(join(directory, 'dist/nova-account.css'), '')
+  const size = (...files) =>
+    files.reduce((sum, file) => sum + gzipSync(entries[file]).byteLength, 0)
+  const check = () =>
+    execFileSync(process.execPath, ['scripts/check-size.mjs'], {
+      cwd: directory,
+      encoding: 'utf8',
+      stdio: 'pipe',
+    })
+  const output = check()
+  assert(
+    output.includes(
+      'account JS including shared chunks: ' +
+        size('nova-account.js', 'chunks/lazy.js', 'shared.js') +
+        ' bytes',
+    ),
+  )
+  assert(
+    output.includes(
+      'optional chart JS beyond the account graph: ' +
+        size('charts.js', 'chart-only.js') +
+        ' bytes',
+    ),
+  )
+  writeFileSync(
+    join(directory, 'dist/chunks/lazy.js'),
+    'export default "' + randomBytes(65536).toString('base64') + '"',
+  )
+  assert.throws(check, /account JS including shared chunks exceeds/)
+})
+test('compiled CSS rejects bare document selectors in lists and nested grouping rules', () => {
+  for (const rule of [
+    'html{}',
+    '.a{}html,body{}',
+    '.a{}body,html{}',
+    '@media screen{html{}}',
+    '@layer base{@supports (display:grid){.a,BODY{margin:0}}}',
+  ])
+    assert.throws(() => assertNoDocumentReset(rule), /document-level Preflight reset/)
+  assertNoDocumentReset(
+    '/* html{} */ @media screen{.body,body .nova-account,[data-label="html,body"]{color:red}} .nova-account{body{color:red}}',
+  )
+})
+test('copy filters prune generated Nuxt directories by native basename', (t) => {
+  const directory = temporary(t)
+  const example = join(directory, 'node_modules', 'project', 'example')
+  const ignored = ['node_modules', '.nuxt', '.output']
+  for (const name of [...ignored, 'node_modules-example']) {
+    mkdirSync(join(example, 'nested', name), { recursive: true })
+    writeFileSync(join(example, 'nested', name, 'file'), '')
+  }
+  const consumer = join(directory, 'consumer')
+  cpSync(example, consumer, { recursive: true, filter: excludeFileNames(...ignored) })
+  assert.deepEqual(readdirSync(join(consumer, 'nested')), ['node_modules-example'])
+})
+test('Finder metadata can be added, modified or removed without invalidating build inputs', (t) => {
+  const directory = freshFixture(t)
+  const file = join(directory, 'src/.DS_Store')
+  writeFileSync(file, 'initial')
+  assertFreshBuild(directory)
+  writeBuildReceipt(directory)
+  const receipt = JSON.parse(readFileSync(join(directory, 'dist/.nova-build.json'), 'utf8'))
+  assert(!Object.hasOwn(receipt.inputs, 'src/.DS_Store'))
+  writeFileSync(file, 'new contents')
+  assertFreshBuild(directory)
+  rmSync(file)
+  assertFreshBuild(directory)
+})
 test('rejects changed source even when its timestamp is backdated', (t) => {
   const directory = freshFixture(t)
   const source = join(directory, 'src/index.ts')
@@ -95,8 +184,7 @@ test('npm pack refuses complete but stale dist without producing a tarball', (t)
   const directory = freshFixture(t)
   writeFileSync(join(directory, 'src/index.ts'), 'export const changed = true')
   assert.throws(
-    () =>
-      execFileSync('npm', ['pack', '--json'], { cwd: directory, encoding: 'utf8', stdio: 'pipe' }),
+    () => runNpm(['pack', '--json'], { cwd: directory, encoding: 'utf8', stdio: 'pipe' }),
     (error) => /Build inputs changed/.test(error.stdout + error.stderr),
   )
   assert(!readdirSync(directory).some((name) => name.endsWith('.tgz')))
@@ -145,8 +233,7 @@ test('npm pack prepack refuses the original incomplete chart entry', (t) => {
   symlinkSync(join(root, 'node_modules'), join(directory, 'node_modules'), 'junction')
   writeFileSync(join(directory, 'dist/charts.d.ts'), intermediate)
   assert.throws(
-    () =>
-      execFileSync('npm', ['pack', '--json'], { cwd: directory, encoding: 'utf8', stdio: 'pipe' }),
+    () => runNpm(['pack', '--json'], { cwd: directory, encoding: 'utf8', stdio: 'pipe' }),
     (error) => /unbundled declaration references/.test(error.stdout + error.stderr),
   )
   assert(!readdirSync(directory).some((name) => name.endsWith('.tgz')))

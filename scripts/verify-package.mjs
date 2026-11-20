@@ -4,7 +4,8 @@ import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { createLibraryPackage } from './package-library.mjs'
+import { createLibraryPackage, runNpm } from './package-library.mjs'
+import { assertNoDocumentReset } from './verify-package-css.mjs'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const packageJson = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'))
@@ -15,8 +16,6 @@ const env = {
     process.env.NPM_CONFIG_CACHE ||
     join(tmpdir(), 'nova-account-npm-cache'),
 }
-const run = (command, args, cwd = root) =>
-  execFileSync(command, args, { cwd, env, encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] })
 const packed = createLibraryPackage(root)
 try {
   assert(packed?.filename, 'npm pack must return a tarball')
@@ -63,7 +62,7 @@ try {
     'consumer must not need a Tailwind compilation step',
   )
   assert(!/@import/.test(css), 'the CSS export must be self-contained')
-  assert(!/(?:^|})\s*(?:html|body)\s*\{/.test(css), 'no document-level Preflight reset')
+  assertNoDocumentReset(css)
   assert(!css.includes(':root'), 'library theme variables must be scoped to .nova-account')
   assert(!css.includes('--tw-'), 'Tailwind internal variables must use the library namespace')
   const sourceMap = JSON.parse(
@@ -76,6 +75,9 @@ try {
 
   // Outside the workspace tree so module resolution cannot accidentally find source dependencies.
   const consumer = mkdtempSync(join(tmpdir(), 'nova-account-consumer-'))
+  const options = { cwd: consumer, env, encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }
+  const runNode = (args) => execFileSync(process.execPath, args, options)
+  const typecheck = () => runNode(['node_modules/typescript/bin/tsc', '--noEmit'])
   function assertInstalledSnapshot() {
     for (const { path } of packed.files.filter((file) => file.path.startsWith('dist/')))
       assert.deepEqual(
@@ -92,8 +94,7 @@ try {
       2,
     ),
   )
-  run(
-    'npm',
+  runNpm(
     [
       'install',
       '--no-audit',
@@ -104,7 +105,7 @@ try {
       `@vue/server-renderer@${packageJson.devDependencies.vue}`,
       `typescript@${packageJson.devDependencies.typescript}`,
     ],
-    consumer,
+    options,
   )
   assertInstalledSnapshot()
   writeFileSync(
@@ -125,7 +126,8 @@ assert.throws(() => requireHost('nova-account/charts'), {code:'ERR_REQUIRE_ESM',
 assert.throws(() => requireHost.resolve('@lucide/vue'), {code:'MODULE_NOT_FOUND'}, 'bundled icons must not force an installed icon dependency')
 
 const resolved = fileURLToPath(import.meta.resolve('nova-account'))
-assert(realpathSync(resolved).startsWith(process.cwd() + '/node_modules/nova-account/'))
+const expectedEntry = new URL('./node_modules/nova-account/dist/nova-account.js', import.meta.url)
+assert.equal(realpathSync(resolved), fileURLToPath(expectedEntry))
 assert.equal(createRequire(resolved).resolve('vue'), createRequire(import.meta.url).resolve('vue'), 'library and host must resolve the same Vue runtime')
 const css = readFileSync(fileURLToPath(import.meta.resolve('nova-account/style.css')), 'utf8')
 assert(css.includes('.nova-account') && css.includes('na\\\\:flex'))
@@ -190,11 +192,10 @@ void invalid
       2,
     ),
   )
-  process.stdout.write(run('node', ['verify.mjs'], consumer))
-  process.stdout.write(run(join(consumer, 'node_modules/.bin/tsc'), ['--noEmit'], consumer))
+  process.stdout.write(runNode(['verify.mjs']))
+  process.stdout.write(typecheck())
   console.log('PASS base-only ESM / SSR / strict TypeScript consumer without ECharts')
-  run(
-    'npm',
+  runNpm(
     [
       'install',
       '--no-audit',
@@ -202,7 +203,7 @@ void invalid
       '--ignore-scripts',
       `echarts@${packageJson.devDependencies.echarts}`,
     ],
-    consumer,
+    options,
   )
   assertInstalledSnapshot()
   writeFileSync(
@@ -231,9 +232,9 @@ const chartOption: NovaChartOption = {series:[{type:'line',data:[1,2,3]}]}
 h(NovaChart, {option:chartOption,label:'Activity'})
 `,
   )
-  process.stdout.write(run('node', ['verify-charts.mjs'], consumer))
-  process.stdout.write(run(join(consumer, 'node_modules/.bin/tsc'), ['--noEmit'], consumer))
-  const dependencyTree = JSON.parse(run('npm', ['ls', 'vue', '--json'], consumer))
+  process.stdout.write(runNode(['verify-charts.mjs']))
+  process.stdout.write(typecheck())
+  const dependencyTree = JSON.parse(runNpm(['ls', 'vue', '--json'], options))
   assert(dependencyTree.dependencies?.vue?.version === packageJson.devDependencies.vue)
   console.log('PASS independent TypeScript consumer from isolated library build')
   console.log(`Tarball integrity: ${packed.integrity}`)

@@ -1,6 +1,16 @@
+import { dirname, resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import postcss, { type Plugin } from 'postcss'
 import type { Plugin as VitePlugin } from 'vite'
 import { lightPalettes, darkPalettes } from '../src/palettes.ts'
+
+const libraryStylesheet = resolve(
+  dirname(fileURLToPath(import.meta.url)),
+  '../src/styles/index.css',
+)
+function isLibraryStylesheet(id: string | undefined) {
+  return id && resolve(id.split('?')[0]) === libraryStylesheet
+}
 
 /** Expand before Tailwind, whose optimizer may remove unknown at-rules. */
 export function novaPaletteSource(): VitePlugin {
@@ -8,8 +18,7 @@ export function novaPaletteSource(): VitePlugin {
     name: 'nova-palette-source',
     enforce: 'pre',
     transform(code, id) {
-      if (id.split('?')[0]?.endsWith('/src/styles/index.css'))
-        return code.replace('@nova-palettes;', novaPaletteCss())
+      if (isLibraryStylesheet(id)) return code.replace('@nova-palettes;', novaPaletteCss())
     },
   }
 }
@@ -40,11 +49,10 @@ export function scopeNovaCss(): Plugin {
   return {
     postcssPlugin: 'nova-account-isolation',
     Once(root) {
+      if (!isLibraryStylesheet(root.source?.input.file)) return
       root.walkAtRules('nova-palettes', (rule) => {
         rule.replaceWith(...postcss.parse(novaPaletteCss()).nodes)
       })
-      if (!root.toString().includes('tailwindcss') || !root.toString().includes('.nova-account'))
-        return
       root.walkDecls((declaration) => {
         declaration.prop = declaration.prop.replaceAll('--tw-', '--na-tw-')
         declaration.value = declaration.value.replaceAll('--tw-', '--na-tw-')
