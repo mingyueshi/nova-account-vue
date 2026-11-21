@@ -185,7 +185,6 @@ const storageFault = ref(false)
 const storageNote = ref('')
 const sessionArmed = ref(false)
 const sessionNote = ref('')
-const flowNote = ref('')
 const oauthOn = ref(false)
 const deleteOpen = ref(false)
 const deleteTrigger = ref<HTMLElement>()
@@ -286,7 +285,11 @@ function createAdapter(): NovaAdapter {
     account: createDemoAccountAdapter({
       notificationPreferences: demoNotificationPreferences,
       identities,
-      settings: () => settings,
+      consumeExternalEdit: () => {
+        if (!conflictArmed.value) return false
+        settings.conflict = 'normal'
+        return true
+      },
       wait: async (signal) => {
         // Configuration must stay reachable even while simulated business requests fail.
         if (isConfigPage.value) {
@@ -322,6 +325,7 @@ function resetDemo() {
   totp.code = ''
   totp.error = ''
   sessionArmed.value = false
+  settings.conflict = 'normal'
   deleteOpen.value = false
   clearTimeout(sessionTimer)
   sessionNote.value = ''
@@ -336,7 +340,6 @@ function enterRestoredSession() {
   logEvent('initialUser', '外壳重挂载，以服务端已验证会话直接进入账户中心')
 }
 let sessionTimer: ReturnType<typeof setTimeout> | undefined
-let flowTimer: ReturnType<typeof setTimeout> | undefined
 /** Real hosts react to 401 by clearing the local session; the demo mirrors that pattern. */
 function scheduleSessionExpiredReturn() {
   clearTimeout(sessionTimer)
@@ -351,21 +354,8 @@ function forceReturnToAuth(note: string) {
     sessionNote.value = ''
   }, 10_000)
 }
-function flashFlowNote(text: string) {
-  flowNote.value = text
-  clearTimeout(flowTimer)
-  flowTimer = setTimeout(() => {
-    flowNote.value = ''
-  }, 10_000)
-}
 function toggleSessionArmed() {
   sessionArmed.value = !sessionArmed.value
-}
-function armConflict() {
-  settings.conflict = 'dirty'
-  flashFlowNote(
-    '已模拟另一台设备修改资料：下一次账户操作将返回 REVISION_CONFLICT。真实接入通常在此时重新加载快照；演示中刷新页面或重新登录即恢复。',
-  )
 }
 function openDelete(event: Event) {
   deleteTrigger.value = event.currentTarget as HTMLElement
@@ -525,27 +515,34 @@ async function disableTotp(
   }
 }
 let savedStorage: PropertyDescriptor | undefined
+function restoreStorage() {
+  if (!storageFault.value) return
+  if (savedStorage) Object.defineProperty(window, 'localStorage', savedStorage)
+  else Reflect.deleteProperty(window, 'localStorage')
+  savedStorage = undefined
+  storageFault.value = false
+}
+onBeforeUnmount(restoreStorage)
 function onStorageChange(
   theme: { appearance: Appearance; setAppearance: (value: Appearance, persist?: boolean) => void },
   event: Event,
 ) {
   const broken = (event.target as HTMLInputElement).checked
-  storageFault.value = broken
-  storageNote.value = ''
+  if (broken === storageFault.value) return
   if (broken) {
-    if (!savedStorage) savedStorage = Object.getOwnPropertyDescriptor(window, 'localStorage')
+    savedStorage = Object.getOwnPropertyDescriptor(window, 'localStorage')
     Object.defineProperty(window, 'localStorage', {
       configurable: true,
       get() {
         throw new DOMException('演示：本地存储已禁用。', 'SecurityError')
       },
     })
+    storageFault.value = true
     // Trigger one write so the resulting storageError shows up immediately.
     theme.setAppearance(theme.appearance)
     storageNote.value = '已拦截 localStorage，并尝试写入一次外观偏好。'
-  } else if (savedStorage) {
-    Object.defineProperty(window, 'localStorage', savedStorage)
-    savedStorage = undefined
+  } else {
+    restoreStorage()
     storageNote.value = '已恢复本地存储；下次成功保存外观时错误提示会消失。'
   }
 }
@@ -553,7 +550,9 @@ function onStorageChange(
 <template>
   <div :class="layout === 'embedded' ? 'demo-embedded' : undefined">
     <p v-if="sessionNote" role="status" class="demo-banner">{{ sessionNote }}</p>
-    <p v-if="flowNote && isConfigPage" role="status" class="demo-banner">{{ flowNote }}</p>
+    <p v-if="conflictArmed && isConfigPage" role="status" class="demo-banner">
+      已安排模拟另一台设备修改资料。下一次提交需要校验版本的账户更改时，将返回 REVISION_CONFLICT。
+    </p>
     <div v-if="multiInstance" class="demo-multi-bar">
       <p class="demo-note">
         两个独立的 NovaTheme
@@ -817,16 +816,15 @@ function onStorageChange(
                         type="button"
                         class="demo-chip"
                         :class="{ 'demo-chip-on': conflictArmed }"
-                        :disabled="!signedIn"
-                        @click="armConflict"
+                        :disabled="!signedIn || conflictArmed"
+                        @click="settings.conflict = 'dirty'"
                       >
                         模拟另一设备修改
                       </button>
                     </div>
                     <p class="demo-note">
                       会话过期：下一次账户请求返回 401，随后自动清除本地会话并返回登录页。
-                      外部修改：下一次账户操作返回
-                      REVISION_CONFLICT；演示中刷新页面或重新登录即恢复。
+                      外部修改会让下一次需要校验版本的账户更改发生冲突。重新加载快照后可再次模拟。
                     </p>
                   </div>
                 </section>

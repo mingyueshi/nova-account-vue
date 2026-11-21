@@ -9,7 +9,7 @@ import type {
 } from '../src/types'
 import demoTotpQr from './assets/totp-example.png?inline'
 import { DEMO_EMAIL } from './auth'
-import type { DemoSettings, DemoIdentities } from './auth'
+import type { DemoIdentities } from './auth'
 
 export const DEMO_ACCOUNT_VALUES = {
   currentPassword: '123456',
@@ -45,7 +45,7 @@ interface DemoAccountOptions {
   notificationPreferences?: NotificationPreferenceRow[]
   wait?: (signal: AbortSignal) => Promise<void>
   now?: () => number
-  settings?: () => DemoSettings
+  consumeExternalEdit?: () => boolean
   identities?: DemoIdentities
 }
 const clone = <T>(value: T): T => structuredClone(value)
@@ -193,35 +193,33 @@ export function createInitialAccount(
 export function createDemoAccountAdapter({
   wait = () => new Promise((resolve) => setTimeout(resolve, 350)),
   now = Date.now,
-  settings,
+  consumeExternalEdit,
   identities,
   notificationPreferences,
 }: DemoAccountOptions = {}): AccountAdapter {
   let state = createInitialAccount(now(), notificationPreferences)
   let enrollment: { id: string; accountId: string; expiresAt: number } | undefined
   let issueCounter = 0
-  let emailIssue: { id: number; email: string; expiresAt: number; resendAt: number } | undefined
+  let emailIssue:
+    { accountId: string; email: string; expiresAt: number; resendAt: number } | undefined
+  function emailAccountId() {
+    if (identities && identities.current.user.id !== state.profile.id)
+      fail('CANCELLED', '账户已切换，请重新加载。')
+    return state.profile.id
+  }
   const snapshot = () => clone(state)
   const checkRevision = (context: MutationContext) => {
     assertActive(context)
+    if (consumeExternalEdit?.()) applyExternalEdit()
     if (context.revision !== state.revision)
       fail('REVISION_CONFLICT', '资料已发生变化，请重新加载后再试。')
   }
   const pause = async (context: RequestContext) => {
     assertActive(context)
-    applyExternalEditIfArmed()
     await wait(context.signal)
     assertActive(context)
   }
-  /** One-shot external edit per arming; the next host mutation then reports a revision conflict. */
-  let conflictConsumed = true
-  function applyExternalEditIfArmed() {
-    if (settings?.().conflict !== 'dirty') {
-      conflictConsumed = false
-      return
-    }
-    if (conflictConsumed) return
-    conflictConsumed = true
+  function applyExternalEdit() {
     const next = snapshot()
     next.revision = String(Number(state.revision) + 1)
     next.profile = { ...next.profile, nickname: 'Nova（另一设备）' }
@@ -308,6 +306,8 @@ export function createDemoAccountAdapter({
       await pause(context)
       if (identities && state.profile.id !== identities.current.user.id) {
         enrollment = undefined
+        emailIssue = undefined
+        issueCounter++
         state = createInitialAccount(now(), notificationPreferences)
         state.profile.id = identities.current.user.id
         state.profile.nickname = identities.current.user.displayName
@@ -400,6 +400,7 @@ export function createDemoAccountAdapter({
       )
     },
     async requestEmailChangeCode(input, context) {
+      const accountId = emailAccountId()
       checkPassword(input.currentPassword)
       const email = input.email.trim().toLowerCase()
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) fail('EMAIL_INVALID', '请输入有效的邮箱地址。')
@@ -408,18 +409,25 @@ export function createDemoAccountAdapter({
       if (emailIssue && now() < emailIssue.resendAt) fail('CODE_COOLDOWN', '请稍后再获取验证码。')
       const issue = ++issueCounter
       await pause(context)
-      if (issue !== issueCounter) fail('CANCELLED', '已有新的发码请求，本次结果已失效。')
-      emailIssue = { id: issue, email, expiresAt: now() + 120_000, resendAt: now() + 30_000 }
+      if (issue !== issueCounter || emailAccountId() !== accountId)
+        fail('CANCELLED', '本次发码请求已失效，请重新获取。')
+      emailIssue = { accountId, email, expiresAt: now() + 120_000, resendAt: now() + 30_000 }
       return { expiresAt: emailIssue.expiresAt, retryAfter: 30 }
     },
     async changeEmail(input, context) {
-      const email = input.email.trim().toLowerCase(),
-        issue = emailIssue?.id
+      const accountId = emailAccountId()
+      const email = input.email.trim().toLowerCase()
+      const issue = emailIssue
       await pause(context)
-      if (!emailIssue || issue !== emailIssue.id || emailIssue.email !== email)
+      if (
+        !issue ||
+        issue !== emailIssue ||
+        issue.accountId !== accountId ||
+        emailAccountId() !== accountId ||
+        issue.email !== email
+      )
         fail('EMAIL_CODE_REQUIRED', '请先验证当前密码并获取邮箱验证码。')
-      if (now() >= emailIssue.expiresAt)
-        fail('EMAIL_CODE_EXPIRED', '邮箱验证码已过期，请重新获取。')
+      if (now() >= issue.expiresAt) fail('EMAIL_CODE_EXPIRED', '邮箱验证码已过期，请重新获取。')
       if (input.code.trim() !== DEMO_ACCOUNT_VALUES.code)
         fail('EMAIL_CODE_INVALID', '验证码不正确，请重新输入。')
       const result = commit(

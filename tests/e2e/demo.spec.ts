@@ -573,12 +573,23 @@ test('session expiry: next account request reports 401 and returns to the auth p
 test('external edit: the next account mutation reports a revision conflict', async ({ page }) => {
   await preview(page)
   const host = await hostPanel(page)
-  await host.getByRole('button', { name: '模拟另一设备修改' }).click()
-  await navigate(page, 'profile')
-  await page.getByLabel('昵称', { exact: true }).fill('Conflict draft')
-  await page.getByRole('button', { name: '保存资料', exact: true }).click()
-  // The rejection surfaces both as the section alert and the adapter error line.
-  await expect(page.getByText('资料已发生变化，请重新加载后再试。').first()).toBeVisible()
+  const chip = host.getByRole('button', { name: '模拟另一设备修改' })
+  for (const initialNickname of ['Nova', 'Nova（另一设备）']) {
+    await chip.click()
+    await expect(chip).toBeDisabled()
+    // Reload the snapshot in the same adapter before each write.
+    await host.getByRole('button', { name: /以已验证会话进入/ }).click()
+    await navigate(page, 'profile')
+    const nickname = page.getByLabel('昵称', { exact: true })
+    await expect(nickname).toHaveValue(initialNickname)
+    await nickname.fill('Conflict draft')
+    await page.getByRole('button', { name: '保存资料', exact: true }).click()
+    await expect(page.getByText('资料已发生变化，请重新加载后再试。').first()).toBeVisible()
+    await navigate(page, 'custom:integration')
+    await page.getByRole('button', { name: '放弃并离开', exact: true }).click()
+    await expect(chip).toBeEnabled()
+    await expect(chip).not.toHaveClass(/demo-chip-on/)
+  }
 })
 
 test('math challenge through the #captcha slot: safe error, retry and success', async ({
@@ -809,6 +820,7 @@ test('avatar upload on the profile page and the #profile slot editor', async ({ 
   await page.getByRole('button', { name: '移除头像' }).click()
   await expect(page.getByRole('img', { name: '当前头像' })).toHaveCount(0)
   // The #profile slot replaces the built-in page with the richer host editor.
+  await (await settings(page)).getByRole('combobox', { name: '网络响应' }).selectOption('slow')
   const host = await hostPanel(page)
   await host.getByRole('checkbox', { name: /资料页改用 #profile 插槽/ }).check()
   await navigate(page, 'profile')
@@ -817,8 +829,22 @@ test('avatar upload on the profile page and the #profile slot editor', async ({ 
   await page.getByRole('button', { name: '保存资料' }).click()
   await expect(page.getByText('手机号格式应为 1 开头的 11 位数字。')).toBeVisible()
   await page.getByLabel('联系电话', { exact: true }).fill('13900000000')
-  await page.getByRole('button', { name: '保存资料' }).click()
-  await expect(page.getByRole('status').filter({ hasText: '个人资料已保存' })).toBeVisible()
+  const save = page.getByRole('button', { name: '保存资料' })
+  await fileInput.setInputFiles({ name: 'avatar.png', mimeType: 'image/png', buffer: png })
+  await expect(save).toBeDisabled()
+  await expect(page.getByRole('button', { name: '移除头像' })).toBeEnabled({ timeout: 15000 })
+  await page.getByLabel('展示昵称', { exact: true }).fill('  演示昵称  ')
+  await page.getByLabel('简介', { exact: true }).fill('  演示简介  ')
+  await save.click()
+  await expect(fileInput).toBeDisabled()
+  await expect(page.getByRole('button', { name: '移除头像' })).toBeDisabled()
+  await expect(page.getByRole('status').filter({ hasText: '个人资料已保存' })).toBeVisible({
+    timeout: 15000,
+  })
+  await expect(page.getByLabel('展示昵称', { exact: true })).toHaveValue('演示昵称')
+  await expect(page.getByLabel('简介', { exact: true })).toHaveValue('演示简介')
+  await expect(page.getByText('有未保存的更改', { exact: true })).toHaveCount(0)
+  await expect(fileInput).toBeEnabled()
   await page.getByLabel('新标签名称', { exact: true }).fill('前端')
   await page.getByRole('button', { name: '添加标签' }).click()
   await expect(page.locator('.demo-scene-tag').filter({ hasText: '前端' })).toBeVisible()
@@ -892,6 +918,29 @@ test('storage fault surfaces storageError; OAuth placeholders render through #au
   await storageToggle.check()
   await expect(host.getByRole('alert').filter({ hasText: '外观偏好无法保存' })).toBeVisible()
   await storageToggle.uncheck()
+  await expect(host.getByRole('status').filter({ hasText: '已恢复本地存储' })).toBeVisible()
+  const checkStorage = () =>
+    page.evaluate(() => {
+      localStorage.setItem('nova-storage-test', 'ok')
+      const value = localStorage.getItem('nova-storage-test')
+      localStorage.removeItem('nova-storage-test')
+      return value
+    })
+  expect(await checkStorage()).toBe('ok')
+  // Exercise inherited Storage as well as the browser's native descriptor.
+  await page.evaluate(() => {
+    const descriptor = Object.getOwnPropertyDescriptor(window, 'localStorage')
+    if (descriptor) {
+      Object.defineProperty(Object.getPrototypeOf(window), 'localStorage', descriptor)
+      Reflect.deleteProperty(window, 'localStorage')
+    }
+  })
+  expect(await checkStorage()).toBe('ok')
+  await storageToggle.check()
+  await expect(checkStorage()).rejects.toThrow(/本地存储已禁用/)
+  await storageToggle.uncheck()
+  expect(await page.evaluate(() => Object.hasOwn(window, 'localStorage'))).toBe(false)
+  expect(await checkStorage()).toBe('ok')
   await host.getByRole('checkbox', { name: /#authFooter/ }).check()
   await host.getByRole('button', { name: '返回登录页' }).click()
   await expect(page.getByRole('group', { name: '其他登录方式' })).toBeVisible()

@@ -5,6 +5,7 @@ import {
   DEMO_ACCOUNT_VALUES,
 } from '../demo/account'
 import { isAccountSnapshot } from '../src/snapshot'
+import { createDemoIdentities } from '../demo/auth'
 import { useAccount } from '../src/composables/useAccount'
 import { effectScope, shallowRef } from 'vue'
 import type { AccountAdapter, AccountSnapshot, MutationContext, RequestContext } from '../src/types'
@@ -235,6 +236,52 @@ describe('in-memory demo account adapter', () => {
     await expect(adapter.changeEmail(DEMO_ACCOUNT_VALUES, context())).rejects.toMatchObject({
       code: 'EMAIL_CODE_REQUIRED',
     })
+  })
+  it('clears email verification and resend state when a different account is loaded', async () => {
+    const identities = createDemoIdentities()
+    const wait = vi.fn(instant)
+    const adapter = createDemoAccountAdapter({ identities, wait })
+    await adapter.requestEmailChangeCode(DEMO_ACCOUNT_VALUES, context())
+    const gate = deferred()
+    wait.mockReturnValueOnce(gate.promise)
+    const confirmation = adapter.changeEmail(DEMO_ACCOUNT_VALUES, context())
+    identities.register('second@example.test', 'second-password')
+    gate.resolve()
+    await expect(confirmation).rejects.toMatchObject({ code: 'CANCELLED' })
+    const second = await adapter.load(context())
+    await expect(
+      adapter.changeEmail(DEMO_ACCOUNT_VALUES, context(second.revision)),
+    ).rejects.toMatchObject({
+      code: 'EMAIL_CODE_REQUIRED',
+    })
+    expect(identities.current.user.email).toBe('second@example.test')
+    await expect(
+      adapter.requestEmailChangeCode(
+        {
+          email: 'second-update@example.test',
+          currentPassword: identities.current.password,
+        },
+        context(),
+      ),
+    ).resolves.toMatchObject({ retryAfter: 30 })
+  })
+
+  it('invalidates an in-flight email issue across account switches, including a return to the first account', async () => {
+    const identities = createDemoIdentities()
+    const first = identities.current
+    const pending = deferred()
+    const wait = vi.fn(instant).mockReturnValueOnce(pending.promise)
+    const adapter = createDemoAccountAdapter({ identities, wait })
+    const delivery = adapter.requestEmailChangeCode(DEMO_ACCOUNT_VALUES, context())
+    identities.register('second@example.test', 'second-password')
+    await adapter.load(context())
+    identities.activate(first)
+    await adapter.load(context())
+    pending.resolve()
+    await expect(delivery).rejects.toMatchObject({ code: 'CANCELLED' })
+    await expect(
+      adapter.requestEmailChangeCode(DEMO_ACCOUNT_VALUES, context()),
+    ).resolves.toMatchObject({ retryAfter: 30 })
   })
   it('two-step state needs synthetic credentials and is idempotent', async () => {
     const adapter = createDemoAccountAdapter({ wait: instant })

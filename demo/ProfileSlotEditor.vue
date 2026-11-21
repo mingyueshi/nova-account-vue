@@ -19,10 +19,13 @@ const core = reactive({
 })
 const coreDirty = computed(
   () =>
-    core.nickname !== props.snapshot.profile.nickname || core.bio !== props.snapshot.profile.bio,
+    core.nickname.trim() !== props.snapshot.profile.nickname.trim() ||
+    core.bio.trim() !== props.snapshot.profile.bio.trim(),
 )
 const coreErrors = reactive({ nickname: '' })
 const saving = ref(false)
+const avatarBusy = ref(false)
+const mutationBusy = computed(() => saving.value || avatarBusy.value)
 const note = ref('')
 
 watch(
@@ -40,7 +43,7 @@ function mutationContext(): MutationContext {
   }
 }
 async function saveProfile() {
-  if (saving.value) return
+  if (mutationBusy.value) return
   coreErrors.nickname = core.nickname.trim() ? '' : '昵称不能为空。'
   extrasErrors.phone = /^1\d{10}$/.test(extras.phone.trim())
     ? ''
@@ -52,17 +55,21 @@ async function saveProfile() {
   if (coreErrors.nickname || extrasErrors.phone || extrasErrors.site) return
   saving.value = true
   note.value = ''
+  const submitted = { ...core }
   try {
-    await props.adapter.updateProfile(
+    const saved = await props.adapter.updateProfile(
       {
-        nickname: core.nickname.trim(),
-        bio: core.bio,
+        nickname: submitted.nickname.trim(),
+        bio: submitted.bio.trim(),
         avatar: props.snapshot.profile.avatar,
         avatarUrl: props.snapshot.profile.avatarUrl,
       },
       mutationContext(),
     )
-    await props.refresh()
+    const latest = (await props.refresh()) ?? saved
+    // Keep edits made while the save or refresh was pending.
+    if (core.nickname === submitted.nickname) core.nickname = latest.profile.nickname
+    if (core.bio === submitted.bio) core.bio = latest.profile.bio
     note.value = '个人资料已保存。'
   } catch (cause) {
     note.value = cause instanceof Error ? cause.message : '保存失败，请重试。'
@@ -79,7 +86,6 @@ function resetCore() {
 
 // --- 头像上传（经适配器 uploadAvatar 能力） ---
 const MAX_AVATAR_BYTES = 2 * 1024 * 1024
-const avatarBusy = ref(false)
 const avatarError = ref('')
 const avatarDataUrl = computed(() => props.snapshot.profile.avatarUrl || '')
 async function pushAvatar(dataUrl: string | null) {
@@ -96,7 +102,7 @@ function onAvatarFile(event: Event) {
   const input = event.target as HTMLInputElement
   const file = input.files?.[0]
   input.value = ''
-  if (!file || avatarBusy.value) return
+  if (!file || mutationBusy.value) return
   if (!file.type.startsWith('image/')) {
     avatarError.value = '请选择图片文件。'
     return
@@ -122,7 +128,7 @@ function onAvatarFile(event: Event) {
   reader.readAsDataURL(file)
 }
 async function removeAvatar() {
-  if (avatarBusy.value) return
+  if (mutationBusy.value) return
   avatarBusy.value = true
   try {
     await pushAvatar(null)
@@ -203,6 +209,7 @@ function removeTag(tag: string) {
             <input
               type="file"
               accept="image/*"
+              :disabled="mutationBusy"
               class="demo-scene-sr-input"
               @change="onAvatarFile"
             />
@@ -210,7 +217,7 @@ function removeTag(tag: string) {
           <NovaButton
             v-if="avatarDataUrl"
             variant="ghost"
-            :disabled="avatarBusy"
+            :disabled="mutationBusy"
             @click="removeAvatar"
             >移除头像</NovaButton
           >
@@ -320,7 +327,9 @@ function removeTag(tag: string) {
       </div>
     </section>
     <div class="demo-scene-row">
-      <NovaButton type="submit" variant="primary" :busy="saving">保存资料</NovaButton>
+      <NovaButton type="submit" variant="primary" :busy="saving" :disabled="avatarBusy"
+        >保存资料</NovaButton
+      >
       <NovaButton :disabled="saving || !coreDirty" @click="resetCore">还原</NovaButton>
       <span v-if="coreDirty" class="demo-scene-chip demo-scene-chip-static">有未保存的更改</span>
     </div>

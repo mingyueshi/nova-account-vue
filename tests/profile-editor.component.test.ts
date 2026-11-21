@@ -66,11 +66,40 @@ describe('profile slot editor', () => {
     expect(refresh).toHaveBeenCalled()
     expect(wrapper.find('[role="status"]').text()).toContain('个人资料已保存')
     // Reset returns to the snapshot values.
+    await fieldInput(wrapper, '展示昵称').setValue('新草稿')
     await wrapper
       .findAll('button')
       .find((item) => item.text() === '还原')!
       .trigger('click')
     expect((fieldInput(wrapper, '展示昵称').element as HTMLInputElement).value).toBe('Nova')
+  })
+
+  it('adopts saved values per field and keeps edits typed while refreshing', async () => {
+    const { wrapper, adapter, refresh } = create()
+    const updated = {
+      ...snapshot,
+      revision: '6',
+      profile: { ...snapshot.profile, nickname: '新昵称', bio: '新简介' },
+    }
+    vi.mocked(adapter.updateProfile).mockResolvedValue(updated)
+    let finishRefresh!: (snapshot: AccountSnapshot) => void
+    refresh.mockReturnValueOnce(
+      new Promise((done) => {
+        finishRefresh = done
+      }),
+    )
+    await fieldInput(wrapper, '展示昵称').setValue('  新昵称  ')
+    await fieldInput(wrapper, '简介').setValue('  新简介  ')
+    await wrapper.get('form').trigger('submit')
+    await flushPromises()
+    expect(refresh).toHaveBeenCalledOnce()
+    await fieldInput(wrapper, '简介').setValue('下一份草稿')
+    await wrapper.setProps({ snapshot: updated })
+    finishRefresh(updated)
+    await flushPromises()
+    expect((fieldInput(wrapper, '展示昵称').element as HTMLInputElement).value).toBe('新昵称')
+    expect((fieldInput(wrapper, '简介').element as HTMLTextAreaElement).value).toBe('下一份草稿')
+    expect(wrapper.text()).toContain('有未保存的更改')
   })
 
   it('manages tags with duplicate and limit errors', async () => {
