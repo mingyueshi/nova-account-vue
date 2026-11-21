@@ -302,9 +302,14 @@ export function useAuthFlow(
         operation.context(),
       )
       if (!operation.current()) return
-      ensureFresh(result, t('flow.challenge'))
-      if (!result.id || !['slider', 'custom'].includes(result.kind))
+      if (
+        typeof result?.id !== 'string' ||
+        !result.id.trim() ||
+        !['slider', 'custom'].includes(result.kind) ||
+        !Number.isFinite(result.expiresAt)
+      )
         throw new NovaError(NOVA_ERROR_CODES.CHALLENGE_INVALID, t('flow.challengeInvalid'))
+      ensureFresh(result, t('flow.challenge'))
       challenge.value = result
     } catch (cause) {
       if (operation.current()) challengeError.value = message(cause)
@@ -343,8 +348,13 @@ export function useAuthFlow(
         operation.context(),
       )
       if (!operation.current()) return
+      if (
+        typeof proof?.token !== 'string' ||
+        !proof.token.trim() ||
+        !Number.isFinite(proof.expiresAt)
+      )
+        throw new NovaError(NOVA_ERROR_CODES.PROOF_INVALID, t('flow.proofInvalid'))
       ensureFresh(proof, t('flow.proof'))
-      if (!proof.token) throw new NovaError(NOVA_ERROR_CODES.PROOF_INVALID, t('flow.proofInvalid'))
       if (currentAction === 'send-code') {
         if (boundPurpose === 'login-password')
           throw new NovaError(NOVA_ERROR_CODES.PURPOSE_INVALID, t('flow.purposeInvalid'))

@@ -96,6 +96,29 @@ describe('authentication components', () => {
     expect(wrapper.emitted('submit')).toBeUndefined()
   })
 
+  it.each([
+    { button: 2, isPrimary: true },
+    { button: 1, isPrimary: true },
+    { button: 0, isPrimary: false },
+  ])('ends the drag without submitting on release with %o', async (release) => {
+    const wrapper = mount(NovaCaptcha, {
+      props: { challenge: { id: 'release', kind: 'slider', expiresAt: Date.now() + 100_000 } },
+    })
+    wrappers.push(wrapper)
+    const input = wrapper.get('input').element
+    vi.spyOn(input, 'getBoundingClientRect').mockReturnValue({ left: 0, width: 248 } as DOMRect)
+    const pointer = { pointerId: 1, isPrimary: true, button: 0 }
+    await pointerEvent(input, 'pointerdown', { ...pointer, clientX: 24 })
+    await pointerEvent(input, 'pointermove', { ...pointer, clientX: 224 })
+    await pointerEvent(input, 'pointerup', { ...pointer, ...release, clientX: 224 })
+    await pointerEvent(input, 'pointerup', { ...pointer, clientX: 224 })
+    expect(wrapper.emitted('submit')).toBeUndefined()
+
+    await pointerEvent(input, 'pointerdown', { ...pointer, clientX: 224 })
+    await pointerEvent(input, 'pointerup', { ...pointer, clientX: 224 })
+    expect(wrapper.emitted('submit')).toEqual([[{ value: 100 }]])
+  })
+
   it('invalidates an in-flight drag when the challenge is replaced or becomes busy', async () => {
     const wrapper = mount(NovaCaptcha, {
       props: { challenge: { id: 'first', kind: 'slider', expiresAt: Date.now() + 100_000 } },

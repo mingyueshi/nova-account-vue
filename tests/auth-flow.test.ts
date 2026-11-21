@@ -384,6 +384,62 @@ describe('useAuthFlow', () => {
     expect(adapter.login).toHaveBeenCalledTimes(1)
   })
 
+  it.each([
+    { id: ' \t', expiresAt: deadline },
+    { id: 7, expiresAt: deadline },
+    { id: 'challenge', expiresAt: String(deadline) },
+    { id: 'challenge', expiresAt: Infinity },
+    { id: 'challenge' },
+    null,
+  ])('reports a malformed challenge and allows a fresh one: %o', async (response) => {
+    const adapter = createAdapter()
+    const flow = setup(adapter)
+    adapter.challenge.mockResolvedValueOnce(
+      (response && { kind: 'slider', ...response }) as Challenge,
+    )
+    await flow.submit()
+    expect(flow.challengeError.value).toBe('验证挑战不可用，请联系服务提供方。')
+    expect(flow.challenge.value).toBeNull()
+    await flow.verifyChallenge({ value: 100 })
+    expect(adapter.verifyCaptcha).not.toHaveBeenCalled()
+    await flow.retryChallenge()
+    expect(flow.challenge.value?.id).toBe('challenge-1')
+  })
+
+  it.each([
+    { token: ' \t', expiresAt: deadline },
+    { token: 7, expiresAt: deadline },
+    { token: 'proof', expiresAt: String(deadline) },
+    { token: 'proof', expiresAt: NaN },
+    { token: 'proof' },
+    null,
+  ])('blocks login and code delivery on a malformed proof: %o', async (response) => {
+    const adapter = createAdapter()
+    const flow = setup(adapter)
+    adapter.verifyCaptcha.mockResolvedValue(response as CaptchaProof)
+    await flow.submit()
+    await flow.verifyChallenge({ value: 100 })
+    expect(flow.challengeError.value).toBe('验证服务未返回有效凭证。')
+    expect(adapter.login).not.toHaveBeenCalled()
+
+    flow.mode.value = 'code'
+    await flow.requestCode()
+    await flow.verifyChallenge({ value: 100 })
+    expect(flow.challengeError.value).toBe('验证服务未返回有效凭证。')
+    expect(adapter.sendCode).not.toHaveBeenCalled()
+  })
+
+  it('expires a valid challenge at its exact deadline before verifying', async () => {
+    let time = 1_000
+    const adapter = createAdapter()
+    const flow = setup(adapter, { now: () => time })
+    await flow.submit()
+    time = deadline
+    await flow.verifyChallenge({ value: 100 })
+    expect(flow.challengeError.value).toContain('过期')
+    expect(adapter.verifyCaptcha).not.toHaveBeenCalled()
+  })
+
   it('rejects an expired proof before calling login', async () => {
     const adapter = createAdapter(),
       flow = setup(adapter)

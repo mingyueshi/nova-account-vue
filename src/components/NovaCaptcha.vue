@@ -27,7 +27,7 @@ function submit() {
   emit('submit', { value: value.value })
 }
 function pointerStart(event: PointerEvent) {
-  if (drag || props.busy || event.button !== 0 || event.isPrimary === false) return
+  if (drag || props.busy || event.button !== 0 || !event.isPrimary) return
   event.preventDefault()
   const input = slider.value!
   input.focus({ preventScroll: true })
@@ -50,7 +50,8 @@ function pointerFinish(event: PointerEvent) {
   if (!drag || drag.pointerId !== event.pointerId) return
   pointerMove(event)
   cancelDrag()
-  if (value.value === 100) submit()
+  // With multiple mouse buttons held, the last release can be a different button.
+  if (event.isPrimary && event.button === 0 && value.value === 100) submit()
 }
 function cancelDrag() {
   drag = undefined
